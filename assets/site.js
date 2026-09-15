@@ -238,7 +238,7 @@
   }
 
   /* ---------- Op pages: scroll spy, checklist, resume, status ---------- */
-  var opRoot = document.querySelector("[data-op]");
+  var opRoot = document.querySelector(".page[data-op]");
   if (opRoot) {
     var opId = opRoot.getAttribute("data-op");
     var seenKey = "gh-seen-" + opId;
@@ -268,13 +268,13 @@
       }
     });
 
-    // Phase tracking: scroll position vs a line 30% down the viewport.
-    // Deterministic, no observer lag at section boundaries.
+    // Phase tracking: viewport-relative rects vs a line 30% down the viewport.
+    // Deterministic, no observer lag at section boundaries, no offsetParent math.
     var phaseSections = Array.prototype.slice.call(document.querySelectorAll(".phase[id]"));
     function currentPhaseId() {
-      var line = window.scrollY + window.innerHeight * 0.3;
+      var line = window.innerHeight * 0.3;
       var cur = phaseSections.length ? phaseSections[0].id : null;
-      phaseSections.forEach(function (s) { if (s.offsetTop <= line) cur = s.id; });
+      phaseSections.forEach(function (s) { if (s.getBoundingClientRect().top <= line) cur = s.id; });
       return cur;
     }
     function syncRail() {
@@ -309,6 +309,9 @@
       requestAnimationFrame(function () { saveScroll(); saveTicking = false; });
     }, { passive: true });
     window.addEventListener("pagehide", saveScroll);
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "hidden") saveScroll();
+    });
     if (window.location.hash === "#resume") {
       history.replaceState(null, "", window.location.pathname + window.location.search);
       var restore = function () {
