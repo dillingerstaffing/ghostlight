@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Method: GHOSTLIGHT</title>
+<meta name="description" content="The GHOSTLIGHT reproducibility contract: every command verified on a named OS, transcripts verbatim, failures documented.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='12.5' fill='none' stroke='%23e0642a' stroke-width='2.6'/%3E%3Crect x='14.6' y='5.5' width='2.8' height='21' fill='%23e0642a'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+<div class="ambient" aria-hidden="true">
+  <div class="ambient-glow"></div>
+  <div class="ambient-vignette"></div>
+  <div class="ambient-grain"></div>
+</div>
+
+<header class="site-header">
+  <a class="brand" href="index.html" aria-label="GHOSTLIGHT home">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+    <span class="brand-name">GHOSTLIGHT</span>
+  </a>
+  <nav class="site-nav">
+    <a href="method.html" aria-current="page">METHOD</a>
+    <a href="index.html">FILES</a>
+  </nav>
+</header>
+
+<div class="page">
+  <div class="wrap" style="padding-top:64px">
+    <span class="mlabel reveal" style="color:var(--ember)">The contract</span>
+    <h1 class="reveal" style="font-family:var(--font-display);font-size:clamp(38px,6vw,64px);margin:18px 0 18px;line-height:1.05">The Method</h1>
+    <div class="prose reveal">
+      <p>Security writing is full of commands nobody ran. GHOSTLIGHT files are held to a research standard instead: <strong>if a command appears in a file, it was executed on the named OS and version, and the output shown is what actually came back.</strong> When reality disagreed with the plan, the file says so. That is the whole method.</p>
+    </div>
+
+    <div class="contract reveal" style="margin-top:36px">
+      <div class="contract-row">
+        <div class="n">01</div>
+        <div class="t"><h3>Named environment, always</h3><p>Every file names the exact OS and version the walkthrough was verified on, down to the shell. If your versions differ and a step behaves differently, that is useful data, not your failure.</p></div>
+      </div>
+      <div class="contract-row">
+        <div class="n">02</div>
+        <div class="t"><h3>Transcripts are verbatim</h3><p>Session transcripts are the literal commands and outputs from verification runs. Prompts are normalized to a clean <span style="font-family:var(--font-mono)">user@lab</span> form and pty noise is trimmed, but no command and no output is invented. The replay widget types the real thing.</p></div>
+      </div>
+      <div class="contract-row">
+        <div class="n">03</div>
+        <div class="t"><h3>Failures are published</h3><p>When a defense does not work somewhere, the file names where and why. Example from GH-001: kernel audit watches cannot run in most containers, and append-only file flags do not exist on btrfs. Workarounds are given for each.</p></div>
+      </div>
+      <div class="contract-row">
+        <div class="n">04</div>
+        <div class="t"><h3>Attack first, defense last</h3><p>Every file opens with the stealth working, so you respect the technique, and closes with detection, mitigation, and prevention, so you keep the fix. Green means verified safe. Red means hostile. Those colors never decorate.</p></div>
+      </div>
+      <div class="contract-row">
+        <div class="n">05</div>
+        <div class="t"><h3>Bypasses are named</h3><p>Every countermeasure lists how it can be bypassed and what covers the bypass. A defense whose limits are hidden is a trap; a defense whose limits are stated is a layer.</p></div>
+      </div>
+      <div class="contract-row">
+        <div class="n">06</div>
+        <div class="t"><h3>Victim first</h3><p>Each file answers two questions in order: how do I know whether this exact technique was used against me, and what exactly do I do about it. Theory serves those answers, never the reverse.</p></div>
+      </div>
+    </div>
+
+    <div class="prose reveal">
+      <p><span class="mlabel" style="display:block;margin-bottom:10px">Environment notes</span>
+      Each walkthrough names its exact verification environment, including where that environment falls short. Most steps run on the named OS in a lab environment; any step that needs the kernel's audit subsystem is marked <strong>full VM only</strong>, documented from official sources rather than presented as lab-verified. The walkthrough tells you the exact check that distinguishes the two environments, and what we verified in each.</p>
+      <p><span class="mlabel" style="display:block;margin-bottom:10px">Safety</span>
+      Attack steps run against a dedicated test account on an isolated machine or VM. Nothing here is meant for production systems, other people's machines, or anything you do not own. The techniques are public MITRE ATT&amp;CK entries; the value of this site is the verified defense, not the attack.</p>
+      <p><span class="mlabel" style="display:block;margin-bottom:10px">Corrections</span>
+      Reproduce a file and get a different result on the named OS and version? That is a bug in the file, and it gets fixed with credit. The standard only works if it is enforced.</p>
+    </div>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <div>
+      <div class="footer-brand">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+        <span class="brand-name" style="font-size:17px">GHOSTLIGHT</span>
+      </div>
+      <p class="footer-note">An independent adversary-stealth research publication. Every command verified on the named OS before publishing. No trackers, no frameworks, no autoplay.</p>
+    </div>
+    <nav class="footer-links">
+      <a href="method.html">METHOD</a>
+      <a href="index.html">FILES</a>
+      <a href="https://attack.mitre.org/tactics/TA0005/" rel="noopener">MITRE TA0005</a>
+    </nav>
+  </div>
+</footer>
+
+<script src="assets/site.js"></script>
+</body>
+</html>

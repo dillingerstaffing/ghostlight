@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GHOSTLIGHT: adversary stealth, demonstrated then defeated</title>
+<meta name="description" content="Every MITRE ATT&CK Stealth technique, reproduced in the open on a named OS, then defeated: detection, mitigation, prevention. Every command verified, every step reproducible.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='12.5' fill='none' stroke='%23e0642a' stroke-width='2.6'/%3E%3Crect x='14.6' y='5.5' width='2.8' height='21' fill='%23e0642a'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/site.css">
+<meta property="og:title" content="GHOSTLIGHT: adversary stealth, demonstrated then defeated">
+<meta property="og:description" content="Every MITRE ATT&CK Stealth technique reproduced in the open, then defeated. Verified commands, reproducible steps.">
+<meta property="og:type" content="website">
+</head>
+<body>
+<div class="ambient" aria-hidden="true">
+  <div class="ambient-glow"></div>
+  <div class="ambient-vignette"></div>
+  <div class="ambient-grain"></div>
+</div>
+
+<header class="site-header">
+  <a class="brand" href="index.html" aria-label="GHOSTLIGHT home">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+    <span class="brand-name">GHOSTLIGHT</span>
+  </a>
+  <div class="header-search">
+    <svg viewBox="0 0 16 16" fill="none" stroke="#e8e4d8" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="5.2"/><path d="M11 11l3.4 3.4"/></svg>
+    <input type="search" data-search-input placeholder="Search files, techniques, T-numbers" aria-label="Search case files">
+  </div>
+  <nav class="site-nav">
+    <a href="method.html">METHOD</a>
+    <a href="index.html" aria-current="page">FILES</a>
+  </nav>
+</header>
+
+<div class="page">
+  <section class="hero">
+    <div class="hero-scan" aria-hidden="true"></div>
+    <div class="wrap">
+      <span class="mlabel reveal">Adversary stealth research</span>
+      <h1 class="reveal">GHOST<span class="lamp">LIGHT</span></h1>
+      <p class="hero-lede reveal">A ghost light is the lamp left burning on a dark stage, so nobody walks into the dark blind. This site is a ghost light for your systems. Every stealth technique in the MITRE ATT&amp;CK Stealth pillar, <strong>reproduced in the open</strong> on a named OS, then <strong>defeated</strong>: exactly how to detect it, mitigate it, and prevent it. Every adversary command run in the lab on the named OS before publishing. Every step reproducible from the text.</p>
+      <div class="hero-cta reveal">
+        <a class="btn btn-primary" href="ops/001-clear-command-history/index.html">OPEN FILE GH-001</a>
+        <a class="btn" href="method.html">THE METHOD</a>
+      </div>
+      <div class="hero-stats reveal">
+        <div class="stat"><div class="stat-num"><em>001</em></div><div class="stat-label mlabel">Case files open</div></div>
+        <div class="stat"><div class="stat-num">030</div><div class="stat-label mlabel">Techniques in scope</div></div>
+        <div class="stat"><div class="stat-num">006</div><div class="stat-label mlabel">Phases per file</div></div>
+        <div class="stat"><div class="stat-num">100<em>%</em></div><div class="stat-label mlabel">Adversary steps lab-run</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap" aria-label="Case files">
+    <div class="wartable-head">
+      <h2 class="reveal">The war table</h2>
+      <div class="filters reveal">
+        <button class="chip" data-filter="all" aria-pressed="true">ALL</button>
+        <button class="chip" data-filter="linux" aria-pressed="false">LINUX</button>
+        <button class="chip" data-filter="macos" aria-pressed="false">MACOS</button>
+        <span class="mlabel result-count" data-result-count>01 FILES</span>
+      </div>
+    </div>
+    <div class="mission-grid">
+      <a class="mission-card reveal" data-op="001" data-platform="linux"
+         data-search="GH-001 T1070.003 clear command history vanishing shell linux ubuntu bash history unset histfile"
+         href="ops/001-clear-command-history/index.html">
+        <div class="mission-top">
+          <span class="case-no">GH-001</span>
+          <span class="tech-id">T1070.003</span>
+          <span class="status-chip">UNREAD</span>
+          <span class="resume-chip">RESUME</span>
+        </div>
+        <h3>The Vanishing Shell</h3>
+        <p>An intruder wipes their bash history and walks away clean. We run the wipe, prove nothing is left, then catch it four ways and make the next attempt fail loudly.</p>
+        <div class="mission-meta">
+          <div class="meta-item"><span class="mlabel">Target</span><span class="mvalue">Ubuntu 24.04</span></div>
+          <div class="meta-item"><span class="mlabel">Level</span><span class="mvalue">Beginner</span></div>
+          <div class="meta-item"><span class="mlabel">Time</span><span class="mvalue">25 min</span></div>
+        </div>
+      </a>
+      <div class="empty-state" role="status">
+        <p class="mlabel" style="margin-bottom:12px">No files match</p>
+        <p>Nothing in the archive matches that query. New case files land regularly.</p>
+        <button class="btn" id="clear-filters">CLEAR SEARCH</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap" style="padding-bottom:24px">
+    <div class="prose reveal">
+      <p><span class="mlabel" style="display:block;margin-bottom:10px">Why this exists</span>
+      MITRE ATT&amp;CK is an index of what adversaries already do to us. The techniques are fully known; what is missing is the victim's field manual. Each GHOSTLIGHT file picks one technique and answers two questions in order: <strong>how do I know if this exact thing was used against me</strong>, and <strong>what exactly do I do about it</strong>. Attack first, so you respect it. Defense last, so you keep it.</p>
+    </div>
+  </section>
+</div>
+
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <div>
+      <div class="footer-brand">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+        <span class="brand-name" style="font-size:17px">GHOSTLIGHT</span>
+      </div>
+      <p class="footer-note">An independent adversary-stealth research publication. Every adversary command lab-run on the named OS before publishing. No trackers, no frameworks, no autoplay.</p>
+    </div>
+    <nav class="footer-links">
+      <a href="method.html">METHOD</a>
+      <a href="index.html">FILES</a>
+      <a href="https://attack.mitre.org/tactics/TA0005/" rel="noopener">MITRE TA0005</a>
+    </nav>
+  </div>
+</footer>
+
+<script src="assets/site.js"></script>
+<script>
+document.getElementById("clear-filters").addEventListener("click", function () {
+  var input = document.querySelector("[data-search-input]");
+  input.value = "";
+  input.dispatchEvent(new Event("input"));
+  document.querySelector('[data-filter="all"]').click();
+});
+</script>
+</body>
+</html>
