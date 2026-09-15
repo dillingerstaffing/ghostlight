@@ -100,6 +100,7 @@
       setProgress();
       state = "done";
       runBtn.innerHTML = "RUN REPLAY";
+      runBtn.classList.remove("live");
       setStatus("REPLAY COMPLETE, every command above is copyable and reproducible");
       targetY = 0;
       if (!instant) { currentY = targetY; tape.style.transform = "translateY(0px)"; }
@@ -144,6 +145,7 @@
       if (state === "done" || state === "ready") { reset(); }
       state = "playing";
       runBtn.innerHTML = "PAUSE";
+      runBtn.classList.add("live");
       setStatus("REPLAYING, " + totalCmds + " commands");
       lastT = performance.now();
       raf = requestAnimationFrame(tick);
@@ -152,6 +154,7 @@
       state = "paused";
       cancelAnimationFrame(raf);
       runBtn.innerHTML = "RESUME";
+      runBtn.classList.remove("live");
       setStatus("PAUSED");
     }
     runBtn.addEventListener("click", function () {
