@@ -536,7 +536,8 @@ a.tech-id:hover { color: var(--bone); border-color: var(--bone-faint); }
   html { scroll-behavior: auto; }
 }
 @media (max-width: 640px) {
-  .site-header { flex-wrap: wrap; height: auto; min-height: var(--header-h); padding: 10px 16px; row-gap: 10px; }
+  :root { --header-h: 114px; }
+  .site-header { flex-wrap: wrap; padding: 10px 16px; row-gap: 10px; align-content: center; }
   .header-search { order: 3; flex: 1 1 100%; max-width: none; }
   .site-nav { margin-left: auto; }
   .hero h1 { font-size: clamp(48px, 15vw, 76px); margin: 36px 0 24px; }
