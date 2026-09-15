@@ -2,14 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>GH-001 The Vanishing Shell (T1070.003): GHOSTLIGHT</title>
 <meta name="description" content="T1070.003 Clear Command History, reproduced on Ubuntu 24.04: the wipe working, four ways to detect it, and prevention that survives the attack. Every command verified.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='12.5' fill='none' stroke='%23e0642a' stroke-width='2.6'/%3E%3Crect x='14.6' y='5.5' width='2.8' height='21' fill='%23e0642a'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../../assets/site.css?v=b69d61f6">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css?v=12446ebe">
 </head>
 <body>
 
@@ -38,7 +38,7 @@
         <span class="phase-tag red">PHASE RED INSIDE</span>
       </div>
       <h1>The Vanishing Shell</h1>
-      <p class="lede">An intruder wipes their bash history in three commands and walks away clean. This file runs the wipe, proves nothing is left, then catches it four independent ways and installs prevention that the next attempt cannot silence.</p>
+      <p class="lede">An intruder wipes their bash history in three commands and walks away clean. This file runs the wipe, proves nothing is left, then catches it four independent ways and installs prevention layers that make the next attempt harder to hide, each with its bypass named.</p>
       <div class="op-meta-grid">
         <div class="op-meta"><span class="mlabel">Technique</span><span class="mvalue">Clear Command History</span></div>
         <div class="op-meta"><span class="mlabel">Target OS</span><span class="mvalue">Ubuntu 24.04.5 LTS</span></div>
@@ -53,7 +53,7 @@
           <li data-phase="target-environment"><span class="box"></span>Build the exact lab: Ubuntu 24.04, test account, seeded history</li>
           <li data-phase="phase-red"><span class="box"></span>Run the wipe and confirm the trail is gone</li>
           <li data-phase="phase-blue"><span class="box"></span>Detect the wipe four ways, no prior setup required</li>
-          <li data-phase="countermeasures"><span class="box"></span>Contain the incident, then make the next wipe fail loudly</li>
+          <li data-phase="countermeasures"><span class="box"></span>Contain the incident, then raise the cost of the next wipe</li>
           <li data-phase="debrief"><span class="box"></span>Take the IOC checklist and the one-sentence lesson</li>
         </ol>
       </div>
@@ -77,7 +77,7 @@
           <div class="phase-head"><span class="phase-num">01</span><h2>Intel Brief</h2><span class="phase-tag neutral">CONTEXT</span></div>
           <p class="lede">MITRE ATT&amp;CK <a href="https://attack.mitre.org/techniques/T1070/003/" rel="noopener">T1070.003</a>: adversaries clear command history to hide what they ran. Shell history feels like a record, but it is a convenience feature owned by the user it records, which means anyone holding that user's shell can erase it in three commands.</p>
           <div class="prose">
-            <p><strong>The scenario.</strong> An intruder lands a shell as <strong>ghostdemo</strong> on an Ubuntu 24.04 box, does their reconnaissance, then wipes the history before leaving. You are the analyst who logs in afterward and finds nothing. This file runs that wipe, proves the trail is gone, then shows you how to prove it happened and how to make the next attempt fail loudly.</p>
+            <p><strong>The scenario.</strong> An intruder lands a shell as <strong>ghostdemo</strong> on an Ubuntu 24.04 box, does their reconnaissance, then wipes the history before leaving. You are the analyst who logs in afterward and finds nothing. This file runs that wipe, proves the trail is gone, then shows you how to prove it happened and how to make the next attempt harder to hide.</p>
             <p><strong>Why this technique matters to victims.</strong> On many breached boxes, shell history is the only record of what the intruder typed. When it is gone, most analysts stop looking. The four detection methods in Phase Blue assume you set up nothing in advance.</p>
             <p><strong>Scope.</strong> History wiping has many implementations, from truncating the file to disabling logging per session to tampering at the filesystem layer. This file works one of them end to end, the classic in-shell wipe, and resolves that instance four ways. Treat it as one case in your collection, not the whole technique.</p>
           </div>
@@ -139,42 +139,36 @@ ghostdemo@lab:~$ wc -l ~/.bash_history
             <div>
               <h3>Run the wipe</h3>
               <div class="prose"><p>The intruder does their reconnaissance, then erases it. Press <strong>RUN REPLAY</strong>: this is the literal verified session.</p></div>
-              <div class="session" data-session>
-                <div class="session-bar">
-                  <div class="session-dots" aria-hidden="true"><span></span><span></span><span></span></div>
-                  <span class="session-title">ATTACK RUN, ghostdemo@lab</span>
-                  <span class="verified-badge"><i></i>VERIFIED 2026-09-15</span>
-                  <button class="player-btn" data-action="run">RUN REPLAY</button>
-                  <button class="player-btn ghost" data-action="copy-all">COPY ALL COMMANDS</button>
+              <figure class="recording reveal">
+                <div class="recording-bar">
+                  <span class="rec-dot" aria-hidden="true"></span>
+                  <span class="mlabel">Real screen recording</span>
+                  <span class="dur">00:41</span>
                 </div>
-                <div class="session-screen">
-                  <div class="session-tape">
-                    <div class="tline cmd"><span class="prompt">ghostdemo@lab:~$&nbsp;</span><span class="cmdtext">whoami</span><button class="linecopy" data-copy="whoami">COPY</button></div>
-                    <div class="tline out">ghostdemo</div>
-                    <div class="tline cmd"><span class="prompt">ghostdemo@lab:~$&nbsp;</span><span class="cmdtext">id</span><button class="linecopy" data-copy="id">COPY</button></div>
-                    <div class="tline out">uid=1000(ghostdemo) gid=1000(ghostdemo) groups=1000(ghostdemo)</div>
-                    <div class="tline cmd"><span class="prompt">ghostdemo@lab:~$&nbsp;</span><span class="cmdtext">ls /home</span><button class="linecopy" data-copy="ls /home">COPY</button></div>
-                    <div class="tline out">ghostdemo
-hatch</div>
-                    <div class="tline cmd"><span class="prompt">ghostdemo@lab:~$&nbsp;</span><span class="cmdtext">unset HISTFILE</span><button class="linecopy" data-copy="unset HISTFILE">COPY</button></div>
-                    <div class="tline cmd"><span class="prompt">ghostdemo@lab:~$&nbsp;</span><span class="cmdtext">history -c</span><button class="linecopy" data-copy="history -c">COPY</button></div>
-                    <div class="tline cmd"><span class="prompt">ghostdemo@lab:~$&nbsp;</span><span class="cmdtext">rm -f ~/.bash_history</span><button class="linecopy" data-copy="rm -f ~/.bash_history">COPY</button></div>
-                    <div class="tline cmd"><span class="prompt">ghostdemo@lab:~$&nbsp;</span><span class="cmdtext">echo "checking the damage:"</span><button class="linecopy" data-copy="echo &quot;checking the damage:&quot;">COPY</button></div>
-                    <div class="tline out">checking the damage:</div>
-                    <div class="tline cmd"><span class="prompt">ghostdemo@lab:~$&nbsp;</span><span class="cmdtext">history</span><button class="linecopy" data-copy="history">COPY</button></div>
-                    <div class="tline out">    1  history</div>
-                    <div class="tline cmd"><span class="prompt">ghostdemo@lab:~$&nbsp;</span><span class="cmdtext">ls -la ~/.bash_history</span><button class="linecopy" data-copy="ls -la ~/.bash_history">COPY</button></div>
-                    <div class="tline out alert">ls: cannot access '/home/ghostdemo/.bash_history': No such file or directory</div>
-                  </div>
-                </div>
-                <div class="session-progress"><i></i></div>
-                <div class="session-foot">
-                  <span class="mlabel" data-status>READY</span>
-                  <div class="speed-toggle" role="group" aria-label="Replay speed">
-                    <button data-speed="1" aria-pressed="true">1x</button>
-                    <button data-speed="2" aria-pressed="false">2x</button>
-                  </div>
-                </div>
+                <video controls playsinline preload="metadata" poster="../../assets/vid/red-attack.jpg" aria-label="Screen recording: ATTACK RUN, ghostdemo@lab">
+                  <source src="../../assets/vid/red-attack.mp4" type="video/mp4">
+                </video>
+                <figcaption class="recording-cap"><strong>What you are watching:</strong> The intruder's reconnaissance, then the three-command wipe. Recorded live on Ubuntu 24.04, bash 5.2.21. Every command below is copy-pasteable.</figcaption>
+              </figure>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash, commands in this recording</span><button class="copy-btn" data-copy="whoami
+id
+ls /home
+unset HISTFILE
+history -c
+rm -f ~/.bash_history
+echo &quot;checking the damage:&quot;
+history
+ls -la ~/.bash_history"><span data-label>COPY</span></button></div>
+                <pre>$ whoami
+$ id
+$ ls /home
+$ unset HISTFILE
+$ history -c
+$ rm -f ~/.bash_history
+$ echo &quot;checking the damage:&quot;
+$ history
+$ ls -la ~/.bash_history</pre>
               </div>
               <div class="verdict red">
                 <span class="mlabel">Stealth confirmed</span>
@@ -234,30 +228,20 @@ $ journalctl _COMM=sshd --since "2 hours ago" | grep "session opened"</pre>
             <div>
               <h3>Hunt for tampering</h3>
               <div class="prose"><p>One grep across the shell's startup and shutdown files. The stock Ubuntu comments are noise; anything else is a finding.</p></div>
-              <div class="session" data-session>
-                <div class="session-bar">
-                  <div class="session-dots" aria-hidden="true"><span></span><span></span><span></span></div>
-                  <span class="session-title">TAMPER HUNT, analyst@lab</span>
-                  <span class="verified-badge"><i></i>VERIFIED 2026-09-15</span>
-                  <button class="player-btn" data-action="run">RUN REPLAY</button>
-                  <button class="player-btn ghost" data-action="copy-all">COPY ALL COMMANDS</button>
+              <figure class="recording reveal">
+                <div class="recording-bar">
+                  <span class="rec-dot blue" aria-hidden="true"></span>
+                  <span class="mlabel">Real screen recording</span>
+                  <span class="dur">00:21</span>
                 </div>
-                <div class="session-screen">
-                  <div class="session-tape">
-                    <div class="tline cmd"><span class="prompt">analyst@lab:~$&nbsp;</span><span class="cmdtext">grep -rn "HISTFILE\|history -c" ~/.bashrc ~/.profile ~/.bash_logout /etc/profile.d/ 2&gt;/dev/null</span><button class="linecopy" data-copy="grep -rn &quot;HISTFILE\|history -c&quot; ~/.bashrc ~/.profile ~/.bash_logout /etc/profile.d/ 2>/dev/null">COPY</button></div>
-                    <div class="tline out">/home/ghostdemo/.bashrc:18:# for setting history length see HISTSIZE and HISTFILESIZE in bash(1)</div>
-                    <div class="tline out">/home/ghostdemo/.bashrc:20:HISTFILESIZE=2000</div>
-                    <div class="tline out alert">/home/ghostdemo/.bash_logout:8:history -c</div>
-                  </div>
-                </div>
-                <div class="session-progress"><i></i></div>
-                <div class="session-foot">
-                  <span class="mlabel" data-status>READY</span>
-                  <div class="speed-toggle" role="group" aria-label="Replay speed">
-                    <button data-speed="1" aria-pressed="true">1x</button>
-                    <button data-speed="2" aria-pressed="false">2x</button>
-                  </div>
-                </div>
+                <video controls playsinline preload="metadata" poster="../../assets/vid/tamper-hunt.jpg" aria-label="Screen recording: TAMPER HUNT, analyst@lab">
+                  <source src="../../assets/vid/tamper-hunt.mp4" type="video/mp4">
+                </video>
+                <figcaption class="recording-cap"><strong>What you are watching:</strong> The analyst hunts for tampering: one grep across the shell's startup and shutdown files. Every command below is copy-pasteable.</figcaption>
+              </figure>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash, commands in this recording</span><button class="copy-btn" data-copy="grep -rn &quot;HISTFILE\|history -c&quot; ~/.bashrc ~/.profile ~/.bash_logout /etc/profile.d/ 2&gt;/dev/null"><span data-label>COPY</span></button></div>
+                <pre>$ grep -rn &quot;HISTFILE\|history -c&quot; ~/.bashrc ~/.profile ~/.bash_logout /etc/profile.d/ 2&gt;/dev/null</pre>
               </div>
               <div class="verdict green">
                 <span class="mlabel">Detected</span>
@@ -270,40 +254,29 @@ $ journalctl _COMM=sshd --since "2 hours ago" | grep "session opened"</pre>
             <div>
               <h3>Watch the file die</h3>
               <div class="prose"><p>If you catch it live, or want to prove the mechanism to a skeptic: watch the history file in one terminal while the attack runs in another. The watcher sees the deletion even though the file is gone.</p></div>
-              <div class="session" data-session>
-                <div class="session-bar">
-                  <div class="session-dots" aria-hidden="true"><span></span><span></span><span></span></div>
-                  <span class="session-title">FILE WATCH, analyst@lab</span>
-                  <span class="verified-badge"><i></i>VERIFIED 2026-09-15</span>
-                  <button class="player-btn" data-action="run">RUN REPLAY</button>
-                  <button class="player-btn ghost" data-action="copy-all">COPY ALL COMMANDS</button>
+              <figure class="recording reveal">
+                <div class="recording-bar">
+                  <span class="rec-dot blue" aria-hidden="true"></span>
+                  <span class="mlabel">Real screen recording</span>
+                  <span class="dur">00:25</span>
                 </div>
-                <div class="session-screen">
-                  <div class="session-tape">
-                    <div class="tline cmd"><span class="prompt">analyst@lab:~$&nbsp;</span><span class="cmdtext">inotifywait -m -e delete_self,delete,attrib,move_self --format '%T %e %f' --timefmt '%H:%M:%S' /home/ghostdemo/.bash_history</span><button class="linecopy" data-copy="inotifywait -m -e delete_self,delete,attrib,move_self --format '%T %e %f' --timefmt '%H:%M:%S' /home/ghostdemo/.bash_history">COPY</button></div>
-                    <div class="tline out">Setting up watches.</div>
-                    <div class="tline out">Watches established.</div>
-                    <div class="tline out">04:42:20 ATTRIB</div>
-                    <div class="tline out alert">04:42:20 DELETE_SELF</div>
-                  </div>
-                </div>
-                <div class="session-progress"><i></i></div>
-                <div class="session-foot">
-                  <span class="mlabel" data-status>READY</span>
-                  <div class="speed-toggle" role="group" aria-label="Replay speed">
-                    <button data-speed="1" aria-pressed="true">1x</button>
-                    <button data-speed="2" aria-pressed="false">2x</button>
-                  </div>
-                </div>
+                <video controls playsinline preload="metadata" poster="../../assets/vid/file-watch.jpg" aria-label="Screen recording: FILE WATCH, analyst@lab">
+                  <source src="../../assets/vid/file-watch.mp4" type="video/mp4">
+                </video>
+                <figcaption class="recording-cap"><strong>What you are watching:</strong> An inotify watch on the history file sees the deletion happen live, even though the file is gone. Every command below is copy-pasteable.</figcaption>
+              </figure>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash, commands in this recording</span><button class="copy-btn" data-copy="inotifywait -m -e delete_self,delete,attrib,move_self --format &#x27;%T %e %f&#x27; --timefmt &#x27;%H:%M:%S&#x27; /home/ghostdemo/.bash_history"><span data-label>COPY</span></button></div>
+                <pre>$ inotifywait -m -e delete_self,delete,attrib,move_self --format &#x27;%T %e %f&#x27; --timefmt &#x27;%H:%M:%S&#x27; /home/ghostdemo/.bash_history</pre>
               </div>
-              <div class="prose"><p><strong>DELETE_SELF</strong> at 04:42:20 is the <strong>rm -f ~/.bash_history</strong> landing. Install the watcher with <strong>sudo apt-get install -y inotify-tools</strong> on Ubuntu.</p></div>
+              <div class="prose"><p><strong>DELETE_SELF</strong> in the watch output is the <strong>rm -f ~/.bash_history</strong> landing. Install the watcher with <strong>sudo apt-get install -y inotify-tools</strong> on Ubuntu.</p></div>
             </div>
           </div>
         </section>
 
         <section class="phase" id="countermeasures">
           <div class="phase-head"><span class="phase-num">05</span><h2>Countermeasures</h2><span class="phase-tag blue">DEFENSE</span></div>
-          <p class="lede">First stop the bleeding, then make the next attempt fail loudly. Each layer names its bypass.</p>
+          <p class="lede">First stop the bleeding, then raise the cost of the next attempt. Each layer names its bypass.</p>
           <div class="step">
             <div class="step-num">1</div>
             <div>
@@ -338,42 +311,34 @@ readonly PROMPT_COMMAND
 readonly HISTFILE</pre>
               </div>
               <div class="prose"><p>Install it root-owned and read-only, then re-run the attack and watch it fail to hide. This is the verified session:</p></div>
-              <div class="session" data-session>
-                <div class="session-bar">
-                  <div class="session-dots" aria-hidden="true"><span></span><span></span><span></span></div>
-                  <span class="session-title">PREVENTION PROOF, ghostdemo@lab</span>
-                  <span class="verified-badge"><i></i>VERIFIED 2026-09-15</span>
-                  <button class="player-btn" data-action="run">RUN REPLAY</button>
-                  <button class="player-btn ghost" data-action="copy-all">COPY ALL COMMANDS</button>
+              <figure class="recording reveal">
+                <div class="recording-bar">
+                  <span class="rec-dot blue" aria-hidden="true"></span>
+                  <span class="mlabel">Real screen recording</span>
+                  <span class="dur">00:38</span>
                 </div>
-                <div class="session-screen">
-                  <div class="session-tape">
-                    <div class="tline cmd"><span class="prompt">ghostdemo@lab:~$&nbsp;</span><span class="cmdtext">echo "morning check: services up"</span><button class="linecopy" data-copy="echo &quot;morning check: services up&quot;">COPY</button></div>
-                    <div class="tline out">morning check: services up</div>
-                    <div class="tline cmd"><span class="prompt">ghostdemo@lab:~$&nbsp;</span><span class="cmdtext">whoami</span><button class="linecopy" data-copy="whoami">COPY</button></div>
-                    <div class="tline out">ghostdemo</div>
-                    <div class="tline cmd"><span class="prompt">ghostdemo@lab:~$&nbsp;</span><span class="cmdtext">echo "intruder: staging data for exfil"</span><button class="linecopy" data-copy="echo &quot;intruder: staging data for exfil&quot;">COPY</button></div>
-                    <div class="tline out">intruder: staging data for exfil</div>
-                    <div class="tline cmd"><span class="prompt">ghostdemo@lab:~$&nbsp;</span><span class="cmdtext">ls /etc/*.conf | head -3</span><button class="linecopy" data-copy="ls /etc/*.conf | head -3">COPY</button></div>
-                    <div class="tline out">/etc/adduser.conf
-/etc/ca-certificates.conf
-/etc/debconf.conf</div>
-                    <div class="tline cmd"><span class="prompt">ghostdemo@lab:~$&nbsp;</span><span class="cmdtext">unset HISTFILE</span><button class="linecopy" data-copy="unset HISTFILE">COPY</button></div>
-                    <div class="tline out alert">-bash: unset: HISTFILE: cannot unset: readonly variable</div>
-                    <div class="tline cmd"><span class="prompt">ghostdemo@lab:~$&nbsp;</span><span class="cmdtext">history -c</span><button class="linecopy" data-copy="history -c">COPY</button></div>
-                    <div class="tline cmd"><span class="prompt">ghostdemo@lab:~$&nbsp;</span><span class="cmdtext">rm -f ~/.bash_history</span><button class="linecopy" data-copy="rm -f ~/.bash_history">COPY</button></div>
-                    <div class="tline cmd"><span class="prompt">ghostdemo@lab:~$&nbsp;</span><span class="cmdtext">echo "intruder: trail is clean"</span><button class="linecopy" data-copy="echo &quot;intruder: trail is clean&quot;">COPY</button></div>
-                    <div class="tline out">intruder: trail is clean</div>
-                  </div>
-                </div>
-                <div class="session-progress"><i></i></div>
-                <div class="session-foot">
-                  <span class="mlabel" data-status>READY</span>
-                  <div class="speed-toggle" role="group" aria-label="Replay speed">
-                    <button data-speed="1" aria-pressed="true">1x</button>
-                    <button data-speed="2" aria-pressed="false">2x</button>
-                  </div>
-                </div>
+                <video controls playsinline preload="metadata" poster="../../assets/vid/prevention-proof.jpg" aria-label="Screen recording: PREVENTION PROOF, ghostdemo@lab">
+                  <source src="../../assets/vid/prevention-proof.mp4" type="video/mp4">
+                </video>
+                <figcaption class="recording-cap"><strong>What you are watching:</strong> The attack re-run against the hardened shell. The wipe fails to hide. Every command below is copy-pasteable.</figcaption>
+              </figure>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash, commands in this recording</span><button class="copy-btn" data-copy="echo &quot;morning check: services up&quot;
+whoami
+echo &quot;intruder: staging data for exfil&quot;
+ls /etc/*.conf | head -3
+unset HISTFILE
+history -c
+rm -f ~/.bash_history
+echo &quot;intruder: trail is clean&quot;"><span data-label>COPY</span></button></div>
+                <pre>$ echo &quot;morning check: services up&quot;
+$ whoami
+$ echo &quot;intruder: staging data for exfil&quot;
+$ ls /etc/*.conf | head -3
+$ unset HISTFILE
+$ history -c
+$ rm -f ~/.bash_history
+$ echo &quot;intruder: trail is clean&quot;</pre>
               </div>
               <div class="prose"><p>The wipe still deleted the file. But every keystroke, <strong>including the wipe itself</strong>, was already in the journal with a timestamp. Check it:</p></div>
               <div class="codeblock codeblock-scrollhint">
@@ -480,6 +445,6 @@ authpriv.* @@loghost.internal:514</pre>
   </div>
 </footer>
 
-<script src="../../assets/site.js?v=c5b05762"></script>
+<script src="../../assets/site.js?v=b8843f93"></script>
 </body>
 </html>

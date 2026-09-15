@@ -39,138 +39,28 @@
     if (btn) { copyText(btn.getAttribute("data-copy"), btn); }
   });
 
-  /* ---------- Session player ---------- */
-  function initSession(session) {
-    var tape = session.querySelector(".session-tape");
-    var screen = session.querySelector(".session-screen");
-    var runBtn = session.querySelector('[data-action="run"]');
-    var copyAllBtn = session.querySelector('[data-action="copy-all"]');
-    var statusEl = session.querySelector("[data-status]");
-    var progressEl = session.querySelector(".session-progress i");
-    var speedBtns = session.querySelectorAll("[data-speed]");
-    var lines = Array.prototype.slice.call(tape.querySelectorAll(".tline"));
-    var speed = 1;
-    var state = "ready"; // ready | playing | paused | done
-    var raf = null, stepIdx = 0, charIdx = 0, waitUntil = 0, lastT = 0;
-    var caret = document.createElement("span");
-    caret.className = "caret";
-    var targetY = 0, currentY = 0;
 
-    var steps = lines.map(function (el) {
-      if (el.classList.contains("cmd")) {
-        var span = el.querySelector(".cmdtext");
-        return { type: "cmd", el: el, span: span, text: span.textContent };
-      }
-      return { type: "out", el: el };
-    });
-    var totalCmds = steps.filter(function (s) { return s.type === "cmd"; }).length;
-
-    speedBtns.forEach(function (b) {
-      b.addEventListener("click", function () {
-        speedBtns.forEach(function (x) { x.setAttribute("aria-pressed", "false"); });
-        b.setAttribute("aria-pressed", "true");
-        speed = parseFloat(b.getAttribute("data-speed"));
+  /* ---------- Long codeblocks: collapse with expander ---------- */
+  document.querySelectorAll(".codeblock").forEach(function (block) {
+    var body = block.querySelector("pre");
+    if (!body || block.querySelector(".codeblock-expand")) return;
+    if (body.scrollHeight > 360) {
+      block.classList.add("long");
+      var wrap = document.createElement("div");
+      wrap.className = "codeblock-body";
+      block.insertBefore(wrap, body);
+      wrap.appendChild(body);
+      var btn = document.createElement("button");
+      btn.className = "codeblock-expand";
+      btn.innerHTML = '<span class="more">Show full output</span><span class="less">Show less</span>';
+      btn.setAttribute("aria-expanded", "false");
+      btn.addEventListener("click", function () {
+        var open = block.classList.toggle("open");
+        btn.setAttribute("aria-expanded", open ? "true" : "false");
       });
-    });
-
-    function setStatus(t) { if (statusEl) statusEl.textContent = t; }
-    function setProgress() {
-      if (progressEl) progressEl.style.transform = "scaleX(" + (stepIdx / steps.length) + ")";
+      block.appendChild(btn);
     }
-    function reset() {
-      cancelAnimationFrame(raf);
-      stepIdx = 0; charIdx = 0; targetY = 0; currentY = 0;
-      steps.forEach(function (s) {
-        s.el.classList.remove("dim");
-        if (s.type === "cmd") { s.span.textContent = ""; if (caret.parentNode) caret.parentNode.removeChild(caret); }
-        else { s.el.style.visibility = "hidden"; }
-      });
-      tape.style.transform = "translateY(0px)";
-      setProgress();
-    }
-    function finish(instant) {
-      cancelAnimationFrame(raf);
-      steps.forEach(function (s) {
-        s.el.classList.remove("dim");
-        if (s.type === "cmd") { s.span.textContent = s.text; }
-        else { s.el.style.visibility = ""; }
-      });
-      if (caret.parentNode) caret.parentNode.removeChild(caret);
-      stepIdx = steps.length;
-      setProgress();
-      state = "done";
-      runBtn.innerHTML = "RUN REPLAY";
-      runBtn.classList.remove("live");
-      setStatus("REPLAY COMPLETE, every command above is copyable and reproducible");
-      targetY = 0;
-      if (!instant) { currentY = targetY; tape.style.transform = "translateY(0px)"; }
-    }
-    function keepVisible(el) {
-      var screenH = screen.clientHeight;
-      var top = el.offsetTop + currentY;
-      var bottom = top + el.offsetHeight;
-      if (bottom > screenH - 60) targetY = Math.min(0, targetY - (bottom - (screenH - 60)));
-      if (top < 40) targetY = Math.min(0, targetY + (40 - top));
-    }
-    function tick(t) {
-      if (state !== "playing") return;
-      var dt = Math.min(64, t - lastT); lastT = t;
-      // smooth tape scroll (transform only)
-      currentY += (targetY - currentY) * 0.18;
-      if (Math.abs(targetY - currentY) > 0.5) tape.style.transform = "translateY(" + currentY + "px)";
-      if (t < waitUntil) { raf = requestAnimationFrame(tick); return; }
-      var s = steps[stepIdx];
-      if (!s) { finish(false); return; }
-      if (s.type === "cmd") {
-        if (charIdx === 0) { s.el.appendChild(caret); keepVisible(s.el); }
-        var cps = 26 * speed; // chars per second
-        charIdx += Math.max(1, Math.round(cps * dt / 1000));
-        s.span.textContent = s.text.slice(0, charIdx);
-        if (charIdx >= s.text.length) {
-          s.span.textContent = s.text;
-          charIdx = 0; stepIdx++;
-          waitUntil = t + 160 / speed;
-        }
-      } else {
-        s.el.style.visibility = "";
-        keepVisible(s.el);
-        stepIdx++;
-        waitUntil = t + 260 / speed;
-      }
-      setProgress();
-      raf = requestAnimationFrame(tick);
-    }
-    function play() {
-      if (state === "playing") return;
-      if (state === "done" || state === "ready") { reset(); }
-      state = "playing";
-      runBtn.innerHTML = "PAUSE";
-      runBtn.classList.add("live");
-      setStatus("REPLAYING, " + totalCmds + " commands");
-      lastT = performance.now();
-      raf = requestAnimationFrame(tick);
-    }
-    function pause() {
-      state = "paused";
-      cancelAnimationFrame(raf);
-      runBtn.innerHTML = "RESUME";
-      runBtn.classList.remove("live");
-      setStatus("PAUSED");
-    }
-    runBtn.addEventListener("click", function () {
-      if (reduced) { finish(true); return; }
-      if (state === "playing") pause(); else play();
-    });
-    // Double-click run button while paused steps one command. Keep simple: not exposed.
-    if (copyAllBtn) {
-      copyAllBtn.addEventListener("click", function () {
-        var cmds = steps.filter(function (s) { return s.type === "cmd"; }).map(function (s) { return s.text; });
-        copyText(cmds.join("\n"), copyAllBtn);
-      });
-    }
-    setStatus("READY, transcript below is the exact verified run");
-  }
-  document.querySelectorAll("[data-session]").forEach(initSession);
+  });
 
   /* ---------- Reveal on scroll ---------- */
   if ("IntersectionObserver" in window && !reduced) {

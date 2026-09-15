@@ -2,16 +2,16 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>GHOSTLIGHT: adversary stealth, demonstrated then defeated</title>
-<meta name="description" content="Every MITRE ATT&CK Stealth technique, reproduced in the open on a named OS, then defeated: detection, mitigation, prevention. Every command verified, every step reproducible.">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GHOSTLIGHT: adversary stealth, demonstrated then shut down</title>
+<meta name="description" content="Every MITRE ATT&CK Stealth technique, reproduced in the open on a named OS, then shut down one documented way: detection, mitigation, prevention. Every adversary command lab-run, every step reproducible.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='12.5' fill='none' stroke='%23e0642a' stroke-width='2.6'/%3E%3Crect x='14.6' y='5.5' width='2.8' height='21' fill='%23e0642a'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/site.css?v=b69d61f6">
-<meta property="og:title" content="GHOSTLIGHT: adversary stealth, demonstrated then defeated">
-<meta property="og:description" content="Every MITRE ATT&CK Stealth technique reproduced in the open, then defeated. Verified commands, reproducible steps.">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/site.css?v=12446ebe">
+<meta property="og:title" content="GHOSTLIGHT: adversary stealth, demonstrated then shut down">
+<meta property="og:description" content="Every MITRE ATT&CK Stealth technique reproduced in the open, then shut down one way among many. Lab-run commands, reproducible steps.">
 <meta property="og:type" content="website">
 </head>
 <body>
@@ -33,50 +33,62 @@
 
 <div class="page">
   <section class="hero">
-    <div class="wrap">
-      <span class="mlabel reveal">Adversary stealth research</span>
-      <h1 class="reveal">GHOST<span class="lamp">LIGHT</span></h1>
-      <p class="hero-lede reveal">A ghost light is the lamp left burning on a dark stage, so nobody walks into the dark blind. This site is a ghost light for your systems. Every stealth technique in the MITRE ATT&amp;CK Stealth pillar, <strong>reproduced in the open</strong> on a named OS, then <strong>defeated</strong>: exactly how to detect it, mitigate it, and prevent it. Every adversary command run in the lab on the named OS before publishing. Every step reproducible from the text. Each file shows one way in and one way to shut it, among many.</p>
-      <div class="hero-cta reveal">
-        <a class="btn btn-primary" href="ops/001-clear-command-history/index.html">OPEN FILE GH-001</a>
-        <a class="btn" href="method.html">THE METHOD</a>
+      <div class="wrap">
+        <div class="doc-head reveal">
+          <span>Field dossier</span><span>TA0005 // Stealth</span><span>File 001 of 030</span>
+          <span class="doc-status">Status: active</span>
+        </div>
+        <h1 class="reveal">Every stealth<br>technique has<br><span class="ember">a tell.</span></h1>
+        <p class="hero-lede reveal">A ghost light is the lamp left burning on a dark stage, so nobody walks into the dark blind. This site is a ghost light for your systems. Every stealth technique in the MITRE ATT&amp;CK Stealth pillar, <strong>reproduced in the open</strong> on a named OS, then <strong>shut down, one way among many</strong>: how to detect it, mitigate it, and prevent it, with the alternative approaches named along the way. Every adversary command run in the lab on the named OS before publishing. Every step reproducible from the text.</p>
+        <div class="hero-cta reveal">
+          <a class="btn btn-primary" href="ops/001-clear-command-history/index.html">Open file GH-001</a>
+          <a class="btn" href="method.html">The method</a>
+        </div>
+        <dl class="hero-specs reveal">
+          <div><dt>Case files open</dt><dd class="hot">001</dd></div>
+          <div><dt>Techniques in scope</dt><dd>030</dd></div>
+          <div><dt>Phases per file</dt><dd>006</dd></div>
+          <div><dt>Adversary steps lab-run</dt><dd>100%</dd></div>
+        </dl>
       </div>
-      <div class="hero-stats reveal">
-        <div class="stat"><div class="stat-num"><em>001</em></div><div class="stat-label mlabel">Case files open</div></div>
-        <div class="stat"><div class="stat-num">030</div><div class="stat-label mlabel">Techniques in scope</div></div>
-        <div class="stat"><div class="stat-num">006</div><div class="stat-label mlabel">Phases per file</div></div>
-        <div class="stat"><div class="stat-num">100<em>%</em></div><div class="stat-label mlabel">Adversary steps lab-run</div></div>
-      </div>
-    </div>
-  </section>
+      <div class="hero-ghost" aria-hidden="true">05</div>
+    </section>
 
   <section class="wrap" aria-label="Case files">
+    <div class="file-index-head reveal">
+      <h2>Case files</h2>
+      <span class="mlabel count" data-result-count>01 files</span>
+    </div>
     <div class="wartable-head">
-      <h2 class="reveal">The war table</h2>
-      <div class="filters reveal">
-        <button class="chip" data-filter="all" aria-pressed="true">ALL</button>
-        <button class="chip" data-filter="linux" aria-pressed="false">LINUX</button>
-        <button class="chip" data-filter="macos" aria-pressed="false">MACOS</button>
-        <span class="mlabel result-count" data-result-count>01 FILES</span>
+      <div class="filter-chips reveal">
+        <button data-filter="all" aria-pressed="true">All</button>
+        <button data-filter="linux" aria-pressed="false">Linux</button>
+        <button data-filter="macos" aria-pressed="false">macOS</button>
       </div>
     </div>
-    <div class="mission-grid">
+    <div class="manifest">
       <a class="mission-card reveal" data-op="001" data-platform="linux"
          data-search="GH-001 T1070.003 clear command history vanishing shell linux ubuntu bash history unset histfile"
          href="ops/001-clear-command-history/index.html">
-        <div class="mission-top">
-          <span class="case-no">GH-001</span>
-          <span class="tech-id">T1070.003</span>
-          <span class="status-chip">UNREAD</span>
-          <span class="resume-chip">RESUME</span>
-        </div>
-        <h3>The Vanishing Shell</h3>
-        <p>An intruder wipes their bash history and walks away clean. We run the wipe, prove nothing is left, then catch it four ways and make the next attempt fail loudly.</p>
-        <div class="mission-meta">
-          <div class="meta-item"><span class="mlabel">Target</span><span class="mvalue">Ubuntu 24.04</span></div>
-          <div class="meta-item"><span class="mlabel">Level</span><span class="mvalue">Beginner</span></div>
-          <div class="meta-item"><span class="mlabel">Time</span><span class="mvalue">25 min</span></div>
-        </div>
+        <span class="file-index">001</span>
+        <span class="file-main">
+          <span class="file-top">
+            <span class="case-no">GH-001</span>
+            <span class="tech-id">T1070.003</span>
+          </span>
+          <span class="file-title">The Vanishing Shell</span>
+          <span class="file-desc">An intruder wipes their bash history and walks away clean. We run the wipe, prove nothing is left, then catch it four ways and raise the cost of the next attempt.</span>
+          <span class="file-meta">
+            <span class="meta-item"><span class="mlabel">Target</span><span class="mvalue">Ubuntu 24.04</span></span>
+            <span class="meta-item"><span class="mlabel">Level</span><span class="mvalue">Beginner</span></span>
+            <span class="meta-item"><span class="mlabel">Time</span><span class="mvalue">25 min</span></span>
+          </span>
+        </span>
+        <span class="file-side">
+          <span class="status-chip">Unread</span>
+          <span class="resume-chip">Resume</span>
+          <span class="file-arrow">&rarr;</span>
+        </span>
       </a>
       <div class="empty-state" role="status">
         <p class="mlabel" style="margin-bottom:12px">No files match</p>
@@ -111,7 +123,7 @@
   </div>
 </footer>
 
-<script src="assets/site.js?v=c5b05762"></script>
+<script src="assets/site.js?v=b8843f93"></script>
 <script>
 document.getElementById("clear-filters").addEventListener("click", function () {
   var input = document.querySelector("[data-search-input]");
