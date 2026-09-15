@@ -503,6 +503,55 @@ a.tech-id:hover { color: var(--bone); border-color: var(--bone-faint); }
 }
 .footer-links a:hover { color: var(--ember); }
 
+/* ---------- Article: content column ---------- */
+.op-content { min-width: 0; max-width: 860px; }
+.rail .pnum { font-variant-numeric: tabular-nums; color: var(--bone-faint); font-size: 11px; letter-spacing: 0.08em; }
+.phase-tag.neutral { color: var(--bone-dim); }
+
+/* ---------- Article: verdicts, callouts, checklists, takeaway ---------- */
+.verdict {
+  border: 1px solid var(--hairline); border-left: 2px solid var(--bone-faint);
+  border-radius: 2px; background: var(--panel);
+  padding: 18px 20px; margin: 0 0 1.6em; max-width: 72ch;
+}
+.verdict .mlabel { display: block; margin-bottom: 8px; }
+.verdict p { margin: 0; color: var(--bone-dim); font-size: 15.5px; }
+.verdict p strong { color: var(--bone); font-weight: 500; }
+.verdict.green { border-left-color: var(--signal); }
+.verdict.green .mlabel { color: var(--signal); }
+.verdict.red { border-left-color: var(--alarm); }
+.verdict.red .mlabel { color: var(--alarm); }
+.callout {
+  border: 1px solid var(--hairline); border-radius: 2px; background: var(--panel-2);
+  padding: 16px 20px; margin: 0 0 1.6em; max-width: 72ch;
+}
+.callout p { margin: 0; color: var(--bone-dim); font-size: 15px; }
+.callout p strong { color: var(--bone); font-weight: 500; }
+.checklist {
+  list-style: none; margin: 0 0 2em; padding: 0; max-width: 72ch;
+  border-top: 1px solid var(--hairline-soft);
+}
+.checklist li {
+  display: flex; gap: 14px; align-items: baseline;
+  padding: 10px 0; border-bottom: 1px solid var(--hairline-soft);
+  color: var(--bone-dim); font-size: 15px;
+}
+.checklist li::before {
+  content: ""; width: 7px; height: 7px; flex-shrink: 0;
+  border: 1px solid var(--bone-faint); border-radius: 1px;
+  transform: translateY(-1px);
+}
+.checklist li strong { color: var(--bone); font-weight: 500; }
+.takeaway {
+  font-family: var(--font-mono); font-size: 17px; line-height: 1.7; color: var(--bone);
+  border-left: 2px solid var(--ember); padding: 4px 0 4px 20px; margin: 0 0 2em; max-width: 60ch;
+}
+
+/* ---------- Footer brand ---------- */
+.footer-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.footer-brand svg { width: 26px; height: 26px; display: block; }
+.footer-note { margin: 0; color: var(--bone-faint); font-size: 13.5px; max-width: 52ch; }
+
 /* ---------- Responsive ---------- */
 @media (max-width: 960px) {
   .op-layout { grid-template-columns: 1fr; }
