@@ -524,6 +524,12 @@ a:hover { color: var(--ember); }
   .session-tape { font-size: 13px; padding: 16px; }
 }
 
+@media (max-width: 640px) {
+  .site-header { flex-wrap: wrap; height: auto; min-height: var(--header-h); padding: 10px 16px; row-gap: 10px; }
+  .header-search { order: 3; flex: 1 1 100%; max-width: none; min-width: 0; }
+  .site-nav { margin-left: auto; }
+}
+
 @media (max-width: 560px) {
   .site-nav a { padding: 12px 8px; }
   .brand-name { font-size: 17px; }

@@ -268,41 +268,64 @@
       }
     });
 
-    if ("IntersectionObserver" in window) {
-      var spy = new IntersectionObserver(function (entries) {
-        entries.forEach(function (en) {
-          if (en.isIntersecting) {
-            var id = en.target.id;
-            railLinks.forEach(function (a) {
-              var on = a.getAttribute("href") === "#" + id;
-              a.classList.toggle("active", on);
-              if (on && window.innerWidth < 960) {
-                a.scrollIntoView({ block: "nearest", inline: "nearest" });
-              }
-            });
-            markSeen(id);
-          }
-        });
-      }, { rootMargin: "-35% 0px -55% 0px" });
-      document.querySelectorAll(".phase[id]").forEach(function (s) { spy.observe(s); });
+    // Phase tracking: scroll position vs a line 30% down the viewport.
+    // Deterministic, no observer lag at section boundaries.
+    var phaseSections = Array.prototype.slice.call(document.querySelectorAll(".phase[id]"));
+    function currentPhaseId() {
+      var line = window.scrollY + window.innerHeight * 0.3;
+      var cur = phaseSections.length ? phaseSections[0].id : null;
+      phaseSections.forEach(function (s) { if (s.offsetTop <= line) cur = s.id; });
+      return cur;
     }
-
-    // Resume: throttled scroll save
-    var ticking = false;
-    window.addEventListener("scroll", function () {
-      if (ticking) return;
-      ticking = true;
-      requestAnimationFrame(function () {
-        try { localStorage.setItem("gh-scroll-" + opId, String(window.scrollY)); } catch (e) {}
-        ticking = false;
+    function syncRail() {
+      var id = currentPhaseId();
+      if (!id) return;
+      railLinks.forEach(function (a) {
+        var on = a.getAttribute("href") === "#" + id;
+        if (on && !a.classList.contains("active") && window.innerWidth < 960) {
+          a.scrollIntoView({ block: "nearest", inline: "nearest" });
+        }
+        a.classList.toggle("active", on);
       });
+      markSeen(id);
+    }
+    var spyTicking = false;
+    window.addEventListener("scroll", function () {
+      if (spyTicking) return;
+      spyTicking = true;
+      requestAnimationFrame(function () { syncRail(); spyTicking = false; });
     }, { passive: true });
+    window.addEventListener("resize", function () { syncRail(); });
+    syncRail();
+
+    // Resume: throttled scroll save, plus pagehide so the last position survives
+    var saveTicking = false;
+    function saveScroll() {
+      try { localStorage.setItem("gh-scroll-" + opId, String(window.scrollY)); } catch (e) {}
+    }
+    window.addEventListener("scroll", function () {
+      if (saveTicking) return;
+      saveTicking = true;
+      requestAnimationFrame(function () { saveScroll(); saveTicking = false; });
+    }, { passive: true });
+    window.addEventListener("pagehide", saveScroll);
     if (window.location.hash === "#resume") {
-      try {
-        var y = parseInt(localStorage.getItem("gh-scroll-" + opId) || "0", 10);
-        if (y > 200) { setTimeout(function () { window.scrollTo(0, y); }, 60); }
-      } catch (e) {}
-      history.replaceState(null, "", window.location.pathname);
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+      var restore = function () {
+        try {
+          var y = parseInt(localStorage.getItem("gh-scroll-" + opId) || "0", 10);
+          if (y > 200) {
+            var root = document.documentElement;
+            var prev = root.style.scrollBehavior;
+            root.style.scrollBehavior = "auto";
+            window.scrollTo(0, y);
+            root.style.scrollBehavior = prev;
+            syncRail();
+          }
+        } catch (e) {}
+      };
+      if (document.readyState === "complete") { setTimeout(restore, 150); }
+      else { window.addEventListener("load", function () { setTimeout(restore, 150); }); }
     }
 
     function updateCardStatus() {
