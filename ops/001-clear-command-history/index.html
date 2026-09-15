@@ -377,7 +377,7 @@ The audit system is disabled</pre>
                 <pre>$ sudo auditctl -w /home/ghostdemo/.bash_history -p wa -k bash_history
 $ sudo auditctl -e 2   # immutable: rules stand until reboot</pre>
               </div>
-              <div class="prose"><p>Re-run the Phase Red wipe, then read the kernel's own account with <strong>sudo ausearch -k bash_history -i</strong>. The unlink event names the process that deleted the file. Make the rules permanent in <strong>/etc/audit/rules.d/</strong> so they survive reboot.</p></div>
+              <div class="prose"><p>Re-run the Phase Red wipe, then read the kernel's own account with <strong>sudo ausearch -k bash_history -i</strong>. The unlink event names the process that deleted the file. Make the rules permanent in <strong>/etc/audit/rules.d/</strong> so they survive reboot. MITRE D3FEND names this class of defense <a href="https://d3fend.mitre.org/technique/d3f:OperationalProcessMonitoring/" rel="noopener">Operational Process Monitoring (D3-OPM)</a>: the lab built it first, the framework gives it a name.</p></div>
             </div>
           </div>
           <div class="step">
@@ -418,10 +418,10 @@ authpriv.* @@loghost.internal:514</pre>
           <a href="https://man7.org/linux/man-pages/man1/inotifywait.1.html" rel="noopener">inotifywait(1)</a> (DELETE_SELF semantics)</p></div>
         </section>
 
-        <a class="next-file" href="../../index.html">
+        <a class="next-file" href="../002-ld-preload-rootkit/index.html">
           <span class="mlabel">Next file</span>
-          <h3>GH-002: in preparation</h3>
-          <p>The next Stealth technique file is being verified now. Back to the war table.</p>
+          <h3>GH-002: The Lying Library</h3>
+          <p>T1014 Rootkit: a 70-line library makes ps lie. Cross-view detection with a raw syscall.</p>
         </a>
       </div>
     </div>

