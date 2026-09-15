@@ -1,0 +1,24 @@
+# GHOSTLIGHT: adversary stealth, demonstrated then shut down
+
+> Red-team research on MITRE ATT&CK's Stealth pillar (TA0005): every technique reproduced in the open on a named OS, then shut down one documented way (detection, mitigation, prevention). Every adversary command is lab-run before publishing; every step is reproducible from the text.
+
+GHOSTLIGHT is a research publication by Chris Dillinger, a freelance low-level C, RISC-V, and OS kernel systems programmer. The premise: a ghost light is the lamp left burning on a dark stage so nobody walks into the dark blind. This site is a ghost light for systems work. Each case file takes one stealth technique, demonstrates the attack exactly as an adversary would run it, then documents how to detect it, mitigate it, and prevent it, naming alternative approaches along the way.
+
+URL: https://dillingerstaffing.github.io/ghostlight/
+
+## Case files
+
+- GH-001 The Vanishing Shell (T1070.003 Clear Command History): the history wipe working on Ubuntu 24.04.5 with Bash 5.2.21, four ways to detect it, and prevention that survives the attack. URL: https://dillingerstaffing.github.io/ghostlight/ops/001-clear-command-history/
+- GH-002 The Lying Library (T1014 Rootkit): a 70-line LD_PRELOAD library that makes ps lie on Ubuntu 24.04, cross-view detection with a raw syscall, and the exact hole closed, with 4 real screen recordings. URL: https://dillingerstaffing.github.io/ghostlight/ops/002-ld-preload-rootkit/
+
+## Method
+
+The reproducibility contract: every command verified on a named OS, transcripts verbatim, failures documented, full-VM-only steps marked as documented from official sources rather than lab-run. Read first: https://dillingerstaffing.github.io/ghostlight/method.html
+
+## Scope
+
+30 parent techniques in the MITRE ATT&CK Stealth pillar (TA0005), each mapped against the D3FEND defensive ontology where defenders exist; gaps are marked explicitly rather than filled in.
+
+## Who publishes this
+
+Chris Dillinger, freelance embedded C and RISC-V firmware engineer. Profile: https://www.linkedin.com/in/christopherdillinger/ . Contact: shipthisgroup@gmail.com
