@@ -1,4 +1,7 @@
 /* GHOSTLIGHT: field dossier instrument. Oswald for display, JetBrains Mono for data. */
+/* Mobile contract: the page never scrolls sideways. clip (not hidden) keeps
+   position: sticky working. */
+html, body { overflow-x: clip; }
 :root {
   --void: #0a0c0f;
   --panel: #101318;
