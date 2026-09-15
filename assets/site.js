@@ -172,14 +172,16 @@
       if (!id) return;
       railLinks.forEach(function (a) {
         var on = a.getAttribute("href") === "#" + id;
-        if (on && !a.classList.contains("active") && window.innerWidth < 960) {
+        if (on && !a.classList.contains("active") && window.innerWidth < 960 && !railInit) {
           a.scrollIntoView({ block: "nearest", inline: "nearest" });
         }
         a.classList.toggle("active", on);
       });
+      railInit = false;
       markSeen(id);
     }
     var spyTicking = false;
+    var railInit = true;
     window.addEventListener("scroll", function () {
       if (spyTicking) return;
       spyTicking = true;
@@ -257,18 +259,7 @@
     } else if (keys.length > 0) {
       chip.textContent = "IN PROGRESS";
       chip.classList.add("progress");
-      if (y > 200) {
-        card.classList.add("has-resume");
-        var resume = card.querySelector(".resume-chip");
-        if (resume) resume.parentNode.setAttribute("href", resume.parentNode.getAttribute("href"));
-      }
-    }
-  });
-  // Resume chips point at #resume
-  document.querySelectorAll(".mission-card .resume-chip").forEach(function (r) {
-    var link = r.closest("a.mission-card");
-    if (link && link.getAttribute("href").indexOf("#resume") === -1) {
-      link.setAttribute("href", link.getAttribute("href") + "#resume");
+      if (y > 200) card.classList.add("has-resume");
     }
   });
 })();

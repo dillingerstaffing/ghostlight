@@ -6,10 +6,18 @@
 <title>GHOSTLIGHT: adversary stealth, demonstrated then shut down</title>
 <meta name="description" content="Every MITRE ATT&CK Stealth technique, reproduced in the open on a named OS, then shut down one documented way: detection, mitigation, prevention. Every adversary command lab-run, every step reproducible.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='12.5' fill='none' stroke='%23e0642a' stroke-width='2.6'/%3E%3Crect x='14.6' y='5.5' width='2.8' height='21' fill='%23e0642a'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="manifest" href="assets/manifest.webmanifest">
+<meta name="theme-color" content="#0a0c0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GHOSTLIGHT">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/site.css?v=08329a4d">
+<link rel="stylesheet" href="assets/site.css?v=7aea888f">
 <meta property="og:title" content="GHOSTLIGHT: adversary stealth, demonstrated then shut down">
 <meta property="og:description" content="Every MITRE ATT&CK Stealth technique reproduced in the open, then shut down one way among many. Lab-run commands, reproducible steps.">
 <meta property="og:type" content="website">
@@ -67,9 +75,9 @@
       </div>
     </div>
     <div class="manifest">
-      <a class="mission-card reveal" data-op="001" data-platform="linux"
-         data-search="GH-001 T1070.003 clear command history vanishing shell linux ubuntu bash history unset histfile"
-         href="ops/001-clear-command-history/index.html">
+      <article class="mission-card reveal" data-op="001" data-platform="linux"
+         data-search="GH-001 T1070.003 clear command history vanishing shell linux ubuntu bash history unset histfile">
+        <a class="card-open" href="ops/001-clear-command-history/index.html" aria-label="Open file GH-001: The Vanishing Shell">
         <span class="file-index">001</span>
         <span class="file-main">
           <span class="file-top">
@@ -84,15 +92,16 @@
             <span class="meta-item"><span class="mlabel">Time</span><span class="mvalue">25 min</span></span>
           </span>
         </span>
+        </a>
         <span class="file-side">
           <span class="status-chip">Unread</span>
-          <span class="resume-chip">Resume</span>
+          <a class="resume-chip" href="ops/001-clear-command-history/index.html#resume">Resume</a>
           <span class="file-arrow">&rarr;</span>
         </span>
-      </a>
-      <a class="mission-card reveal" data-op="002" data-platform="linux"
-         data-search="GH-002 T1014 rootkit lying library ld_preload preload hide process libghost deepscan getdents64 linux ubuntu"
-         href="ops/002-ld-preload-rootkit/index.html">
+      </article>
+      <article class="mission-card reveal" data-op="002" data-platform="linux"
+         data-search="GH-002 T1014 rootkit lying library ld_preload preload hide process libghost deepscan getdents64 linux ubuntu">
+        <a class="card-open" href="ops/002-ld-preload-rootkit/index.html" aria-label="Open file GH-002: The Lying Library">
         <span class="file-index">002</span>
         <span class="file-main">
           <span class="file-top">
@@ -107,12 +116,13 @@
             <span class="meta-item"><span class="mlabel">Time</span><span class="mvalue">40 min</span></span>
           </span>
         </span>
+        </a>
         <span class="file-side">
           <span class="status-chip">Unread</span>
-          <span class="resume-chip">Resume</span>
+          <a class="resume-chip" href="ops/002-ld-preload-rootkit/index.html#resume">Resume</a>
           <span class="file-arrow">&rarr;</span>
         </span>
-      </a>
+      </article>
       <div class="empty-state" role="status">
         <p class="mlabel" style="margin-bottom:12px">No files match</p>
         <p>Nothing in the archive matches that query. New case files land regularly.</p>
@@ -146,7 +156,7 @@
   </div>
 </footer>
 
-<script src="assets/site.js?v=b8843f93"></script>
+<script src="assets/site.js?v=55a6124c"></script>
 <script>
 document.getElementById("clear-filters").addEventListener("click", function () {
   var input = document.querySelector("[data-search-input]");

@@ -189,20 +189,24 @@ a { color: inherit; }
   background: var(--panel); overflow: hidden;
 }
 .mission-card {
-  display: grid; grid-template-columns: 110px minmax(0, 1fr) auto; gap: 32px;
-  padding: 30px 34px; text-decoration: none; color: var(--bone);
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 32px;
+  padding: 30px 34px; color: var(--bone);
   border-top: 1px solid var(--hairline-soft);
   transition: background var(--t-quick) var(--e-out);
   position: relative;
 }
 .mission-card:first-child { border-top: none; }
 .mission-card:hover { background: var(--panel-2); }
+.card-open {
+  display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 32px;
+  min-width: 0; text-decoration: none; color: inherit;
+}
 .file-index {
   font-family: var(--font-display); font-weight: 600; font-size: 68px; line-height: 0.9;
   color: var(--bone-faint); font-variant-numeric: tabular-nums;
   transition: color var(--t-quick) var(--e-out);
 }
-.mission-card:hover .file-index { color: var(--ember); }
+.card-open:hover .file-index { color: var(--ember); }
 .file-main { min-width: 0; }
 .file-top { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; flex-wrap: wrap; }
 .case-no {
@@ -237,7 +241,7 @@ a.tech-id:hover { color: var(--bone); border-color: var(--bone-faint); }
   display: none;
   font-family: var(--font-mono); font-size: 10.5px; font-weight: 700; letter-spacing: 0.16em;
   color: #0a0c0f; background: var(--ember); border-radius: 2px; padding: 7px 10px;
-  white-space: nowrap;
+  white-space: nowrap; text-decoration: none;
 }
 .mission-card.has-resume .resume-chip { display: inline-block; }
 .mission-card.has-resume .status-chip { display: none; }
@@ -576,7 +580,7 @@ a.tech-id:hover { color: var(--bone); border-color: var(--bone-faint); }
   .site-header { gap: 12px; padding: 0 16px; }
   .wrap { padding: 0 16px; }
   .rail { margin: 0 -16px; padding: 10px 16px; }
-  .mission-card { grid-template-columns: 84px minmax(0, 1fr); }
+  .card-open { grid-template-columns: 84px minmax(0, 1fr); }
   .file-side { grid-column: 1 / -1; flex-direction: row; align-items: center; }
   .file-index { font-size: 52px; }
   .recording video { aspect-ratio: 16 / 10; }
@@ -614,6 +618,7 @@ a.tech-id:hover { color: var(--bone); border-color: var(--bone-faint); }
   .op-meta:nth-child(-n+2) { border-top: none; }
   .file-index-head { margin-top: 56px; }
   .mission-card { grid-template-columns: 1fr; gap: 18px; padding: 24px 22px; }
+  .card-open { grid-template-columns: 1fr; gap: 18px; }
   .file-index { font-size: 44px; }
   .file-side { flex-direction: row; }
   .next-file { padding: 26px 22px; }
