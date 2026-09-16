@@ -10,7 +10,6 @@ URL: https://dillingerstaffing.github.io/ghostlight/
 
 - GH-001 The Vanishing Shell (T1070.003 Clear Command History): the history wipe working on Ubuntu 24.04.5 with Bash 5.2.21, four ways to detect it, and prevention that survives the attack. URL: https://dillingerstaffing.github.io/ghostlight/ops/001-clear-command-history/
 - GH-002 The Lying Library (T1014 Rootkit): a 70-line LD_PRELOAD library that makes ps lie on Ubuntu 24.04, cross-view detection with a raw syscall, and the exact hole closed, with 4 real screen recordings. URL: https://dillingerstaffing.github.io/ghostlight/ops/002-ld-preload-rootkit/
-- GH-003 The Borrowed Body (T1055.008 Ptrace System Calls): a 200-line injector makes a sleeping process run attacker code under its own pid on Ubuntu 24.04, detected via the tracer relationship and a one-line memory-map diff, locked with seccomp-bpf, with 4 real screen recordings. URL: https://dillingerstaffing.github.io/ghostlight/ops/003-ptrace-injection/
 
 ## Method
 
