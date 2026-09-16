@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>GH-005 The Forged Clock (T1070.006): GHOSTLIGHT</title>
+<meta name="description" content="T1070.006 Timestomp, reproduced on Ubuntu 24.04: one touch command backdates a payload to 2019, and ls believes it. stat does not, because the kernel keeps one timestamp touch cannot set. Every command verified.">
+<link rel="canonical" href="https://dillingerstaffing.github.io/ghostlight/ops/005-forged-clock/">
+<meta property="og:title" content="GH-005 The Forged Clock (T1070.006): GHOSTLIGHT">
+<meta property="og:description" content="T1070.006 Timestomp, reproduced on Ubuntu 24.04: one touch command backdates a payload to 2019, and ls believes it. stat does not, because the kernel keeps one timestamp touch cannot set. Every command verified.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dillingerstaffing.github.io/ghostlight/ops/005-forged-clock/">
+<meta property="og:site_name" content="GHOSTLIGHT">
+<meta property="og:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="GH-005 The Forged Clock (T1070.006): GHOSTLIGHT">
+<meta name="twitter:description" content="T1070.006 Timestomp, reproduced on Ubuntu 24.04: one touch command backdates a payload to 2019, and ls believes it. stat does not, because the kernel keeps one timestamp touch cannot set. Every command verified.">
+<meta name="twitter:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='12.5' fill='none' stroke='%23e0642a' stroke-width='2.6'/%3E%3Crect x='14.6' y='5.5' width='2.8' height='21' fill='%23e0642a'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+<link rel="manifest" href="../../assets/manifest.webmanifest">
+<meta name="theme-color" content="#0a0c0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GHOSTLIGHT">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css?v=dfafd4c0">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"GH-005 The Forged Clock (T1070.006): GHOSTLIGHT",
+"url":"https://dillingerstaffing.github.io/ghostlight/ops/005-forged-clock/","description":"T1070.006 Timestomp, reproduced on Ubuntu 24.04: one touch command backdates a payload to 2019, and ls believes it. stat does not, because the kernel keeps one timestamp touch cannot set. Every command verified.",
+"author":{"@type":"Person","name":"Chris Dillinger","url":"https://www.linkedin.com/in/christopherdillinger/"},
+"inLanguage":"en"}
+</script>
+</head>
+<body>
+
+<header class="site-header">
+  <a class="brand" href="../../index.html" aria-label="GHOSTLIGHT home">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+    <span class="brand-name">GHOSTLIGHT</span>
+  </a>
+  <nav class="site-nav">
+    <a href="../../method.html">METHOD</a>
+    <a href="../../index.html">FILES</a>
+  </nav>
+</header>
+
+<div class="onboard" data-onboard hidden>
+  <span><strong>How to read a file:</strong> every file follows the six-phase structure below. <span class="k-green">Green</span> is verified, <span class="k-red">red</span> is hostile.</span>
+  <button aria-label="Dismiss">GOT IT</button>
+</div>
+
+<div class="page" data-op="005">
+  <div class="wrap">
+    <section class="op-hero">
+      <div class="op-kicker">
+        <span class="case-no">GH-005</span>
+        <a class="tech-id" href="https://attack.mitre.org/techniques/T1070/006/" rel="noopener">T1070.006</a>
+        <span class="phase-tag red">PHASE RED INSIDE</span>
+      </div>
+      <h1>The Forged Clock</h1>
+      <p class="lede">This file was last modified in 2019. It was created nine minutes ago. One command forged the date; one command catches the forgery. This file runs both.</p>
+      <div class="op-meta-grid">
+        <div class="op-meta"><span class="mlabel">Technique</span><span class="mvalue">Timestomp (file timestamps)</span></div>
+        <div class="op-meta"><span class="mlabel">Target OS</span><span class="mvalue">Ubuntu 24.04.5 LTS</span></div>
+        <div class="op-meta"><span class="mlabel">Toolchain</span><span class="mvalue">coreutils</span></div>
+        <div class="op-meta"><span class="mlabel">Level</span><span class="mvalue">Beginner</span></div>
+        <div class="op-meta"><span class="mlabel">Time</span><span class="mvalue">20 min</span></div>
+      </div>
+      <div class="objectives">
+        <h2>OBJECTIVES</h2>
+        <ol>
+          <li data-phase="phase-red"><span class="box"></span>Backdate a new payload to 2019 with touch, and watch ls report it as old</li>
+          <li data-phase="phase-blue"><span class="box"></span>Catch the forgery in stat: the kernel's own timestamp still says today</li>
+          <li data-phase="countermeasures"><span class="box"></span>Hunt timestomped files with one find command</li>
+          <li data-phase="debrief"><span class="box"></span>Take the IOC checklist and the one-sentence lesson</li>
+        </ol>
+      </div>
+    </section>
+
+    <div class="op-layout">
+      <nav class="rail" aria-label="Phases">
+        <span class="mlabel">Phases</span>
+        <ol>
+          <li><a href="#intel-brief"><span class="pnum">01</span>INTEL BRIEF<span class="tick"></span></a></li>
+          <li><a href="#target-environment"><span class="pnum">02</span>TARGET ENV<span class="tick"></span></a></li>
+          <li><a href="#phase-red"><span class="pnum">03</span>PHASE RED<span class="tick"></span></a></li>
+          <li><a href="#phase-blue"><span class="pnum">04</span>PHASE BLUE<span class="tick"></span></a></li>
+          <li><a href="#countermeasures"><span class="pnum">05</span>COUNTERMEASURES<span class="tick"></span></a></li>
+          <li><a href="#debrief"><span class="pnum">06</span>DEBRIEF<span class="tick"></span></a></li>
+        </ol>
+      </nav>
+
+      <div class="op-content">
+        <section class="phase" id="intel-brief">
+          <div class="phase-head"><span class="phase-num">01</span><h2>Intel Brief</h2><span class="phase-tag neutral">CONTEXT</span></div>
+          <p class="lede">MITRE ATT&amp;CK <a href="https://attack.mitre.org/techniques/T1070/006/" rel="noopener">T1070.006</a>: adversaries rewrite file timestamps so a fresh payload looks years old. This file forges the date with the standard tool, then reads the timestamp the forgery cannot touch.</p>
+          <div class="prose">
+            <p><strong>Why this technique.</strong> After a breach, the first question is "what changed recently," and the answer comes from timestamps. A responder sorts /tmp by date, and everything from 2019 scrolls past unexamined. Timestomping forges the answer to that first question: the payload sits in plain sight, wearing the date of an innocent era.</p>
+            <p><strong>Why the default view loses.</strong> <strong>ls -l</strong> shows one timestamp, the modification time, and nothing else. The other timestamps exist, but you have to ask for them with <strong>stat</strong>. The forgery targets the default view, because the default view is what gets read at 3 AM.</p>
+            <p><strong>Why one timestamp survives.</strong> A file on Linux carries four timestamps. <strong>atime</strong> is the last read. <strong>mtime</strong> is the last content write, and the owner may set it freely with the <strong>utimensat</strong> syscall (that is what <strong>touch -d</strong> calls). <strong>ctime</strong> is the last time the file's metadata changed, and the kernel sets it itself on every metadata write: there is no syscall that sets ctime to an arbitrary value. <strong>btime</strong>, the birth time, records creation where the filesystem supports it. Forging mtime is one syscall the owner is allowed to make; it updates ctime to right now as a side effect, and the kernel keeps the receipt.</p>
+            <p><strong>The concrete case, before the abstraction.</strong> <strong>touch -d '2019-06-11 03:14:00' .systemd-cache</strong> backdates a file created today. <strong>ls -l</strong> reports 2019. <strong>stat</strong> reports Modify: 2019, Change: today. Same file, two stories; only the second one was written by the kernel.</p>
+            <p><strong>Terms, earned.</strong> <strong>mtime</strong> is the modification timestamp, the one ls shows, settable by the file's owner. <strong>ctime</strong> is the change timestamp, set by the kernel whenever the file's metadata changes, not settable to an arbitrary value. <strong>btime</strong> is the birth timestamp, the file's creation time. <strong>Timestomp</strong> is T1070.006: rewriting timestamps to mislead forensic timelines.</p>
+          </div>
+          <div class="callout"><p><strong>Scope.</strong> T1070, Indicator Removal, has ten sub-techniques, from clearing logs to deleting files. This file works the timestamp one end to end: the forgery every responder's first sort is vulnerable to, and the receipt that survives it.</p></div>
+        </section>
+
+        <section class="phase" id="target-environment">
+          <div class="phase-head"><span class="phase-num">02</span><h2>Target Environment</h2><span class="phase-tag neutral">LOADOUT</span></div>
+          <p class="lede">Ubuntu 24.04.5 LTS, x86-64, in a disposable VM used only for this lab. The attack is one coreutils command and needs no privilege: any user can set the timestamps on their own files. The lab directory is /tmp/gh005.</p>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Build the lab</h3>
+              <div class="prose"><p>There is nothing to compile. The payload is eighteen bytes of text with an inconspicuous name, because the filename and the date do all the work.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="mkdir -p /tmp/gh005 &amp;&amp; cd /tmp/gh005&#10;echo 'staged payload v3' &gt; .systemd-cache"><span data-label>COPY</span></button></div>
+                <pre>$ mkdir -p /tmp/gh005 && cd /tmp/gh005
+$ echo 'staged payload v3' > .systemd-cache</pre>
+              </div>
+              <div class="prose"><p>A dotfile named like a systemd cache entry, in /tmp. Nothing about it demands attention, and after Phase Red, nothing about its date will either.</p></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="phase-red">
+          <div class="phase-head"><span class="phase-num">03</span><h2>Phase Red: backdate the evidence</h2><span class="phase-tag red">ATTACK</span></div>
+          <p class="lede">One command reaches seven years into the past. Then ask the directory listing when the file was modified, and believe the answer the way a tired responder would.</p>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">9.3s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/forged-red.jpg" aria-label="Screen recording: FORGED RED, operator@lab">
+              <source src="../../assets/vid/forged-red.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> A file created today is given a 2019 modification date. The directory listing reports it as seven years old. Every command below is copy-pasteable.</figcaption>
+          </figure>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Forge the date</h3>
+              <div class="prose"><p>The payload was created minutes ago. After this command, every default listing will say 2019.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo 'staged payload v3' &gt; .systemd-cache&#10;touch -d '2019-06-11 03:14:00' .systemd-cache&#10;ls -l --time-style=long-iso .systemd-cache"><span data-label>COPY</span></button></div>
+                <pre>$ echo 'staged payload v3' > .systemd-cache
+$ touch -d '2019-06-11 03:14:00' .systemd-cache
+$ ls -l --time-style=long-iso .systemd-cache
+-rw-rw---- 1 root root 18 2019-06-11 03:14 .systemd-cache</pre>
+              </div>
+              <div class="prose"><p>June 2019. A responder sorting /tmp by modification date to find "what changed recently" scrolls straight past it; the file predates the incident window, the investigation, and possibly the responder's employment. The forgery is complete, it used a standard tool, and it left the file's contents untouched. Nothing about this file looks new, because <strong>new</strong> was the one attribute the attacker was allowed to rewrite.</p></div>
+              <div class="verdict red">
+                <span class="mlabel">Stealth confirmed</span>
+                <p>One touch command gave a minutes-old payload a seven-year-old date, and the standard directory listing vouches for it. The forgery is a legitimate syscall doing exactly what it was designed to do, which is why no permission was denied and no alarm fired.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="phase-blue">
+          <div class="phase-head"><span class="phase-num">04</span><h2>Phase Blue: read the receipt</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">ls showed the timestamp the file's owner chose. Now read all four timestamps, including the one the owner cannot choose.</p>
+          <div class="prose">
+            <p>Here is the trap: sorting by date, seeing 2019, and moving on. The modification time is the file's own story about itself, and the owner is allowed to edit their own story. The kernel keeps a separate receipt, and the receipt cannot be edited.</p>
+          </div>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot blue" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">8.0s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/forged-blue.jpg" aria-label="Screen recording: FORGED BLUE, operator@lab">
+              <source src="../../assets/vid/forged-blue.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> stat prints all three timestamps. Modify says 2019; Change says today. The forgery is caught by the receipt. Every command below is copy-pasteable.</figcaption>
+          </figure>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Ask for every timestamp</h3>
+              <div class="prose"><p>Same file ls just vouched for. Three timestamps, and they do not agree.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="stat -c 'access: %x\nmodify: %y\nchange: %z' .systemd-cache"><span data-label>COPY</span></button></div>
+                <pre>$ stat -c 'access: %x' .systemd-cache
+access: 2019-06-10 23:14:00.000000000 -0400
+$ stat -c 'modify: %y' .systemd-cache
+modify: 2019-06-10 23:14:00.000000000 -0400
+$ stat -c 'change: %z' .systemd-cache
+change: 2026-09-16 15:26:23.024766798 -0400</pre>
+              </div>
+              <div class="prose"><p>Modify says 2019, exactly as forged. Change says today, down to the nanosecond: the moment the <strong>touch</strong> command rewrote the metadata. The attacker set the clock on the file, and the kernel timestamped the act of setting it. A file whose modification date is years older than its change date is not old; it is edited. The full <strong>stat</strong> output adds a fourth witness, the birth time, also today. Two timestamps the owner set, two the kernel wrote, and the kernel's are the ones that matter.</p></div>
+              <div class="verdict green">
+                <span class="mlabel">Detection verified</span>
+                <p>One stat command exposed the forgery ls could not see. The check needs no baseline and no tooling: mtime is the claim, ctime is the receipt, and the receipt is written by the kernel.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="countermeasures">
+          <div class="phase-head"><span class="phase-num">05</span><h2>Countermeasures</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">Three moves, in order: hunt by the receipt, watch for the pattern, stop trusting the claim. Each is one way, not the way.</p>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Mitigate: hunt by change time, not modify time</h3>
+              <div class="prose"><p>If you are hunting the payload, do not sort by mtime; the attacker chose that sort order. Sort by ctime: the kernel's record of when the metadata was actually touched.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="find /tmp /var/tmp /dev/shm -newerct '2026-09-01' -type f -printf '%p change=%C+ modify=%T+\n' 2&gt;/dev/null"><span data-label>COPY</span></button></div>
+                <pre>$ find /tmp /var/tmp /dev/shm -newerct '2026-09-01' -type f -printf '%p change=%C+ modify=%T+\n' 2&gt;/dev/null
+/tmp/gh005/.systemd-cache change=2026-09-16+15:26:23.0247667980 modify=2019-06-10+23:14:00.0000000000</pre>
+              </div>
+              <div class="prose"><p>One line, and the "2019" file is the newest thing in /tmp. Printing change and modify side by side turns every timestomped file into a self-confession: the wider the gap, the louder the lie.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>Monitor: baseline the metadata, not just the bytes</h3>
+              <div class="prose"><p>File integrity monitoring watches for changes; the trick is watching the right changes. A FIM baseline that records hashes, ctimes, and inodes notices the touch even though the bytes never changed. D3FEND names the family <a href="https://d3fend.mitre.org/technique/d3f:FileIntegrityMonitoring/" rel="noopener">File Integrity Monitoring (D3-FIM)</a>: detecting suspicious changes to files, including the metadata kind.</p></div>
+              <div class="callout"><p><strong>Honest limit.</strong> FIM sees only what changed after the baseline was taken; a file timestomped before the first scan looks legitimately old to it. ctime trusts the system clock: an attacker who can set the clock (root, or a VM host) can narrow the gap. And ctime is per-filesystem: copying the file elsewhere mints fresh stamps, so a payload smuggled in as a copy carries no gap to find. The receipt is honest, not omniscient.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>Prevent: nothing to prevent, everything to distrust</h3>
+              <div class="prose"><p>There is no prevention here, and that is the point. Setting timestamps is a legitimate syscall; <strong>touch</strong> is coreutils, <strong>utimensat</strong> is how backups and build tools preserve dates. You cannot remove the capability without breaking the system. The control is procedural: never let mtime alone decide what is old. Triage sorts by ctime, FIM baselines include metadata, and timelines are built from the receipt, not the claim.</p></div>
+              <div class="verdict green">
+                <span class="mlabel">Countermeasures verified</span>
+                <p>The forgery cannot be prevented, only seen through. Hunting by ctime finds the payload despite its 2019 costume, FIM baselines catch the metadata change, and the procedural fix costs nothing: read the receipt, not the story.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="debrief">
+          <div class="phase-head"><span class="phase-num">06</span><h2>Debrief</h2><span class="phase-tag neutral">TAKEAWAY</span></div>
+          <p class="takeaway">mtime is the file's own story about itself. ctime is the kernel's receipt for the edit. touch cannot rewrite the receipt.</p>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">IOC checklist: signs this technique was used</span></p></div>
+          <ul class="checklist">
+            <li><span>Files whose <strong>mtime</strong> is far older than their <strong>ctime</strong>: the signature gap</span></li>
+            <li><span>Executables or dotfiles in <strong>/tmp</strong>, <strong>/var/tmp</strong>, <strong>/dev/shm</strong> with old-looking dates</span></li>
+            <li><span>Clusters of files sharing one identical forged timestamp (attackers backdate in bulk)</span></li>
+            <li><span>Birth times (<strong>btime</strong>) much newer than modification times</span></li>
+            <li><span>Timelines where the payload's mtime predates the intrusion window it was found in</span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Reproducibility checklist</span></p></div>
+          <ul class="checklist">
+            <li><span>Verified on <strong>Ubuntu 24.04.5 LTS</strong>, x86-64, on 2026-09-16</span></li>
+            <li><span>Both recordings are real executions on that platform, not simulations</span></li>
+            <li><span>The attack runs fully unprivileged: touch on your own files needs no privilege</span></li>
+            <li><span>Cleanup: rm -rf /tmp/gh005</span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Sources</span></p></div>
+          <div class="prose"><p><a href="https://attack.mitre.org/techniques/T1070/006/" rel="noopener">MITRE ATT&amp;CK T1070.006: Timestomp</a><br>
+          <a href="https://man7.org/linux/man-pages/man2/utimensat.2.html" rel="noopener">utimensat(2)</a> (the syscall touch uses; note what it cannot set)<br>
+          <a href="https://man7.org/linux/man-pages/man1/stat.1.html" rel="noopener">stat(1)</a> (reading all four timestamps)<br>
+          <a href="https://d3fend.mitre.org/" rel="noopener">MITRE D3FEND</a>: <a href="https://d3fend.mitre.org/technique/d3f:FileIntegrityMonitoring/" rel="noopener">D3-FIM</a></p></div>
+        </section>
+
+        <a class="next-file" href="../006-missing-lines/index.html">
+          <span class="mlabel">Next file</span>
+          <h3>GH-006 The Missing Lines</h3>
+          <p>The log says nothing happened. A second copy of the log, written beyond the attacker's reach, disagrees.</p>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <div>
+      <div class="footer-brand">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+        <span class="brand-name" style="font-size:17px">GHOSTLIGHT</span>
+      </div>
+      <p class="footer-note">An independent adversary-stealth research publication. Every command verified on the named OS before publishing. No trackers, no frameworks, no autoplay.</p>
+    </div>
+    <nav class="footer-links">
+      <a href="../../method.html">METHOD</a>
+      <a href="../../index.html">FILES</a>
+      <a href="https://attack.mitre.org/tactics/TA0005/" rel="noopener">MITRE TA0005</a>
+    </nav>
+    <div class="footer-elsewhere">
+      <span class="mlabel">Elsewhere</span><a href="https://dillingerstaffing.github.io/portfolio/" target="_blank" rel="noopener">Portfolio</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/proving-ground/" target="_blank" rel="noopener">Proving Ground</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/tapeout/" target="_blank" rel="noopener">Tapeout</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/old-iron/" target="_blank" rel="noopener">Old Iron</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/unstuck/" target="_blank" rel="noopener">Unstuck</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../../assets/site.js?v=55a6124c"></script>
+</body>
+</html>

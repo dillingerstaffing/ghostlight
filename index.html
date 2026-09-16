@@ -58,7 +58,7 @@
   <section class="hero">
       <div class="wrap">
         <div class="doc-head reveal">
-          <span>Field dossier</span><span>TA0005 // Stealth</span><span>File 002 of 030</span>
+          <span>Field dossier</span><span>TA0005 // Stealth</span><span>File 006 of 030</span>
           <span class="doc-status">Status: active</span>
         </div>
         <h1 class="reveal">Every stealth<br>technique has<br><span class="ember">a tell.</span></h1>
@@ -68,7 +68,7 @@
           <a class="btn" href="method.html">The method</a>
         </div>
         <dl class="hero-specs reveal">
-          <div><dt>Case files open</dt><dd class="hot">002</dd></div>
+          <div><dt>Case files open</dt><dd class="hot">006</dd></div>
           <div><dt>Techniques in scope</dt><dd>030</dd></div>
           <div><dt>Phases per file</dt><dd>006</dd></div>
           <div><dt>Adversary steps lab-run</dt><dd>100%</dd></div>
@@ -159,6 +159,78 @@
         <span class="file-side">
           <span class="status-chip">Unread</span>
           <a class="resume-chip" href="ops/003-ptrace-injection/index.html#resume">Resume</a>
+          <span class="file-arrow">&rarr;</span>
+        </span>
+      </article>
+      <article class="mission-card reveal" data-op="004" data-platform="linux"
+         data-search="GH-004 T1036 masquerading false name process name cron ps comm argv exe proc linux ubuntu">
+        <a class="card-open" href="ops/004-false-name/index.html" aria-label="Open file GH-004: The False Name">
+        <span class="file-index">004</span>
+        <span class="file-main">
+          <span class="file-top">
+            <span class="case-no">GH-004</span>
+            <span class="tech-id">T1036</span>
+          </span>
+          <span class="file-title">The False Name</span>
+          <span class="file-desc">A sleeper binary renamed cron fools ps at a glance. We forge the name, then readlink /proc/pid/exe to see the file the kernel actually ran.</span>
+          <span class="file-meta">
+            <span class="meta-item"><span class="mlabel">Target</span><span class="mvalue">Ubuntu 24.04</span></span>
+            <span class="meta-item"><span class="mlabel">Level</span><span class="mvalue">Beginner</span></span>
+            <span class="meta-item"><span class="mlabel">Time</span><span class="mvalue">20 min</span></span>
+          </span>
+        </span>
+        </a>
+        <span class="file-side">
+          <span class="status-chip">Unread</span>
+          <a class="resume-chip" href="ops/004-false-name/index.html#resume">Resume</a>
+          <span class="file-arrow">&rarr;</span>
+        </span>
+      </article>
+      <article class="mission-card reveal" data-op="005" data-platform="linux"
+         data-search="GH-005 T1070.006 timestomp forged clock touch mtime ctime stat file timestamp linux ubuntu">
+        <a class="card-open" href="ops/005-forged-clock/index.html" aria-label="Open file GH-005: The Forged Clock">
+        <span class="file-index">005</span>
+        <span class="file-main">
+          <span class="file-top">
+            <span class="case-no">GH-005</span>
+            <span class="tech-id">T1070.006</span>
+          </span>
+          <span class="file-title">The Forged Clock</span>
+          <span class="file-desc">One touch command backdates a payload to 2019 and ls believes it. We forge the date, then catch it with the one timestamp touch cannot set.</span>
+          <span class="file-meta">
+            <span class="meta-item"><span class="mlabel">Target</span><span class="mvalue">Ubuntu 24.04</span></span>
+            <span class="meta-item"><span class="mlabel">Level</span><span class="mvalue">Intermediate</span></span>
+            <span class="meta-item"><span class="mlabel">Time</span><span class="mvalue">25 min</span></span>
+          </span>
+        </span>
+        </a>
+        <span class="file-side">
+          <span class="status-chip">Unread</span>
+          <a class="resume-chip" href="ops/005-forged-clock/index.html#resume">Resume</a>
+          <span class="file-arrow">&rarr;</span>
+        </span>
+      </article>
+      <article class="mission-card reveal" data-op="006" data-platform="linux"
+         data-search="GH-006 T1070.004 file deletion missing lines log sed syslog udp ship logging linux ubuntu">
+        <a class="card-open" href="ops/006-missing-lines/index.html" aria-label="Open file GH-006: The Missing Lines">
+        <span class="file-index">006</span>
+        <span class="file-main">
+          <span class="file-top">
+            <span class="case-no">GH-006</span>
+            <span class="tech-id">T1070.004</span>
+          </span>
+          <span class="file-title">The Missing Lines</span>
+          <span class="file-desc">Two sed lines delete a break-in from the log, leaving one innocent entry. We erase the evidence, then read the copy that was shipped as it happened.</span>
+          <span class="file-meta">
+            <span class="meta-item"><span class="mlabel">Target</span><span class="mvalue">Ubuntu 24.04</span></span>
+            <span class="meta-item"><span class="mlabel">Level</span><span class="mvalue">Intermediate</span></span>
+            <span class="meta-item"><span class="mlabel">Time</span><span class="mvalue">30 min</span></span>
+          </span>
+        </span>
+        </a>
+        <span class="file-side">
+          <span class="status-chip">Unread</span>
+          <a class="resume-chip" href="ops/006-missing-lines/index.html#resume">Resume</a>
           <span class="file-arrow">&rarr;</span>
         </span>
       </article>

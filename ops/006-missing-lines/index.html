@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>GH-006 The Missing Lines (T1070.004): GHOSTLIGHT</title>
+<meta name="description" content="T1070.004 File Deletion, reproduced on Ubuntu 24.04: the attacker edits their lines out of the log and it reads clean. A second copy, shipped beyond their reach as it was written, still has them. Every command verified.">
+<link rel="canonical" href="https://dillingerstaffing.github.io/ghostlight/ops/006-missing-lines/">
+<meta property="og:title" content="GH-006 The Missing Lines (T1070.004): GHOSTLIGHT">
+<meta property="og:description" content="T1070.004 File Deletion, reproduced on Ubuntu 24.04: the attacker edits their lines out of the log and it reads clean. A second copy, shipped beyond their reach as it was written, still has them. Every command verified.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dillingerstaffing.github.io/ghostlight/ops/006-missing-lines/">
+<meta property="og:site_name" content="GHOSTLIGHT">
+<meta property="og:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="GH-006 The Missing Lines (T1070.004): GHOSTLIGHT">
+<meta name="twitter:description" content="T1070.004 File Deletion, reproduced on Ubuntu 24.04: the attacker edits their lines out of the log and it reads clean. A second copy, shipped beyond their reach as it was written, still has them. Every command verified.">
+<meta name="twitter:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='12.5' fill='none' stroke='%23e0642a' stroke-width='2.6'/%3E%3Crect x='14.6' y='5.5' width='2.8' height='21' fill='%23e0642a'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+<link rel="manifest" href="../../assets/manifest.webmanifest">
+<meta name="theme-color" content="#0a0c0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GHOSTLIGHT">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css?v=dfafd4c0">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"GH-006 The Missing Lines (T1070.004): GHOSTLIGHT",
+"url":"https://dillingerstaffing.github.io/ghostlight/ops/006-missing-lines/","description":"T1070.004 File Deletion, reproduced on Ubuntu 24.04: the attacker edits their lines out of the log and it reads clean. A second copy, shipped beyond their reach as it was written, still has them. Every command verified.",
+"author":{"@type":"Person","name":"Chris Dillinger","url":"https://www.linkedin.com/in/christopherdillinger/"},
+"inLanguage":"en"}
+</script>
+</head>
+<body>
+
+<header class="site-header">
+  <a class="brand" href="../../index.html" aria-label="GHOSTLIGHT home">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+    <span class="brand-name">GHOSTLIGHT</span>
+  </a>
+  <nav class="site-nav">
+    <a href="../../method.html">METHOD</a>
+    <a href="../../index.html">FILES</a>
+  </nav>
+</header>
+
+<div class="onboard" data-onboard hidden>
+  <span><strong>How to read a file:</strong> every file follows the six-phase structure below. <span class="k-green">Green</span> is verified, <span class="k-red">red</span> is hostile.</span>
+  <button aria-label="Dismiss">GOT IT</button>
+</div>
+
+<div class="page" data-op="006">
+  <div class="wrap">
+    <section class="op-hero">
+      <div class="op-kicker">
+        <span class="case-no">GH-006</span>
+        <a class="tech-id" href="https://attack.mitre.org/techniques/T1070/004/" rel="noopener">T1070.004</a>
+        <span class="phase-tag red">PHASE RED INSIDE</span>
+      </div>
+      <h1>The Missing Lines</h1>
+      <p class="lede">The log says nothing happened here. Three lines say otherwise, from a copy the attacker never touched. This file deletes the evidence, then reads the copy.</p>
+      <div class="op-meta-grid">
+        <div class="op-meta"><span class="mlabel">Technique</span><span class="mvalue">File Deletion (log tampering)</span></div>
+        <div class="op-meta"><span class="mlabel">Target OS</span><span class="mvalue">Ubuntu 24.04.5 LTS</span></div>
+        <div class="op-meta"><span class="mlabel">Toolchain</span><span class="mvalue">bash, python3</span></div>
+        <div class="op-meta"><span class="mlabel">Level</span><span class="mvalue">Intermediate</span></div>
+        <div class="op-meta"><span class="mlabel">Time</span><span class="mvalue">30 min</span></div>
+      </div>
+      <div class="objectives">
+        <h2>OBJECTIVES</h2>
+        <ol>
+          <li data-phase="phase-red"><span class="box"></span>Edit the attacker's lines out of the log with sed, and watch it read clean</li>
+          <li data-phase="phase-blue"><span class="box"></span>Read the shipped copy: every deleted line, intact</li>
+          <li data-phase="countermeasures"><span class="box"></span>Forward security logs off-host as they are written</li>
+          <li data-phase="debrief"><span class="box"></span>Take the IOC checklist and the one-sentence lesson</li>
+        </ol>
+      </div>
+    </section>
+
+    <div class="op-layout">
+      <nav class="rail" aria-label="Phases">
+        <span class="mlabel">Phases</span>
+        <ol>
+          <li><a href="#intel-brief"><span class="pnum">01</span>INTEL BRIEF<span class="tick"></span></a></li>
+          <li><a href="#target-environment"><span class="pnum">02</span>TARGET ENV<span class="tick"></span></a></li>
+          <li><a href="#phase-red"><span class="pnum">03</span>PHASE RED<span class="tick"></span></a></li>
+          <li><a href="#phase-blue"><span class="pnum">04</span>PHASE BLUE<span class="tick"></span></a></li>
+          <li><a href="#countermeasures"><span class="pnum">05</span>COUNTERMEASURES<span class="tick"></span></a></li>
+          <li><a href="#debrief"><span class="pnum">06</span>DEBRIEF<span class="tick"></span></a></li>
+        </ol>
+      </nav>
+
+      <div class="op-content">
+        <section class="phase" id="intel-brief">
+          <div class="phase-head"><span class="phase-num">01</span><h2>Intel Brief</h2><span class="phase-tag neutral">CONTEXT</span></div>
+          <p class="lede">MITRE ATT&amp;CK <a href="https://attack.mitre.org/techniques/T1070/004/" rel="noopener">T1070.004</a>: adversaries delete or edit the records of what they did. This file removes two lines from a log with the standard editor, then reads the copy the demonstrated edit could not reach.</p>
+          <div class="prose">
+            <p><strong>Why this technique.</strong> The log is the story of what happened on the box. Delete the lines about the break-in and the story reads clean: one innocent SSH login, nothing else, case closed. Every "nothing happened here" you have ever read in a log was either true or edited, and from the log alone you cannot tell which. That indistinguishability is the technique.</p>
+            <p><strong>Why not just lock the file.</strong> Permissions stop other users, not the account that was compromised: the service account that writes the log can rewrite the log, and root can do anything. Anyone who must be able to write can also delete, unless the write path is separated from the attacker's reach. There is no permission bit that means "writable by the service but not by an attacker holding the service's credentials."</p>
+            <p><strong>Why the quiet edit beats the loud delete.</strong> Deleting the whole log is a confession: the gap screams. The professional version removes only the attacker's lines and leaves the benign ones, so the log keeps its rhythm and its timestamps stay plausible. Phase Red does the quiet version.</p>
+            <p><strong>The concrete case, before the abstraction.</strong> Three lines go into <strong>access.log</strong>: one innocent login, one attacker login, one attacker sudo. <strong>sed -i '/attacker/d' access.log</strong> removes the attacker's two lines. <strong>cat access.log</strong> shows one innocent login. <strong>cat ship.log</strong>, the copy that was forwarded as each line was written, shows all three.</p>
+            <p><strong>Terms, earned.</strong> <strong>sed -i</strong> edits a file in place by rewriting it, the standard tool for the quiet edit. <strong>/dev/udp</strong> is bash's built-in UDP client: writing to /dev/udp/host/port sends a datagram, no binary needed. <strong>Log forwarding</strong> is copying each entry to a second destination the moment it is written, before anyone can edit the original. <strong>File deletion</strong> is T1070.004: removing the records of the intrusion, wholesale or line by line.</p>
+          </div>
+          <div class="callout"><p><strong>Scope.</strong> T1070.004 covers wiping whole files, clearing event logs, and selective edits. This file works the selective edit: the quieter cousin, the one that leaves a plausible log behind.</p></div>
+        </section>
+
+        <section class="phase" id="target-environment">
+          <div class="phase-head"><span class="phase-num">02</span><h2>Target Environment</h2><span class="phase-tag neutral">LOADOUT</span></div>
+          <p class="lede">Ubuntu 24.04.5 LTS, x86-64, in a disposable VM used only for this lab. The attack is one sed command and needs no privilege beyond write access to the log. The lab directory is ~/gh006.</p>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Build the lab</h3>
+              <div class="prose"><p>Two pieces. A tiny UDP receiver in Python plays the role of the remote log collector: it listens on localhost and appends every datagram to <strong>ship.log</strong>. A shell function plays the service: it writes each log line to <strong>access.log</strong> and forwards a copy over UDP in the same breath.</p></div>
+<div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">python: receiver.py</span><button class="copy-btn" data-copy="import socket&#10;s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)&#10;s.bind((&quot;127.0.0.1&quot;, 1514))&#10;f = open(&quot;ship.log&quot;, &quot;ab&quot;, buffering=0)&#10;while True:&#10;    d, _ = s.recvfrom(65535)&#10;    f.write(d)&#10;"><span data-label>COPY</span></button></div>
+                <pre>import socket
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s.bind(("127.0.0.1", 1514))
+f = open("ship.log", "ab", buffering=0)
+while True:
+    d, _ = s.recvfrom(65535)
+    f.write(d)
+</pre>
+              </div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="log(){ printf '%s\n' &quot;$1&quot; | tee -a access.log &gt; /dev/udp/127.0.0.1/1514; sleep 0.3; }"><span data-label>COPY</span></button></div>
+                <pre>$ log(){ printf '%s\n' "$1" | tee -a access.log &gt; /dev/udp/127.0.0.1/1514; sleep 0.3; }</pre>
+              </div>
+              <div class="prose"><p>Every line exists in two places from the moment it is written: the local log the attacker will find, and the shipped copy they will not. That separation is the entire defense, and it is built before the attack, not after.</p></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="phase-red">
+          <div class="phase-head"><span class="phase-num">03</span><h2>Phase Red: rewrite the story</h2><span class="phase-tag red">ATTACK</span></div>
+          <p class="lede">Three log lines go in, one of them innocent. The attacker removes their own two and leaves the innocent one standing. Read the log after, and believe it the way a tired responder would.</p>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">24.1s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/missing-red.jpg" aria-label="Screen recording: MISSING RED, operator@lab">
+              <source src="../../assets/vid/missing-red.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> Three lines are logged, then the attacker's two are edited out. The log reads clean. Every command below is copy-pasteable.</figcaption>
+          </figure>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Log the night, then edit it</h3>
+              <div class="prose"><p>The service logs three events. The attacker keeps the innocent one and deletes their own.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="log 'Sep 16 15:40:11 lab sshd[411]: Accepted publickey for ops from 10.0.0.8'&#10;log 'Sep 16 15:40:44 lab sshd[601]: Accepted password for attacker from 45.9.8.7'&#10;log 'Sep 16 15:41:19 lab sudo[602]: attacker : COMMAND=/bin/bash'&#10;sed -i '/attacker/d; /45.9.8.7/d' access.log&#10;cat access.log"><span data-label>COPY</span></button></div>
+                <pre>$ log 'Sep 16 15:40:11 lab sshd[411]: Accepted publickey for ops from 10.0.0.8'
+$ log 'Sep 16 15:40:44 lab sshd[601]: Accepted password for attacker from 45.9.8.7'
+$ log 'Sep 16 15:41:19 lab sudo[602]: attacker : COMMAND=/bin/bash'
+$ sed -i '/attacker/d; /45.9.8.7/d' access.log
+$ cat access.log
+Sep 16 15:40:11 lab sshd[411]: Accepted publickey for ops from 10.0.0.8</pre>
+              </div>
+              <div class="prose"><p>One innocent SSH login. That is the whole story now, according to the log. The timestamps still flow, the format is intact, nothing looks redacted, because nothing was redacted: the file was rewritten with the inconvenient lines simply absent. A responder reading this log finds nothing, and "nothing" is exactly what the attacker wrote.</p></div>
+              <div class="verdict red">
+                <span class="mlabel">Stealth confirmed</span>
+                <p>One sed command removed the intrusion from the record and left a plausible log behind. The edit needed no exploit and no privilege beyond write access, which the compromised account already had. The log is now a story the attacker co-authored.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="phase-blue">
+          <div class="phase-head"><span class="phase-num">04</span><h2>Phase Blue: read the other copy</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">The local log is now a suspect, not a source. Read the copy the demonstrated edit could not reach, line by line, as each event happened.</p>
+          <div class="prose">
+            <p>Here is the trap: opening the log, seeing one innocent login, and closing the case. The local log is the attacker's co-authored story. The defense was built before the attack: every line was forwarded to a second destination the moment it was written, and the attacker only cleaned the copy they knew about.</p>
+          </div>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot blue" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">8.3s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/missing-blue.jpg" aria-label="Screen recording: MISSING BLUE, operator@lab">
+              <source src="../../assets/vid/missing-blue.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> The shipped copy is read. Every deleted line is there. The story the attacker wrote and the record they could not reach, side by side. Every command below is copy-pasteable.</figcaption>
+          </figure>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Read what the attacker could not reach</h3>
+              <div class="prose"><p>Same three events. The shipped copy never heard about the sed command.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="cat ship.log&#10;grep -c attacker ship.log"><span data-label>COPY</span></button></div>
+                <pre>$ cat ship.log
+Sep 16 15:40:11 lab sshd[411]: Accepted publickey for ops from 10.0.0.8
+Sep 16 15:40:44 lab sshd[601]: Accepted password for attacker from 45.9.8.7
+Sep 16 15:41:19 lab sudo[602]: attacker : COMMAND=/bin/bash
+$ grep -c attacker ship.log
+2</pre>
+              </div>
+              <div class="prose"><p>All three lines, including the two the local log no longer contains. The attacker cleaned the only copy they could see; the forwarded copy was written to a different process, through a different path, at the moment of the event. The divergence between the two copies is itself the detection: when the local log and the shipped log disagree, the local log has been edited.</p></div>
+              <div class="verdict green">
+                <span class="mlabel">Detection verified</span>
+                <p>The shipped copy preserved every deleted line. No forensics, no undelete tools, no luck: the record survived because it was never in the attacker's reach to begin with.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="countermeasures">
+          <div class="phase-head"><span class="phase-num">05</span><h2>Countermeasures</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">Three moves, in order: distrust the local copy, watch for the edit pattern, forward everything off-host. Each is one way, not the way.</p>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Mitigate: treat the local log as a suspect</h3>
+              <div class="prose"><p>The moment a box is suspect, its local logs are evidence of what the attacker wants you to believe, not what happened. Pull the forwarded copy first and diff the two: the lines present in the shipped copy but missing locally are the edit, mapped precisely. Do not "fix" the local log by restoring it; preserve both, because the divergence is the proof of tampering.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>Monitor: watch for the log shrinking</h3>
+              <div class="prose"><p>Logs grow; they do not shrink, except on rotation. Track line counts or sizes of security logs on a timer and alert on any decrease outside the rotation window. D3FEND names the family <a href="https://d3fend.mitre.org/technique/d3f:FileIntegrityMonitoring/" rel="noopener">File Integrity Monitoring (D3-FIM)</a>, which explicitly covers this technique: detecting suspicious changes to files, including the quiet kind.</p></div>
+              <div class="callout"><p><strong>Honest limit.</strong> Logrotate also shrinks logs, so the monitor must know the rotation schedule or it pages on routine maintenance. And size monitoring catches wholesale deletion, not the quiet edit that keeps the file growing: the shipped copy is what catches that.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>Prevent: forward off-host, as it happens</h3>
+              <div class="prose"><p>The production version of the demo's UDP receiver is <strong>rsyslog</strong> forwarding security logs in real time to a hardened collector: a separate host, with credentials the endpoint does not hold, over TCP with TLS. The attacker can rewrite every log on the box and the collector still has the originals. Where the filesystem allows it, <strong>chattr +a</strong> makes the local log append-only, which stops the quiet edit from non-root attackers.</p></div>
+              <div class="callout"><p><strong>Honest limit.</strong> The demo's receiver ran on the same box; a root attacker here could kill it too, which is why production puts the collector on separate hardware. UDP can drop datagrams under load; production uses TCP. Append-only slows a non-root attacker and does nothing against root. Against root on the endpoint, only the off-host copy counts.</p></div>
+              <div class="verdict green">
+                <span class="mlabel">Countermeasures verified</span>
+                <p>The shipped copy is the whole defense: written before the attack, out of the attacker's reach, it makes the quiet edit pointless. Size monitoring catches the loud deletion; real-time off-host forwarding catches everything else. The local log is a convenience; the collector is the record.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="debrief">
+          <div class="phase-head"><span class="phase-num">06</span><h2>Debrief</h2><span class="phase-tag neutral">TAKEAWAY</span></div>
+          <p class="takeaway">A log the attacker can rewrite is a rumor. The copy they could not reach is the record.</p>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">IOC checklist: signs this technique was used</span></p></div>
+          <ul class="checklist">
+            <li><span>Security logs with <strong>gaps</strong>: missing time ranges where events should be</span></li>
+            <li><span>Logs that <strong>shrank</strong> outside the rotation window</span></li>
+            <li><span>Selective absence: attacker-related lines gone while benign lines around them survive</span></li>
+            <li><span>Divergence between the endpoint's logs and the collector's copy: the edit, mapped exactly</span></li>
+            <li><span>Log daemons restarted, reconfigured, or killed near the incident window</span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Reproducibility checklist</span></p></div>
+          <ul class="checklist">
+            <li><span>Verified on <strong>Ubuntu 24.04.5 LTS</strong>, x86-64, on 2026-09-16</span></li>
+            <li><span>Both recordings are real executions on that platform, not simulations</span></li>
+            <li><span>The attack runs unprivileged: sed on a writable log needs no privilege</span></li>
+            <li><span>Cleanup: pkill -f 'receiv[e]r.py'; rm -rf ~/gh006</span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Sources</span></p></div>
+          <div class="prose"><p><a href="https://attack.mitre.org/techniques/T1070/004/" rel="noopener">MITRE ATT&amp;CK T1070.004: File Deletion</a><br>
+          <a href="https://www.rsyslog.com/doc/v8-stable/configuration/modules/omfwd.html" rel="noopener">rsyslog omfwd</a> (real-time log forwarding, the production form of the demo)<br>
+          <a href="https://man7.org/linux/man-pages/man1/sed.1.html" rel="noopener">sed(1)</a> (the quiet edit)<br>
+          <a href="https://d3fend.mitre.org/" rel="noopener">MITRE D3FEND</a>: <a href="https://d3fend.mitre.org/technique/d3f:FileIntegrityMonitoring/" rel="noopener">D3-FIM</a></p></div>
+        </section>
+
+        <a class="next-file" href="../../index.html">
+          <span class="mlabel">Next file</span>
+          <h3>GH-007: in preparation</h3>
+          <p>The next Stealth technique file is being verified now. Back to the war table.</p>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <div>
+      <div class="footer-brand">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+        <span class="brand-name" style="font-size:17px">GHOSTLIGHT</span>
+      </div>
+      <p class="footer-note">An independent adversary-stealth research publication. Every command verified on the named OS before publishing. No trackers, no frameworks, no autoplay.</p>
+    </div>
+    <nav class="footer-links">
+      <a href="../../method.html">METHOD</a>
+      <a href="../../index.html">FILES</a>
+      <a href="https://attack.mitre.org/tactics/TA0005/" rel="noopener">MITRE TA0005</a>
+    </nav>
+    <div class="footer-elsewhere">
+      <span class="mlabel">Elsewhere</span><a href="https://dillingerstaffing.github.io/portfolio/" target="_blank" rel="noopener">Portfolio</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/proving-ground/" target="_blank" rel="noopener">Proving Ground</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/tapeout/" target="_blank" rel="noopener">Tapeout</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/old-iron/" target="_blank" rel="noopener">Old Iron</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/unstuck/" target="_blank" rel="noopener">Unstuck</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../../assets/site.js?v=55a6124c"></script>
+</body>
+</html>
