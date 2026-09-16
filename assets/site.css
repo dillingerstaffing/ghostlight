@@ -602,7 +602,7 @@ a.tech-id:hover { color: var(--bone); border-color: var(--bone-faint); }
 }
 @media (max-width: 640px) {
   :root { --header-h: 114px; }
-  .site-header { flex-wrap: wrap; padding: 10px 16px; row-gap: 10px; align-content: center; }
+  .site-header { flex-wrap: wrap; padding: calc(10px + env(safe-area-inset-top)) 16px 10px; row-gap: 10px; align-content: center; }
   .header-search { order: 3; flex: 1 1 100%; max-width: none; }
   .site-nav { margin-left: auto; }
   .hero h1 { font-size: clamp(48px, 15vw, 76px); margin: 36px 0 24px; }
@@ -642,4 +642,134 @@ a.tech-id:hover { color: var(--bone); border-color: var(--bone-faint); }
   html { scroll-behavior: auto; }
   .reveal { opacity: 1; transition: none; }
   * { transition-duration: 0.01ms !important; }
+}
+
+/* ---------- Dual theme: notebook folio (default) + classic field dossier ----------
+   Shared contract: localStorage key "emi-site-theme", values "notebook"/"classic".
+   The head script sets data-theme on <html> before CSS parses (no flash).
+   :root carries the classic (dark dossier) theme, untouched. Everything below
+   re-voices the same markup in the notebook language: warm paper, committed ink,
+   one sanguine accent reserved for affordances and annotations, serif article
+   prose, hairline rules, no glow, no gradients, no texture. */
+[data-theme="notebook"] {
+  --void: #ece6d5;
+  --panel: #e3dac2;
+  --panel-2: #d9cfae;
+  --bone: #241f17;
+  --bone-dim: rgba(36, 31, 23, 0.72);
+  --bone-faint: rgba(36, 31, 23, 0.46);
+  --hairline: rgba(36, 31, 23, 0.18);
+  --hairline-soft: rgba(36, 31, 23, 0.10);
+  --ember: #8c3f22;
+  --signal: #2e7d4f;
+  --alarm: #a62e33;
+}
+html[data-theme="notebook"] { background: #ece6d5; }
+[data-theme="notebook"] body {
+  font-family: Georgia, "Iowan Old Style", "Times New Roman", serif;
+}
+[data-theme="notebook"] ::selection { background: var(--ember); color: #fdfaf1; }
+[data-theme="notebook"] ::-webkit-scrollbar-track { background: var(--void); }
+[data-theme="notebook"] ::-webkit-scrollbar-thumb { background: #b3a685; border: 2px solid var(--void); }
+[data-theme="notebook"] :focus-visible { outline-color: var(--ember); }
+
+/* Tonal timing on theme switches (both themes). */
+body, .site-header, .btn, .filter-chips [data-filter], .mission-card,
+.codeblock, .codeblock-bar, .copy-btn, .codeblock-expand, .verdict, .callout,
+.debrief-box, .next-file, .onboard, .rail a, .theme-toggle, .header-search input,
+.status-chip, .op-badge, .phase-tag, .tech-id, .resume-chip, .objectives,
+.op-meta-grid, .recording, .recording-bar {
+  transition: background-color .45s ease, color .45s ease, border-color .45s ease;
+}
+
+/* Header: paper scrim, ink brand mark. */
+[data-theme="notebook"] .site-header { background: rgba(236, 230, 213, 0.93); }
+[data-theme="notebook"] .brand svg circle, [data-theme="notebook"] .footer-brand svg circle { stroke: var(--ember); }
+[data-theme="notebook"] .brand svg rect, [data-theme="notebook"] .footer-brand svg rect { fill: var(--ember); }
+[data-theme="notebook"] .header-search svg { stroke: #5e5648; }
+
+/* Solid controls invert: ink plates carry paper text. */
+[data-theme="notebook"] .btn-primary, [data-theme="notebook"] .btn-primary:hover { color: #f4efe0; }
+[data-theme="notebook"] .filter-chips [data-filter].on { color: #f4efe0; }
+[data-theme="notebook"] .resume-chip { color: #f4efe0; }
+[data-theme="notebook"] .objectives li.done .box::after,
+[data-theme="notebook"] .rail a.seen .tick::after { border-color: #f4efe0; }
+
+/* Status borders: paper-safe rgba companions of the re-voiced signal/alarm. */
+[data-theme="notebook"] .status-chip.done,
+[data-theme="notebook"] .op-badge.in-progress,
+[data-theme="notebook"] .phase-tag.green { border-color: rgba(46, 125, 79, 0.5); }
+[data-theme="notebook"] .status-chip.progress { border-color: rgba(140, 63, 34, 0.5); }
+[data-theme="notebook"] .phase-tag.red,
+[data-theme="notebook"] .copy-btn.fail { border-color: rgba(166, 46, 51, 0.5); }
+/* Notebook ink roles on GH-001/GH-002 figures: defense verdicts are committed near-black ink,
+   hostile marks stay sanguine. Classic theme untouched. */
+[data-theme="notebook"] .phase-tag.blue { color: #241f17; border-color: rgba(36, 31, 23, 0.65); }
+[data-theme="notebook"] .copy-btn.ok { border-color: rgba(46, 125, 79, 0.5); }
+[data-theme="notebook"] .onboard { border-bottom-color: rgba(140, 63, 34, 0.45); }
+
+/* Hero ghost outline in ink, barely there. */
+[data-theme="notebook"] .hero-ghost { -webkit-text-stroke: 1px rgba(36, 31, 23, 0.10); }
+
+/* Code plates stay dark ink: evidence figures, keyed in paper ink. */
+[data-theme="notebook"] .codeblock { background: #242019; border-color: #b3a685; }
+[data-theme="notebook"] .codeblock-bar { background: #2b251c; border-bottom-color: rgba(236, 230, 213, 0.12); }
+[data-theme="notebook"] .codeblock-bar .mlabel { color: rgba(236, 230, 213, 0.5); }
+[data-theme="notebook"] .codeblock pre { color: #ece6d5; }
+[data-theme="notebook"] .codeblock pre .c { color: #97907f; }
+[data-theme="notebook"] .codeblock pre .k { color: #d98a54; }
+[data-theme="notebook"] .copy-btn { border-color: rgba(236, 230, 213, 0.22); color: rgba(236, 230, 213, 0.7); }
+[data-theme="notebook"] .copy-btn:hover { color: #ece6d5; border-color: var(--ember); }
+[data-theme="notebook"] .copy-btn.ok { color: #86c98f; }
+[data-theme="notebook"] .copy-btn.fail { color: #e08a8e; }
+[data-theme="notebook"] .codeblock-expand { background: #2b251c; border-top-color: rgba(236, 230, 213, 0.12); color: rgba(236, 230, 213, 0.6); }
+[data-theme="notebook"] .codeblock-expand:hover { color: #d98a54; }
+
+/* Screen recordings stay on dark exhibit plates in both themes. */
+[data-theme="notebook"] .recording { background: #05070a; border-color: #b3a685; }
+[data-theme="notebook"] .recording-bar { background: #0d1117; border-bottom-color: rgba(236, 230, 213, 0.10); }
+[data-theme="notebook"] .recording-bar .mlabel { color: rgba(236, 230, 213, 0.5); }
+[data-theme="notebook"] .recording-bar .dur { color: rgba(236, 230, 213, 0.45); }
+[data-theme="notebook"] .recording-cap { border-top-color: rgba(236, 230, 213, 0.10); color: #97907f; }
+[data-theme="notebook"] .recording-cap strong { color: #c9c2b2; }
+
+/* ---- The theme toggle: a quiet folio mark, not a nav link ---- */
+.theme-toggle {
+  flex: 0 0 auto;
+  width: 26px; height: 26px;
+  display: grid; place-items: center; padding: 0;
+  background: transparent;
+  border: 1px solid var(--hairline); border-radius: 2px;
+  cursor: pointer;
+}
+.theme-toggle:hover { border-color: var(--ember); }
+.theme-toggle:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+.theme-toggle-mark { display: flex; width: 12px; height: 12px; transition: transform .5s cubic-bezier(.3, .7, .2, 1); }
+.theme-toggle-mark i { display: block; width: 6px; height: 12px; }
+.theme-toggle-mark i:first-child { background: #ece6d5; }
+.theme-toggle-mark i:last-child { background: #241f17; border-left: 1px solid #ece6d5; }
+.theme-toggle.is-flipped .theme-toggle-mark { transform: rotate(180deg); }
+.site-nav .theme-toggle { margin-left: 10px; }
+
+/* ---- Theme wipe: a calm radial reveal from the toggle ---- */
+::view-transition-old(root), ::view-transition-new(root) {
+  animation: none; mix-blend-mode: normal;
+}
+::view-transition-new(root) {
+  z-index: 2147483647;
+  clip-path: circle(0px at var(--tx, 50vw) var(--ty, 12px));
+  animation: theme-wipe .7s cubic-bezier(.32, .72, .24, 1) forwards;
+}
+@keyframes theme-wipe {
+  to { clip-path: circle(150vmax at var(--tx, 50vw) var(--ty, 12px)); }
+}
+
+/* Mobile rail scrim in paper. */
+@media (max-width: 960px) {
+  [data-theme="notebook"] .rail { background: rgba(236, 230, 213, 0.97); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root), ::view-transition-new(root) { animation: none !important; }
+  .theme-toggle-mark { transition: none; }
 }

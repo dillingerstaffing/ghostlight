@@ -30,7 +30,23 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../../assets/site.css?v=dfafd4c0">
+<script>
+(function () {
+  // Theme: notebook is the default; a stored visitor choice wins.
+  // Runs before the stylesheet is parsed so the first paint is already
+  // the right theme (no flash of the wrong one).
+  try {
+    var t = localStorage.getItem('emi-site-theme');
+    var theme = t === 'classic' ? 'classic' : 'notebook';
+    document.documentElement.dataset.theme = theme;
+    var m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute('content', theme === 'classic' ? '#0a0c0f' : '#ece6d5');
+  } catch (e) {
+    document.documentElement.dataset.theme = 'notebook';
+  }
+})();
+</script>
+<link rel="stylesheet" href="../../assets/site.css?v=31c4e11f">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"TechArticle","headline":"GH-002 The Lying Library (T1014): GHOSTLIGHT",
 "url":"https://dillingerstaffing.github.io/ghostlight/ops/002-ld-preload-rootkit/","description":"T1014 Rootkit, reproduced on Ubuntu 24.04: a 70-line LD_PRELOAD library makes ps lie, cross-view detection with a raw syscall, and the exact hole closed. Every command verified.",
@@ -48,6 +64,9 @@
   <nav class="site-nav">
     <a href="../../method.html">METHOD</a>
     <a href="../../index.html">FILES</a>
+    <button class="theme-toggle" type="button" aria-label="Switch to dark field dossier theme" title="Switch theme">
+      <span class="theme-toggle-mark" aria-hidden="true"><i></i><i></i></span>
+    </button>
   </nav>
 </header>
 
@@ -592,6 +611,6 @@ $ wc -c /etc/ld.so.preload
   </div>
 </footer>
 
-<script src="../../assets/site.js?v=55a6124c"></script>
+<script src="../../assets/site.js?v=512f8825"></script>
 </body>
 </html>

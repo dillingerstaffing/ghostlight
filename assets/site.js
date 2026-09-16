@@ -263,3 +263,44 @@
     }
   });
 })();
+
+/* ---------- Dual theme: notebook folio (default) + classic field dossier ----------
+   Shared contract: localStorage key "emi-site-theme". The head script already set
+   data-theme before first paint; the toggle flips live with a radial view-transition
+   wipe from the toggle, instant swap where unsupported, reduced motion respected. */
+(function () {
+  "use strict";
+  var KEY = "emi-site-theme";
+  var root = document.documentElement;
+  var meta = document.querySelector('meta[name="theme-color"]');
+  var COLORS = { notebook: "#ece6d5", classic: "#0a0c0f" };
+  var NAMES = { notebook: "notebook folio", classic: "dark field dossier" };
+  var btn = document.querySelector(".theme-toggle");
+  function current() { return root.dataset.theme === "classic" ? "classic" : "notebook"; }
+  function apply(t) {
+    root.dataset.theme = t;
+    if (meta) meta.setAttribute("content", COLORS[t]);
+    if (btn) btn.setAttribute("aria-label", "Switch to " + NAMES[t === "classic" ? "notebook" : "classic"] + " theme");
+  }
+  function toggle() {
+    var next = current() === "classic" ? "notebook" : "classic";
+    try { localStorage.setItem(KEY, next); } catch (e) {}
+    var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (btn) {
+      var r = btn.getBoundingClientRect();
+      root.style.setProperty("--tx", Math.round(r.left + r.width / 2) + "px");
+      root.style.setProperty("--ty", Math.round(r.top + r.height / 2) + "px");
+      btn.classList.toggle("is-flipped", next === "classic");
+    }
+    if (!reduced && document.startViewTransition) {
+      document.startViewTransition(function () { apply(next); });
+    } else {
+      apply(next);
+    }
+  }
+  if (btn) {
+    btn.classList.toggle("is-flipped", current() === "classic");
+    btn.addEventListener("click", toggle);
+  }
+  apply(current());
+})();
