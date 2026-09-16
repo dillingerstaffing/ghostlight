@@ -168,7 +168,7 @@ $ ls -l --time-style=long-iso .systemd-cache
           <div class="phase-head"><span class="phase-num">04</span><h2>Phase Blue: read the receipt</h2><span class="phase-tag blue">DEFENSE</span></div>
           <p class="lede">ls showed the timestamp the file's owner chose. Now read all four timestamps, including the one the owner cannot choose.</p>
           <div class="prose">
-            <p>Here is the trap: sorting by date, seeing 2019, and moving on. The modification time is the file's own story about itself, and the owner is allowed to edit their own story. The kernel keeps a separate receipt, and the receipt cannot be edited.</p>
+            <p>Here is the trap: sorting by date, seeing 2019, and moving on. The modification time is the file's own story about itself, and the owner is allowed to edit their own story. The kernel keeps a separate receipt, and the receipt cannot be edited with touch.</p>
           </div>
           <figure class="recording reveal">
             <div class="recording-bar">
@@ -235,7 +235,7 @@ change: 2026-09-16 15:26:23.024766798 -0400</pre>
               <div class="prose"><p>There is no prevention here, and that is the point. Setting timestamps is a legitimate syscall; <strong>touch</strong> is coreutils, <strong>utimensat</strong> is how backups and build tools preserve dates. You cannot remove the capability without breaking the system. The control is procedural: never let mtime alone decide what is old. Triage sorts by ctime, FIM baselines include metadata, and timelines are built from the receipt, not the claim.</p></div>
               <div class="verdict green">
                 <span class="mlabel">Countermeasures verified</span>
-                <p>The forgery cannot be prevented, only seen through. Hunting by ctime finds the payload despite its 2019 costume, FIM baselines catch the metadata change, and the procedural fix costs nothing: read the receipt, not the story.</p>
+                <p>The capability cannot be removed without breaking the system, so the forgery is seen through, not prevented. Hunting by ctime finds the payload despite its 2019 costume, FIM baselines catch the metadata change, and the procedural fix costs nothing: read the receipt, not the story.</p>
               </div>
             </div>
           </div>
@@ -269,7 +269,7 @@ change: 2026-09-16 15:26:23.024766798 -0400</pre>
         <a class="next-file" href="../006-missing-lines/index.html">
           <span class="mlabel">Next file</span>
           <h3>GH-006 The Missing Lines</h3>
-          <p>The log says nothing happened. A second copy of the log, written beyond the attacker's reach, disagrees.</p>
+          <p>The log says nothing happened. A second copy of the log, written as each event happened, disagrees.</p>
         </a>
       </div>
     </div>

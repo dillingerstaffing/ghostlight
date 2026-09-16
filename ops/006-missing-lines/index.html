@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>GH-006 The Missing Lines (T1070.004): GHOSTLIGHT</title>
-<meta name="description" content="T1070.004 File Deletion, reproduced on Ubuntu 24.04: the attacker edits their lines out of the log and it reads clean. A second copy, shipped beyond their reach as it was written, still has them. Every command verified.">
+<meta name="description" content="T1070.004 File Deletion, reproduced on Ubuntu 24.04: the attacker edits their lines out of the log and it reads clean. A second copy, shipped as it was written, through a second write path, still has them. Every command verified.">
 <link rel="canonical" href="https://dillingerstaffing.github.io/ghostlight/ops/006-missing-lines/">
 <meta property="og:title" content="GH-006 The Missing Lines (T1070.004): GHOSTLIGHT">
-<meta property="og:description" content="T1070.004 File Deletion, reproduced on Ubuntu 24.04: the attacker edits their lines out of the log and it reads clean. A second copy, shipped beyond their reach as it was written, still has them. Every command verified.">
+<meta property="og:description" content="T1070.004 File Deletion, reproduced on Ubuntu 24.04: the attacker edits their lines out of the log and it reads clean. A second copy, shipped as it was written, through a second write path, still has them. Every command verified.">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://dillingerstaffing.github.io/ghostlight/ops/006-missing-lines/">
 <meta property="og:site_name" content="GHOSTLIGHT">
@@ -16,7 +16,7 @@
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="GH-006 The Missing Lines (T1070.004): GHOSTLIGHT">
-<meta name="twitter:description" content="T1070.004 File Deletion, reproduced on Ubuntu 24.04: the attacker edits their lines out of the log and it reads clean. A second copy, shipped beyond their reach as it was written, still has them. Every command verified.">
+<meta name="twitter:description" content="T1070.004 File Deletion, reproduced on Ubuntu 24.04: the attacker edits their lines out of the log and it reads clean. A second copy, shipped as it was written, through a second write path, still has them. Every command verified.">
 <meta name="twitter:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='12.5' fill='none' stroke='%23e0642a' stroke-width='2.6'/%3E%3Crect x='14.6' y='5.5' width='2.8' height='21' fill='%23e0642a'/%3E%3C/svg%3E">
 
@@ -33,7 +33,7 @@
 <link rel="stylesheet" href="../../assets/site.css?v=dfafd4c0">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"TechArticle","headline":"GH-006 The Missing Lines (T1070.004): GHOSTLIGHT",
-"url":"https://dillingerstaffing.github.io/ghostlight/ops/006-missing-lines/","description":"T1070.004 File Deletion, reproduced on Ubuntu 24.04: the attacker edits their lines out of the log and it reads clean. A second copy, shipped beyond their reach as it was written, still has them. Every command verified.",
+"url":"https://dillingerstaffing.github.io/ghostlight/ops/006-missing-lines/","description":"T1070.004 File Deletion, reproduced on Ubuntu 24.04: the attacker edits their lines out of the log and it reads clean. A second copy, shipped as it was written, through a second write path, still has them. Every command verified.",
 "author":{"@type":"Person","name":"Chris Dillinger","url":"https://www.linkedin.com/in/christopherdillinger/"},
 "inLanguage":"en"}
 </script>
@@ -134,7 +134,7 @@ while True:
                 <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="log(){ printf '%s\n' &quot;$1&quot; | tee -a access.log &gt; /dev/udp/127.0.0.1/1514; sleep 0.3; }"><span data-label>COPY</span></button></div>
                 <pre>$ log(){ printf '%s\n' "$1" | tee -a access.log &gt; /dev/udp/127.0.0.1/1514; sleep 0.3; }</pre>
               </div>
-              <div class="prose"><p>Every line exists in two places from the moment it is written: the local log the attacker will find, and the shipped copy they will not. That separation is the entire defense, and it is built before the attack, not after.</p></div>
+              <div class="prose"><p>Every line exists in two places from the moment it is written: the local log the attacker will find, and the shipped copy the demonstrated attack does not touch. That separation is the entire defense, and it is built before the attack, not after.</p></div>
             </div>
           </div>
         </section>
@@ -210,7 +210,7 @@ $ grep -c attacker ship.log
               <div class="prose"><p>All three lines, including the two the local log no longer contains. The attacker cleaned the only copy they could see; the forwarded copy was written to a different process, through a different path, at the moment of the event. The divergence between the two copies is itself the detection: when the local log and the shipped log disagree, the local log has been edited.</p></div>
               <div class="verdict green">
                 <span class="mlabel">Detection verified</span>
-                <p>The shipped copy preserved every deleted line. No forensics, no undelete tools, no luck: the record survived because it was never in the attacker's reach to begin with.</p>
+                <p>The shipped copy preserved every deleted line. No forensics, no undelete tools, no luck: the record survived because the demonstrated edit never touched the second write path.</p>
               </div>
             </div>
           </div>
@@ -242,7 +242,7 @@ $ grep -c attacker ship.log
               <div class="callout"><p><strong>Honest limit.</strong> The demo's receiver ran on the same box; a root attacker here could kill it too, which is why production puts the collector on separate hardware. UDP can drop datagrams under load; production uses TCP. Append-only slows a non-root attacker and does nothing against root. Against root on the endpoint, only the off-host copy counts.</p></div>
               <div class="verdict green">
                 <span class="mlabel">Countermeasures verified</span>
-                <p>The shipped copy is the whole defense: written before the attack, out of the attacker's reach, it makes the quiet edit pointless. Size monitoring catches the loud deletion; real-time off-host forwarding catches everything else. The local log is a convenience; the collector is the record.</p>
+                <p>The shipped copy is the whole defense: written before the attack through a second write path, it makes the demonstrated edit pointless. Size monitoring catches the loud deletion; real-time off-host forwarding catches everything else. The local log is a convenience; the collector is the record.</p>
               </div>
             </div>
           </div>

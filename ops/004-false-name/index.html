@@ -174,7 +174,7 @@ $ ps -C cron -o pid,comm,args
     PID COMMAND         COMMAND
   16946 cron            ./cron</pre>
               </div>
-              <div class="prose"><p>There it is: a cron process, pid 16523. <strong>ps -C</strong> matched on comm, which the kernel set from the basename <strong>cron</strong> at exec time. Nothing about this row is false except the implication. An operator skimming for anomalies sees a daemon name they expect and moves on; that moving on is the entire technique.</p></div>
+              <div class="prose"><p>There it is: a cron process, pid 16946. <strong>ps -C</strong> matched on comm, which the kernel set from the basename <strong>cron</strong> at exec time. Nothing about this row is false except the implication. An operator skimming for anomalies sees a daemon name they expect and moves on; that moving on is the entire technique.</p></div>
               <div class="verdict red">
                 <span class="mlabel">Stealth confirmed</span>
                 <p>An unprivileged user put a process named cron on the box with three commands, and the standard process listing vouches for the name. The forgery cost nothing and the listing detected nothing, because the listing was never checking.</p>
@@ -285,7 +285,7 @@ lrwxrwxrwx 1 root root 0 Sep 16 15:27 /proc/17306/exe -&gt; /tmp/gh004/cron</pre
           <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Sources</span></p></div>
           <div class="prose"><p><a href="https://attack.mitre.org/techniques/T1036/" rel="noopener">MITRE ATT&amp;CK T1036: Masquerading</a><br>
           <a href="https://man7.org/linux/man-pages/man5/proc.5.html" rel="noopener">proc(5)</a> (the /proc/&lt;pid&gt;/exe symlink)<br>
-          <a href="https://man7.org/linux/man-pages/man1/ps.1.html" rel="noopener">ps(1)</a> (where the COMMAND column comes from)<br>
+          <a href="https://man7.org/linux/man-pages/man1/ps.1.html" rel="noopener">ps(1)</a> (the comm and args output columns)<br>
           <a href="https://d3fend.mitre.org/" rel="noopener">MITRE D3FEND</a>: <a href="https://d3fend.mitre.org/technique/d3f:FileHashing/" rel="noopener">D3-FH</a>, <a href="https://d3fend.mitre.org/technique/d3f:FileIntegrityMonitoring/" rel="noopener">D3-FIM</a></p></div>
         </section>
 
