@@ -190,6 +190,7 @@ a { color: inherit; }
 .manifest {
   border: 1px solid var(--hairline); border-radius: 3px;
   background: var(--panel); overflow: hidden;
+  margin-bottom: 72px;
 }
 .mission-card {
   display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 32px;
@@ -628,6 +629,7 @@ a.tech-id:hover { color: var(--bone); border-color: var(--bone-faint); }
   .op-meta:nth-child(3) { border-left: none; }
   .op-meta:nth-child(-n+2) { border-top: none; }
   .file-index-head { margin-top: 56px; }
+  .manifest { margin-bottom: 56px; }
   .mission-card { grid-template-columns: 1fr; gap: 18px; padding: 24px 22px; }
   .card-open { grid-template-columns: 1fr; gap: 18px; }
   .file-index { font-size: 44px; }
