@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>GH-008 The Interrogation (T1497.001): GHOSTLIGHT</title>
+<meta name="description" content="T1497.001 System Checks, reproduced on Ubuntu 24.04: a payload's pre-execution interrogation reads four public system facts and prints its verdict, then we trace the checker's footprint and try lying to it. Every command verified.">
+<link rel="canonical" href="https://dillingerstaffing.github.io/ghostlight/ops/008-sandbox-checks/">
+<meta property="og:title" content="GH-008 The Interrogation (T1497.001): GHOSTLIGHT">
+<meta property="og:description" content="T1497.001 System Checks, reproduced on Ubuntu 24.04: a payload's pre-execution interrogation reads four public system facts and prints its verdict, then we trace the checker's footprint and try lying to it. Every command verified.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dillingerstaffing.github.io/ghostlight/ops/008-sandbox-checks/">
+<meta property="og:site_name" content="GHOSTLIGHT">
+<meta property="og:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="GH-008 The Interrogation (T1497.001): GHOSTLIGHT">
+<meta name="twitter:description" content="T1497.001 System Checks, reproduced on Ubuntu 24.04: a payload's pre-execution interrogation reads four public system facts and prints its verdict, then we trace the checker's footprint and try lying to it. Every command verified.">
+<meta name="twitter:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23ece6d5'/%3E%3Ccircle cx='256' cy='196' r='104' fill='none' stroke='%23241f17' stroke-width='20'/%3E%3Cline x1='256' y1='152' x2='256' y2='240' stroke='%238c3f22' stroke-width='16'/%3E%3Cline x1='256' y1='300' x2='256' y2='424' stroke='%23241f17' stroke-width='14'/%3E%3Cline x1='200' y1='424' x2='312' y2='424' stroke='%23241f17' stroke-width='18'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+<link rel="manifest" href="../../assets/manifest.webmanifest">
+<meta name="theme-color" content="#0a0c0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GHOSTLIGHT">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<script>
+(function () {
+  // Theme: notebook is the default; a stored visitor choice wins.
+  // Runs before the stylesheet is parsed so the first paint is already
+  // the right theme (no flash of the wrong one).
+  try {
+    var t = localStorage.getItem('emi-site-theme');
+    var theme = t === 'classic' ? 'classic' : 'notebook';
+    document.documentElement.dataset.theme = theme;
+    var m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute('content', theme === 'classic' ? '#0a0c0f' : '#ece6d5');
+  } catch (e) {
+    document.documentElement.dataset.theme = 'notebook';
+  }
+})();
+</script>
+<link rel="stylesheet" href="../../assets/site.css?v=31c4e11f">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"GH-008 The Interrogation (T1497.001): GHOSTLIGHT",
+"url":"https://dillingerstaffing.github.io/ghostlight/ops/008-sandbox-checks/","description":"T1497.001 System Checks, reproduced on Ubuntu 24.04: a payload's pre-execution interrogation reads four public system facts and prints its verdict, then we trace the checker's footprint and try lying to it. Every command verified.",
+"author":{"@type":"Person","name":"Chris Dillinger","url":"https://www.linkedin.com/in/christopherdillinger/"},
+"inLanguage":"en"}
+</script>
+</head>
+<body>
+
+<header class="site-header">
+  <a class="brand" href="../../index.html" aria-label="GHOSTLIGHT home">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+    <span class="brand-name">GHOSTLIGHT</span>
+  </a>
+  <nav class="site-nav">
+    <a href="../../method.html">METHOD</a>
+    <a href="../../index.html">FILES</a>
+    <button class="theme-toggle" type="button" aria-label="Switch to dark field dossier theme" title="Switch theme">
+      <span class="theme-toggle-mark" aria-hidden="true"><i></i><i></i></span>
+    </button>
+  </nav>
+</header>
+
+<div class="onboard" data-onboard hidden>
+  <span><strong>How to read a file:</strong> every file follows the six-phase structure below. <span class="k-green">Green</span> is verified, <span class="k-red">red</span> is hostile.</span>
+  <button aria-label="Dismiss">GOT IT</button>
+</div>
+
+<div class="page" data-op="008">
+  <div class="wrap">
+    <section class="op-hero">
+      <div class="op-kicker">
+        <span class="case-no">GH-008</span>
+        <a class="tech-id" href="https://attack.mitre.org/techniques/T1497/001/" rel="noopener">T1497.001</a>
+        <span class="phase-tag red">PHASE RED INSIDE</span>
+      </div>
+      <h1>The Interrogation</h1>
+      <p class="lede">Before it does anything, the payload asks where it is. A sandbox looks different from a real machine, and the question costs four reads of public system facts. This file runs the interrogation, then tries to lie to it.</p>
+      <div class="op-meta-grid">
+        <div class="op-meta"><span class="mlabel">Technique</span><span class="mvalue">System checks (VM/sandbox)</span></div>
+        <div class="op-meta"><span class="mlabel">Target OS</span><span class="mvalue">Ubuntu 24.04.5 LTS</span></div>
+        <div class="op-meta"><span class="mlabel">Toolchain</span><span class="mvalue">bash 5.2, coreutils</span></div>
+        <div class="op-meta"><span class="mlabel">Level</span><span class="mvalue">Beginner</span></div>
+        <div class="op-meta"><span class="mlabel">Time</span><span class="mvalue">20 min</span></div>
+      </div>
+      <div class="objectives">
+        <h2>OBJECTIVES</h2>
+        <ol>
+          <li data-phase="phase-red"><span class="box"></span>Run the four standard VM/sandbox indicators and watch the script print its verdict</li>
+          <li data-phase="phase-blue"><span class="box"></span>Re-read the same facts as inventory, trace the checker's footprint, and try lying to it</li>
+          <li data-phase="countermeasures"><span class="box"></span>Make the sandbox lie convincingly, watch the read pattern, and mind what the checks cannot prove</li>
+          <li data-phase="debrief"><span class="box"></span>Take the IOC checklist and the one-sentence lesson</li>
+        </ol>
+      </div>
+    </section>
+
+    <div class="op-layout">
+      <nav class="rail" aria-label="Phases">
+        <span class="mlabel">Phases</span>
+        <ol>
+          <li><a href="#intel-brief"><span class="pnum">01</span>INTEL BRIEF<span class="tick"></span></a></li>
+          <li><a href="#target-environment"><span class="pnum">02</span>TARGET ENV<span class="tick"></span></a></li>
+          <li><a href="#phase-red"><span class="pnum">03</span>PHASE RED<span class="tick"></span></a></li>
+          <li><a href="#phase-blue"><span class="pnum">04</span>PHASE BLUE<span class="tick"></span></a></li>
+          <li><a href="#countermeasures"><span class="pnum">05</span>COUNTERMEASURES<span class="tick"></span></a></li>
+          <li><a href="#debrief"><span class="pnum">06</span>DEBRIEF<span class="tick"></span></a></li>
+        </ol>
+      </nav>
+
+      <div class="op-content">
+        <section class="phase" id="intel-brief">
+          <div class="phase-head"><span class="phase-num">01</span><h2>Intel Brief</h2><span class="phase-tag neutral">CONTEXT</span></div>
+          <p class="lede">MITRE ATT&amp;CK <a href="https://attack.mitre.org/techniques/T1497/001/" rel="noopener">T1497.001</a>: before running its payload, malware checks whether it is inside a virtualized or sandbox analysis environment, and stays quiet if it is. This file runs that check end to end, then takes the defender's side of the same question.</p>
+          <div class="prose">
+            <p><strong>Why this technique.</strong> A payload that detonates inside an analyst's sandbox burns the sample: the analysts capture the binary, its command-and-control addresses, and the fingerprints of the whole campaign's tooling. So the payload asks one question before it acts: am I being watched. The cheapest form of the question is reading facts the machine volunteers about itself. Four reads, no privilege, nothing written anywhere, and the answer decides whether the payload runs at all.</p>
+            <p><strong>Why not just one check.</strong> The obvious attempt is a single indicator: read product_name, or test one rule like "hypervisor flag means sandbox". Break it on a concrete input: this very lab machine answers <strong>systemd-nspawn</strong> to systemd-detect-virt and <strong>cloud-hypervisor</strong> to the firmware reads. One check names only half the machine: a container running inside a VM. And a single string is a single lie to tell: whoever built the sandbox chooses what product_name says. So the working check layers independent channels, the firmware's strings, the CPU's own report, and the init system's detector, and the verdict is an OR across all of them. That layering is also what makes the defense hard: a convincing lie has to falsify every channel, not one.</p>
+            <p><strong>The mechanism, with terms earned.</strong> <strong>DMI</strong> is the firmware's self-description: the machine's firmware ships tables naming the vendor and the product, and the Linux kernel exposes them as plain text files under <strong>/sys/class/dmi/id</strong>. <strong>sys_vendor</strong> names who made the machine; <strong>product_name</strong> names which machine. The <strong>hypervisor flag</strong> in <strong>/proc/cpuinfo</strong> is the CPU reporting, through the kernel, that a hypervisor is present beneath this OS. <strong>systemd-detect-virt</strong> is systemd's own answer to the same question, built from several of these channels plus container clues. An <strong>indicator</strong> is one such fact that suggests virtualization. The <strong>verdict</strong> is the script's final print: indicators present, or none found.</p>
+            <p><strong>The concrete case, before the abstraction.</strong> <strong>./sandbox-check.sh</strong> on this lab prints: sys_vendor: Cloud Hypervisor; product_name: cloud-hypervisor; cpu flag: hypervisor; detect-virt: systemd-nspawn; verdict: VM/sandbox indicators present. Four channels, four answers, and they do not even agree with each other: the firmware names a VM, the init system names a container. The machine is both, a container inside a VM, and the layered check is the only reason the verdict sees the whole thing.</p>
+          </div>
+          <div class="callout"><p><strong>Scope.</strong> T1497 Virtualization/Sandbox Evasion covers three sub-techniques: .001 System Checks (this file), .002 User Activity Based Checks, .003 Time Based Evasion. This file works the system-checks case end to end: the standard indicators, the verdict logic, and what a defender can and cannot do about a program reading its own environment.</p></div>
+        </section>
+
+        <section class="phase" id="target-environment">
+          <div class="phase-head"><span class="phase-num">02</span><h2>Target Environment</h2><span class="phase-tag neutral">LOADOUT</span></div>
+          <p class="lede">Ubuntu 24.04.5 LTS with bash 5.2, x86-64, itself running virtualized, which is the point: the lab machine is the specimen. The check needs no privilege: every read is a public system fact. The lab stands in for the payload with one script.</p>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Build the lab</h3>
+              <div class="prose"><p>One directory, one script. The script is the whole payload: it asks where it is, then prints its verdict.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="mkdir -p /tmp/gh008&#10;cat &gt; /tmp/gh008/sandbox-check.sh &lt;&lt;'EOF'&#10;#!/bin/sh&#10;# GH-008 lab: the interrogation. A payload's pre-execution check.&#10;# Reads only public system facts. Nothing is planted, nothing hidden,&#10;# nothing persists, no privilege needed.&#10;vendor=$(cat /sys/class/dmi/id/sys_vendor)&#10;product=$(cat /sys/class/dmi/id/product_name)&#10;cpuflag=$(grep -m1 -o 'hypervisor' /proc/cpuinfo || echo absent)&#10;virt=$(systemd-detect-virt)&#10;echo &quot;sys_vendor:    $vendor&quot;&#10;echo &quot;product_name:  $product&quot;&#10;echo &quot;cpu flag:      $cpuflag&quot;&#10;echo &quot;detect-virt:   $virt&quot;&#10;blob=&quot;$vendor $product $virt $cpuflag&quot;&#10;case $blob in&#10;  *[Qq][Ee][Mm][Uu]*|*[Kk][Vv][Mm]*|*VMware*|*VirtualBox*|*Xen*|*[Hh]ypervisor*|*nspawn*)&#10;    echo &quot;verdict: VM/sandbox indicators present&quot; ;;&#10;  *)&#10;    if [ &quot;$virt&quot; != &quot;none&quot; ]; then&#10;      echo &quot;verdict: VM/sandbox indicators present&quot;&#10;    else&#10;      echo &quot;verdict: no VM indicators found&quot;&#10;    fi ;;&#10;esac&#10;EOF&#10;chmod +x /tmp/gh008/sandbox-check.sh"><span data-label>COPY</span></button></div>
+                <pre>$ mkdir -p /tmp/gh008
+$ cat &gt; /tmp/gh008/sandbox-check.sh &lt;&lt;'EOF'
+&gt; #!/bin/sh
+&gt; # GH-008 lab: the interrogation. A payload's pre-execution check.
+&gt; # Reads only public system facts. Nothing is planted, nothing hidden,
+&gt; # nothing persists, no privilege needed.
+&gt; vendor=$(cat /sys/class/dmi/id/sys_vendor)
+&gt; product=$(cat /sys/class/dmi/id/product_name)
+&gt; cpuflag=$(grep -m1 -o 'hypervisor' /proc/cpuinfo || echo absent)
+&gt; virt=$(systemd-detect-virt)
+&gt; echo "sys_vendor:    $vendor"
+&gt; echo "product_name:  $product"
+&gt; echo "cpu flag:      $cpuflag"
+&gt; echo "detect-virt:   $virt"
+&gt; blob="$vendor $product $virt $cpuflag"
+&gt; case $blob in
+&gt;   *[Qq][Ee][Mm][Uu]*|*[Kk][Vv][Mm]*|*VMware*|*VirtualBox*|*Xen*|*[Hh]ypervisor*|*nspawn*)
+&gt;     echo "verdict: VM/sandbox indicators present" ;;
+&gt;   *)
+&gt;     if [ "$virt" != "none" ]; then
+&gt;       echo "verdict: VM/sandbox indicators present"
+&gt;     else
+&gt;       echo "verdict: no VM indicators found"
+&gt;     fi ;;
+&gt; esac
+&gt; EOF
+$ chmod +x /tmp/gh008/sandbox-check.sh</pre>
+              </div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>The payload: the interrogation script</h3>
+              <div class="prose"><p>Twenty lines. Every line glossed, because the whole technique lives in this file.</p></div>
+<div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">sh: /tmp/gh008/sandbox-check.sh</span><button class="copy-btn" data-copy="#!/bin/sh&#10;# GH-008 lab: the interrogation. A payload's pre-execution check.&#10;# Reads only public system facts. Nothing is planted, nothing hidden,&#10;# nothing persists, no privilege needed.&#10;vendor=$(cat /sys/class/dmi/id/sys_vendor)&#10;product=$(cat /sys/class/dmi/id/product_name)&#10;cpuflag=$(grep -m1 -o 'hypervisor' /proc/cpuinfo || echo absent)&#10;virt=$(systemd-detect-virt)&#10;echo &quot;sys_vendor:    $vendor&quot;&#10;echo &quot;product_name:  $product&quot;&#10;echo &quot;cpu flag:      $cpuflag&quot;&#10;echo &quot;detect-virt:   $virt&quot;&#10;blob=&quot;$vendor $product $virt $cpuflag&quot;&#10;case $blob in&#10;  *[Qq][Ee][Mm][Uu]*|*[Kk][Vv][Mm]*|*VMware*|*VirtualBox*|*Xen*|*[Hh]ypervisor*|*nspawn*)&#10;    echo &quot;verdict: VM/sandbox indicators present&quot; ;;&#10;  *)&#10;    if [ &quot;$virt&quot; != &quot;none&quot; ]; then&#10;      echo &quot;verdict: VM/sandbox indicators present&quot;&#10;    else&#10;      echo &quot;verdict: no VM indicators found&quot;&#10;    fi ;;&#10;esac&#10;"><span data-label>COPY</span></button></div>
+                <pre>#!/bin/sh
+# GH-008 lab: the interrogation. A payload's pre-execution check.
+# Reads only public system facts. Nothing is planted, nothing hidden,
+# nothing persists, no privilege needed.
+vendor=$(cat /sys/class/dmi/id/sys_vendor)
+product=$(cat /sys/class/dmi/id/product_name)
+cpuflag=$(grep -m1 -o 'hypervisor' /proc/cpuinfo || echo absent)
+virt=$(systemd-detect-virt)
+echo "sys_vendor:    $vendor"
+echo "product_name:  $product"
+echo "cpu flag:      $cpuflag"
+echo "detect-virt:   $virt"
+blob="$vendor $product $virt $cpuflag"
+case $blob in
+  *[Qq][Ee][Mm][Uu]*|*[Kk][Vv][Mm]*|*VMware*|*VirtualBox*|*Xen*|*[Hh]ypervisor*|*nspawn*)
+    echo "verdict: VM/sandbox indicators present" ;;
+  *)
+    if [ "$virt" != "none" ]; then
+      echo "verdict: VM/sandbox indicators present"
+    else
+      echo "verdict: no VM indicators found"
+    fi ;;
+esac
+</pre>
+              </div>
+              <div class="prose"><p>Line by line. <strong>#!/bin/sh</strong> runs the file under the system shell. The comment lines say what the file is for; they do nothing. <strong>vendor=$(cat /sys/class/dmi/id/sys_vendor)</strong> reads the firmware's vendor string; <strong>$(...)</strong> captures a command's output into a variable. <strong>product=...</strong> reads the firmware's product string. <strong>cpuflag=$(grep -m1 -o 'hypervisor' /proc/cpuinfo || echo absent)</strong> searches the kernel's CPU report for the hypervisor flag: <strong>-m1</strong> stops at the first match, <strong>-o</strong> prints only the matched word, and the <strong>|| echo absent</strong> runs only if grep finds nothing, so the variable always has a value. <strong>virt=$(systemd-detect-virt)</strong> asks systemd for its one-word virtualization verdict. The four <strong>echo</strong> lines print the four indicators: this is the interrogation, the asking, done in public. <strong>blob="$vendor $product $virt $cpuflag"</strong> concatenates every indicator into one string so a single match tests all channels at once. <strong>case $blob in</strong> is shell pattern matching against that string: the long pattern lists fragments of known VM vendor and product names (QEMU, KVM, VMware, VirtualBox, Xen, Hypervisor, nspawn), with <strong>[Qq]</strong> matching either case; if any fragment appears anywhere in the blob, the verdict is indicators present. The <strong>*)</strong> fallback covers the case where no fragment matched: it still checks <strong>$virt</strong>, and anything systemd reported other than "none" counts as an indicator. The final else prints "no VM indicators found". Note what that line does not say: it does not say bare metal. It says the four channels were quiet.</p></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="phase-red">
+          <div class="phase-head"><span class="phase-num">03</span><h2>Phase Red: ask where it is</h2><span class="phase-tag red">ATTACK</span></div>
+          <p class="lede">Four reads, one verdict. Run each indicator by hand first, so you see what the script sees, then run the script and watch it decide. Every command below is copy-pasteable.</p>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">17.8s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/interrogation-red.jpg" aria-label="Screen recording: INTERROGATION RED, operator@lab">
+              <source src="../../assets/vid/interrogation-red.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> The four indicators read by hand, then the interrogation script printing its verdict. Every command below is copy-pasteable.</figcaption>
+          </figure>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Read the firmware strings</h3>
+              <div class="prose"><p>The kernel exposes the firmware's self-description as text files. Two reads, no privilege.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="cat /sys/class/dmi/id/sys_vendor /sys/class/dmi/id/product_name"><span data-label>COPY</span></button></div>
+                <pre>$ cat /sys/class/dmi/id/sys_vendor /sys/class/dmi/id/product_name
+Cloud Hypervisor
+cloud-hypervisor</pre>
+              </div>
+              <div class="prose"><p>The firmware says this machine is a Cloud Hypervisor guest. Remember who writes these strings: the hypervisor. A hypervisor that wants to lie sets them to anything it likes; the read itself cannot tell a true string from a false one.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>Ask the CPU and the init system</h3>
+              <div class="prose"><p>Two more channels, independent of the firmware strings.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="grep -m1 -o hypervisor /proc/cpuinfo; systemd-detect-virt"><span data-label>COPY</span></button></div>
+                <pre>$ grep -m1 -o hypervisor /proc/cpuinfo; systemd-detect-virt
+hypervisor
+systemd-nspawn</pre>
+              </div>
+              <div class="prose"><p>The hypervisor flag means the CPU told the kernel a hypervisor sits underneath this OS. systemd-detect-virt says systemd-nspawn: this shell runs inside a container. Note the disagreement with step 1: the firmware names a VM, the init system names a container. Both are true. One check would have told half the story; that is the concrete failure the layered check fixes.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>Run the interrogation</h3>
+              <div class="prose"><p>The same four facts, now as one verdict.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="./sandbox-check.sh"><span data-label>COPY</span></button></div>
+                <pre>$ ./sandbox-check.sh
+sys_vendor:    Cloud Hypervisor
+product_name:  cloud-hypervisor
+cpu flag:      hypervisor
+detect-virt:   systemd-nspawn
+verdict: VM/sandbox indicators present</pre>
+              </div>
+              <div class="prose"><p>A payload that wanted a sandbox would stop here: stay quiet, phone nothing home, leave no behavior to analyze. The interrogation cost four reads and printed its decision to the terminal.</p></div>
+              <div class="verdict red">
+                <span class="mlabel">Stealth confirmed</span>
+                <p>The payload learned exactly where it is from public system facts before doing anything else. Nothing was planted, nothing persisted, no privilege was used, and no defender had any separate fact to check: the reads the attacker makes are the same reads the machine offers everyone.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="phase-blue">
+          <div class="phase-head"><span class="phase-num">04</span><h2>Phase Blue: the same facts, the other side</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">The red phase asked the machine where it is. Now ask the defender's questions: what does the defender see that the attacker does not, what does the checking look like from outside, and what happens when the machine lies. Every command below is copy-pasteable.</p>
+          <div class="prose">
+            <p>Here is the trap: treating the indicator strings as hostile artifacts and hunting for them. The strings are not hostile. Your own inventory tooling reads the same files. The check is not an object to find; it is a behavior to observe, and a question you cannot stop from being asked.</p>
+          </div>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot blue" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">23.2s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/interrogation-blue.jpg" aria-label="Screen recording: INTERROGATION BLUE, operator@lab">
+              <source src="../../assets/vid/interrogation-blue.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> The defender's inventory reads, the checker's file-access footprint under strace, and the same script run in a room where the firmware strings lie. Every command below is copy-pasteable.</figcaption>
+          </figure>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>The defender's inventory: the same public facts</h3>
+              <div class="prose"><p>The defender runs the same four reads. Watch the answers match the attacker's exactly.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="cat /sys/class/dmi/id/sys_vendor; cat /sys/class/dmi/id/product_name; grep -m1 -o hypervisor /proc/cpuinfo; systemd-detect-virt"><span data-label>COPY</span></button></div>
+                <pre>$ cat /sys/class/dmi/id/sys_vendor; cat /sys/class/dmi/id/product_name; grep -m1 -o hypervisor /proc/cpuinfo; systemd-detect-virt
+Cloud Hypervisor
+cloud-hypervisor
+hypervisor
+systemd-nspawn</pre>
+              </div>
+              <div class="prose"><p>Identical answers. That is the first defensive fact, and it is a negative one: there is no defender-only channel here. The defender reads the same files the payload reads. You cannot stop a program from reading its own environment; the files are world-readable by design. Defense has two moves, and only two: lie to the check convincingly (step 3), or watch the checking happen (step 2).</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>Watch the checking, not the facts</h3>
+              <div class="prose"><p>The reads are legitimate, but their pattern is distinctive: one process, at startup, opening the DMI files and cpuinfo in a burst. <strong>strace -f</strong> follows the script and its children; <strong>-e trace=openat</strong> shows only file opens; the script's own output is discarded and the log is mined for the interesting paths.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="strace -f -e trace=openat -o trace.log ./sandbox-check.sh &gt;/dev/null 2&gt;&amp;1&#10;grep -oE '/sys/class/dmi/id/[a-z_]+|/proc/cpuinfo' trace.log | sort -u"><span data-label>COPY</span></button></div>
+                <pre>$ strace -f -e trace=openat -o trace.log ./sandbox-check.sh &gt;/dev/null 2&gt;&amp;1
+$ grep -oE '/sys/class/dmi/id/[a-z_]+|/proc/cpuinfo' trace.log | sort -u
+/proc/cpuinfo
+/sys/class/dmi/id/product_name
+/sys/class/dmi/id/sys_vendor</pre>
+              </div>
+              <div class="prose"><p>That burst is the interrogation's observable footprint. A monitor shaped like this, DMI and cpuinfo reads clustered at process start, sees the checking even when it cannot judge the verdict. This rule is the site's own construction: D3FEND 1.6.0 maps no defender to T1497.001 specifically (its T1497 defenders target time-based evasion), so the Sources section says so plainly instead of borrowing a link that does not fit.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>The lying room: falsify one channel, watch the verdict hold</h3>
+              <div class="prose"><p>Defense move one is deception: a sandbox that lies convincingly. This step builds a small lying room with <strong>unshare</strong>: a mount namespace where /sys/class/dmi/id is a tmpfs holding forged strings, Dell Inc. and PowerEdge R750, a bare-metal costume. The namespace is contained; nothing on the host changes, and the room vanishes when the command exits.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="unshare -rm sh -c 'mount -t tmpfs tmpfs /sys/class/dmi/id &amp;&amp; printf &quot;Dell Inc.&quot; &gt; /sys/class/dmi/id/sys_vendor &amp;&amp; printf &quot;PowerEdge R750&quot; &gt; /sys/class/dmi/id/product_name &amp;&amp; ./sandbox-check.sh'"><span data-label>COPY</span></button></div>
+                <pre>$ unshare -rm sh -c 'mount -t tmpfs tmpfs /sys/class/dmi/id &amp;&amp; printf "Dell Inc." &gt; /sys/class/dmi/id/sys_vendor &amp;&amp; printf "PowerEdge R750" &gt; /sys/class/dmi/id/product_name &amp;&amp; ./sandbox-check.sh'
+sys_vendor:    Dell Inc.
+product_name:  PowerEdge R750
+cpu flag:      hypervisor
+detect-virt:   systemd-nspawn
+verdict: VM/sandbox indicators present</pre>
+              </div>
+              <div class="prose"><p>The firmware strings lied, and the verdict did not move. The remaining channels, the CPU flag and systemd's detector, still told the truth, and the OR logic only needs one honest channel. This is the bar deception must clear: a convincing sandbox falsifies every channel the check reads, not one. Miss a single channel, and the interrogation still convicts you.</p></div>
+              <div class="verdict green">
+                <span class="mlabel">Detection verified</span>
+                <p>The interrogation is observable as a burst of DMI and cpuinfo reads at process start, even though no single read is hostile. And the lying-room run proved the checker's trust boundary: it believes whatever the environment tells it, so the defense is to control the environment completely or not rely on the verdict at all.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="countermeasures">
+          <div class="phase-head"><span class="phase-num">05</span><h2>Countermeasures</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">Three moves, in order: do not let the verdict decide, watch the checking, make the lie airtight. Each is one way, not the way.</p>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Mitigate: never let the payload's verdict decide</h3>
+              <div class="prose"><p>The check only protects the payload if you honor its decision to stay quiet. Detonate anyway: run the sample in a disposable, instrumented VM regardless of what its interrogation concludes, and capture everything it does. Static analysis sidesteps the question entirely: the checker's strings and branches are visible without executing anything. Either way the interrogation becomes theater: it asked, and nobody listened.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>Monitor: watch for the read burst</h3>
+              <div class="prose"><p>The strace pattern from Phase Blue is the monitor: a cluster of opens on /sys/class/dmi/id/* and /proc/cpuinfo at process start, before the process does anything else. Production versions run it in the EDR or auditd, not strace, and alert on the pattern, not on any single read. This is the fleet form of the check: the idea does not change, only the coverage.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="strace -f -e trace=openat -o trace.log ./sandbox-check.sh &gt;/dev/null 2&gt;&amp;1&#10;grep -oE '/sys/class/dmi/id/[a-z_]+|/proc/cpuinfo' trace.log | sort -u"><span data-label>COPY</span></button></div>
+                <pre>$ strace -f -e trace=openat -o trace.log ./sandbox-check.sh &gt;/dev/null 2&gt;&amp;1
+$ grep -oE '/sys/class/dmi/id/[a-z_]+|/proc/cpuinfo' trace.log | sort -u
+/proc/cpuinfo
+/sys/class/dmi/id/product_name
+/sys/class/dmi/id/sys_vendor</pre>
+              </div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>Prevent: build the lie the checker cannot see through</h3>
+              <div class="prose"><p>Falsify every channel the interrogation reads, and keep them consistent: DMI strings via the hypervisor's firmware-string controls, the hypervisor CPUID bit hidden by the hypervisor itself, and the container layer camouflaged so systemd-detect-virt answers none. Or skip the arms race: detonate on bare metal reimaged from known-good media, where there is nothing to detect. D3FEND maps no defender to this sub-technique; the controls above are the site's own, and their limits are stated below.</p></div>
+              <div class="callout"><p><strong>Honest limit.</strong> Every one of these checks is trivially fooled by a sandbox that bothers to lie; absence of VM indicators proves nothing about bare metal, it proves the four channels were quiet. DMI strings are written by whoever built the VM. The hypervisor flag can be hidden by the hypervisor. The read-burst monitor misses checks that execute the CPUID instruction directly instead of reading files, and it races any check that runs before the monitor attaches. Static analysis misses packed or obfuscated checks. And the deepest limit: the checker's verdict is only useful to the attacker if the analyst lets the sample decide whether to run. Run it anyway, in a room you control, and the interrogation answers to an empty room.</p></div>
+              <div class="verdict green">
+                <span class="mlabel">Countermeasures verified</span>
+                <p>The interrogation cannot be prevented, only answered dishonestly or observed in the act. A sandbox that falsifies every channel defeats the check; a monitor that watches the read burst sees it coming; an analyst who detonates anyway makes the verdict irrelevant. None of them changes the core fact: a program can always read its own environment.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="debrief">
+          <div class="phase-head"><span class="phase-num">06</span><h2>Debrief</h2><span class="phase-tag neutral">TAKEAWAY</span></div>
+          <p class="takeaway">A program can always read its own environment; the defense is to lie to it completely or watch what it does with the answer.</p>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">IOC checklist: signs this technique was used</span></p></div>
+          <ul class="checklist">
+            <li><span>A process opening <strong>/sys/class/dmi/id/*</strong> and <strong>/proc/cpuinfo</strong> in a burst at startup, before any other behavior</span></li>
+            <li><span>DMI vendor or product strings naming a hypervisor (Cloud Hypervisor, QEMU, VMware, VirtualBox) on a machine inventoried as physical</span></li>
+            <li><span><strong>systemd-detect-virt</strong> disagreeing with the DMI strings: a container inside a VM, or the reverse</span></li>
+            <li><span>Execution that stops or goes quiet immediately after the DMI and cpuinfo reads: the verdict told it not to run</span></li>
+            <li><span>Known VM-vendor substrings in a binary's readable strings (qemu, kvm, vmware, virtualbox, xen, hyper-v)</span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Reproducibility checklist</span></p></div>
+          <ul class="checklist">
+            <li><span>Verified on <strong>Ubuntu 24.04.5 LTS</strong>, <strong>bash 5.2</strong>, x86-64, on 2026-09-17 (the host itself virtualized: a Cloud Hypervisor VM running a systemd-nspawn container)</span></li>
+            <li><span>Both recordings are real executions on that platform, not simulations</span></li>
+            <li><span>The check runs fully unprivileged: every read is a world-readable system fact</span></li>
+            <li><span>The lying-room demo needs unprivileged user namespaces (<strong>unshare -rm</strong>); it is contained to its own mount namespace and nothing persists</span></li>
+            <li><span>Cleanup: rm -rf /tmp/gh008</span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Sources</span></p></div>
+          <div class="prose"><p><a href="https://attack.mitre.org/techniques/T1497/001/" rel="noopener">MITRE ATT&amp;CK T1497.001: System Checks</a><br>
+          <a href="https://man7.org/linux/man-pages/man5/proc.5.html" rel="noopener">proc(5)</a> (/proc/cpuinfo flags: the hypervisor bit)<br>
+          systemd-detect-virt(1), and the kernel ABI document Documentation/ABI/stable/sysfs-class-dmi (the DMI sysfs files)<br>
+          <a href="https://d3fend.mitre.org/" rel="noopener">MITRE D3FEND</a>: version 1.6.0 maps no defender to T1497.001; its T1497 defenders target .003 time-based evasion, so none are wired here</p></div>
+        </section>
+
+        <a class="next-file" href="../009-debugger-evasion/index.html">
+          <span class="mlabel">Next file</span>
+          <h3>GH-009 Debugger Evasion</h3>
+          <p>The payload's next question is whether someone is watching it run. The next file covers debugger evasion, T1622.</p>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <div>
+      <div class="footer-brand">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+        <span class="brand-name" style="font-size:17px">GHOSTLIGHT</span>
+      </div>
+      <p class="footer-note">An independent adversary-stealth research publication. Every command verified on the named OS before publishing. No trackers, no frameworks, no autoplay.</p>
+    </div>
+    <nav class="footer-links">
+      <a href="../../method.html">METHOD</a>
+      <a href="../../index.html">FILES</a>
+      <a href="https://attack.mitre.org/tactics/TA0005/" rel="noopener">MITRE TA0005</a>
+    </nav>
+    <div class="footer-elsewhere">
+      <span class="mlabel">Elsewhere</span><a href="https://dillingerstaffing.github.io/portfolio/" target="_blank" rel="noopener">Portfolio</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/proving-ground/" target="_blank" rel="noopener">Proving Ground</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/tapeout/" target="_blank" rel="noopener">Tapeout</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/old-iron/" target="_blank" rel="noopener">Old Iron</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/unstuck/" target="_blank" rel="noopener">Unstuck</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../../assets/site.js?v=512f8825"></script>
+</body>
+</html>
