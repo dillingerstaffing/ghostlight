@@ -119,39 +119,50 @@
       <div class="op-content">
         <section class="phase" id="intel-brief">
           <div class="phase-head"><span class="phase-num">01</span><h2>Intel Brief</h2><span class="phase-tag neutral">CONTEXT</span></div>
-          <p class="lede">MITRE ATT&amp;CK <a href="https://attack.mitre.org/techniques/T1622/" rel="noopener">T1622</a>: adversaries check whether a debugger or tracer is watching them, and change behavior when one is. This file builds a four-layer stack around that check, then takes the defender's side with a different observer per layer.</p>
+          <p class="lede">MITRE ATT&amp;CK <a href="https://attack.mitre.org/techniques/T1622/" rel="noopener">T1622</a>: adversaries check whether a debugger or tracer is watching, and change behavior when one is. This file builds a four-layer stack around that check, then takes the defender's side with a different observer per layer.</p>
           <div class="prose">
-            <p><strong>Why this technique.</strong> A tracer is how an analyst watches a program run: strace logs the system calls a program makes. A payload that can tell it is being watched can choose to misbehave only when nobody is looking: exit quietly, decrypt nothing, sleep through the analysis. The check used here asks the kernel directly. Every process on Linux has a status file at /proc/self/status, and one of its fields, TracerPid, names the process tracing it, or 0 when none is. Reading that field costs one file read and no privilege, and it tells the payload exactly what the analyst hopes it cannot know: whether anyone is watching.</p>
-            <p><strong>Why not a single layer.</strong> The obvious alternative is any one trick by itself. Break each on a concrete input. The tracer gate alone still leaves a visible file in a listed directory and a process running under its real name; an analyst who never attaches a tracer walks past the gate entirely. The hidden directory alone still shows the payload's real name in the process table. The borrowed name alone still sits in a directory that plain ls lists. Each layer defeats exactly one observer and leaves the others a clear view. That is why the stack exists: stealth is not one good trick, it is a set of tricks that cover each other's blind spots, and the price is that every new layer is a new surface a different observer can see.</p>
-            <p><strong>The mechanism, with terms earned.</strong> A <strong>tracer</strong> attaches with the ptrace system call, and the kernel records the tracer's process id in the tracee's <strong>TracerPid</strong> field; strace is the tracer used in this file. <strong>/proc/self</strong> is the current process's own /proc entry, so /proc/self/status is the payload reading its own record, and the read must happen in the payload itself: a child process would report the child's own TracerPid, not the payload's, which is why the script reads the file with a shell loop instead of delegating to awk or grep. <strong>argv[0]</strong> is the process's self-reported name, set by whatever launched it; <strong>exec -a</strong> overrides it. The kernel keeps two facts that do not consult that story: <strong>/proc/PID/cmdline</strong>, the full command line including the real script path, and <strong>/proc/PID/exe</strong>, a link to the actual executable file. A <strong>dot-directory</strong> is a name beginning with a period, hidden from plain ls by a display convention from the 1970s, not by any filesystem enforcement.</p>
-            <p><strong>The concrete case, before the abstraction.</strong> <strong>/tmp/gh010</strong> holds one visible file, notes.txt, and one hidden directory, .sys-cache, holding sync.sh. Launched under strace, the payload reads a nonzero TracerPid and exits before touching its marker file. Launched clean with exec -a, it runs as syslog-helper, touches .marker, and sleeps. Plain ls prints one name. pgrep prints a boring one. /proc prints the truth.</p>
+            <p><strong>The stack idea in one sentence.</strong> Each layer defeats exactly one way of looking, and every new layer is a new surface a different way of looking can see.</p>
+            <p><strong>Why it matters.</strong> A tracer (strace) is how an analyst watches a program's system calls. A payload that can tell it is being watched can save its real behavior for when nobody is looking. The check here is cheap and direct: every Linux process has a status file at /proc/self/status, and its <strong>TracerPid</strong> field names the tracing process, or 0 when none is. One file read, no privilege, and the payload knows what the analyst hoped it could not: whether anyone is watching.</p>
+            <p><strong>Why not just look harder.</strong> Staring longer at the process list cannot beat a borrowed name, because the borrowed name was built for exactly that stare. The fix is never a harder look through the same observer. It is a different observer.</p>
+          </div>
+          <table class="layer-table">
+            <thead><tr><th>Layer</th><th>Defeats this observer</th><th>Falls to this observer</th></tr></thead>
+            <tbody>
+              <tr><td>1. Tracer gate: the payload reads its own TracerPid and exits silently if nonzero</td><td>The analyst's tracer (strace)</td><td>None: it dies. The death is the tell.</td></tr>
+              <tr><td>2. Hidden directory: the payload lives in .sys-cache</td><td>The default listing (ls)</td><td>ls -a, find</td></tr>
+              <tr><td>3. Borrowed name: argv[0] set to syslog-helper at launch</td><td>The process-table glance (pgrep)</td><td>/proc/PID/cmdline, /proc/PID/exe</td></tr>
+              <tr><td>4. Sleeper: the payload sleeps 900 seconds after running</td><td>Nothing; it buys inspection time</td><td>pkill, once found</td></tr>
+            </tbody>
+          </table>
+          <div class="prose">
+            <p><strong>Terms, earned where they first appear.</strong> A <strong>tracer</strong> attaches with the ptrace system call; the kernel records its process id in the tracee's <strong>TracerPid</strong> field. <strong>/proc/self</strong> is the current process's own /proc entry, so /proc/self/status is the payload reading its own record. The read must happen in the payload itself: a child process would report the child's own TracerPid, which is why the script uses a shell loop instead of delegating to awk or grep. <strong>argv[0]</strong> is the process's self-reported name, set by whatever launched it; <strong>exec -a</strong> overrides it. The kernel keeps two facts that do not consult that story: <strong>/proc/PID/cmdline</strong>, the full command line including the real script path, and <strong>/proc/PID/exe</strong>, a link to the actual executable file. A <strong>dot-directory</strong> is a name starting with a period, hidden from plain ls by a display convention from the 1970s, not by any filesystem enforcement.</p>
+            <p><strong>The concrete case.</strong> /tmp/gh010 holds one visible file, notes.txt, and one hidden directory, .sys-cache, holding sync.sh. Under strace the payload reads a nonzero TracerPid and exits before touching its marker file. Launched clean under a borrowed name, it runs, touches .marker, and sleeps. Plain ls prints one name. pgrep prints a boring one. /proc prints the truth.</p>
           </div>
           <div class="callout"><p><strong>Scope.</strong> T1622 Debugger Evasion covers every way a program detects analysis: TracerPid checks, timing checks, breakpoint scans. This file works the TracerPid case end to end on Linux, then stacks it with <a href="https://attack.mitre.org/techniques/T1564/001/" rel="noopener">T1564.001</a> (the hidden directory) and <a href="https://attack.mitre.org/techniques/T1036/" rel="noopener">T1036</a> (the borrowed name) to show how layers compose: each new layer defeats one observer and exposes a new surface.</p></div>
         </section>
 
         <section class="phase" id="target-environment">
           <div class="phase-head"><span class="phase-num">02</span><h2>Target Environment</h2><span class="phase-tag neutral">LOADOUT</span></div>
-          <p class="lede">Ubuntu 24.04.5 LTS, bash 5.2, x86-64, strace. No privilege needed, no network, no persistence: the payload reads its own TracerPid, touches one marker file inside its own directory, and sleeps. The lab is one directory, one decoy, one hidden directory, one script.</p>
+          <p class="lede">Ubuntu 24.04.5 LTS, bash 5.2, x86-64, strace. No privilege, no network, no persistence. The lab is one directory (/tmp/gh010), one decoy file (notes.txt), one hidden directory (.sys-cache), one payload script (sync.sh).</p>
           <div class="step">
             <div class="step-num">1</div>
             <div>
               <h3>Build the lab</h3>
-              <div class="prose"><p>One directory, one decoy file, one hidden directory. The decoy, notes.txt, is the boring visible file the casual listing sees.</p></div>
+              <div class="prose"><p>One directory, one decoy, one hidden directory. notes.txt is the boring visible file the casual listing sees.</p></div>
               <div class="codeblock codeblock-scrollhint">
   <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="rm -rf /tmp/gh010; mkdir -p /tmp/gh010/.sys-cache &amp;&amp; cd /tmp/gh010 &amp;&amp; touch notes.txt &amp;&amp; ls"><span data-label>COPY</span></button></div>
   <pre>$ rm -rf /tmp/gh010; mkdir -p /tmp/gh010/.sys-cache &amp;&amp; cd /tmp/gh010 &amp;&amp; touch notes.txt &amp;&amp; ls
 notes.txt</pre>
 </div>
-              <div class="prose"><p>A fresh lab directory with the decoy inside, and the shell moved into it. Now the payload, written into the hidden directory.</p></div>
+              <div class="prose"><p>Fresh lab, decoy inside, shell moved into it. Now the payload, written into the hidden directory. The quoted 'EOF' keeps the shell from expanding anything in the heredoc.</p></div>
               <div class="codeblock codeblock-scrollhint">
-  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="cat &gt; .sys-cache/sync.sh &lt;&lt;'EOF'&#10;#!/bin/sh&#10;# GH-010 lab: benign four-layer stealth stack stand-in.&#10;# Layer 1 (T1622): the payload itself reads TracerPid from&#10;# /proc/self/status and exits silently if a tracer is attached.&#10;# Then: touch one marker file inside its own directory, sleep.&#10;# No network, no persistence, no privilege.&#10;tpid=0&#10;while read -r key val _; do&#10;  if [ &quot;$key&quot; = &quot;TracerPid:&quot; ]; then tpid=$val; break; fi&#10;done &lt; /proc/self/status&#10;if [ &quot;$tpid&quot; != &quot;0&quot; ]; then&#10;  exit 0&#10;fi&#10;cd &quot;$(dirname &quot;$0&quot;)&quot; || exit 1&#10;touch .marker&#10;sleep 900&#10;EOF"><span data-label>COPY</span></button></div>
+  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="cat &gt; .sys-cache/sync.sh &lt;&lt;'EOF'&#10;#!/bin/sh&#10;# GH-010 lab payload. Benign: reads TracerPid, touches one&#10;# marker, then sleeps. No network, no persistence, no privilege.&#10;# Layer 1 (T1622): the payload reads its own TracerPid.&#10;# Tracer attached? Exit silently. No tracer? Run.&#10;tpid=0&#10;while read -r key val _; do&#10;  if [ &quot;$key&quot; = &quot;TracerPid:&quot; ]; then tpid=$val; break; fi&#10;done &lt; /proc/self/status&#10;if [ &quot;$tpid&quot; != &quot;0&quot; ]; then&#10;  exit 0&#10;fi&#10;cd &quot;$(dirname &quot;$0&quot;)&quot; || exit 1&#10;touch .marker&#10;sleep 900&#10;EOF"><span data-label>COPY</span></button></div>
   <pre>$ cat &gt; .sys-cache/sync.sh &lt;&lt;'EOF'
 &gt; #!/bin/sh
-&gt; # GH-010 lab: benign four-layer stealth stack stand-in.
-&gt; # Layer 1 (T1622): the payload itself reads TracerPid from
-&gt; # /proc/self/status and exits silently if a tracer is attached.
-&gt; # Then: touch one marker file inside its own directory, sleep.
-&gt; # No network, no persistence, no privilege.
+&gt; # GH-010 lab payload. Benign: reads TracerPid, touches one
+&gt; # marker, then sleeps. No network, no persistence, no privilege.
+&gt; # Layer 1 (T1622): the payload reads its own TracerPid.
+&gt; # Tracer attached? Exit silently. No tracer? Run.
 &gt; tpid=0
 &gt; while read -r key val _; do
 &gt;   if [ "$key" = "TracerPid:" ]; then tpid=$val; break; fi
@@ -164,22 +175,20 @@ notes.txt</pre>
 &gt; sleep 900
 &gt; EOF</pre>
 </div>
-              <div class="prose"><p>The heredoc writes the payload exactly as written: the quoted 'EOF' keeps the shell from expanding anything inside.</p></div>
             </div>
           </div>
           <div class="step">
             <div class="step-num">2</div>
             <div>
               <h3>The payload: sync.sh</h3>
-              <div class="prose"><p>Sixteen lines. Every line glossed, because the tracer gate lives or dies in this file.</p></div>
+              <div class="prose"><p>Fifteen lines. The tracer gate lives or dies in this file, so every line is glossed.</p></div>
               <div class="codeblock codeblock-scrollhint">
-  <div class="codeblock-bar"><span class="mlabel">sh: /tmp/gh010/.sys-cache/sync.sh</span><button class="copy-btn" data-copy="#!/bin/sh&#10;# GH-010 lab: benign four-layer stealth stack stand-in.&#10;# Layer 1 (T1622): the payload itself reads TracerPid from&#10;# /proc/self/status and exits silently if a tracer is attached.&#10;# Then: touch one marker file inside its own directory, sleep.&#10;# No network, no persistence, no privilege.&#10;tpid=0&#10;while read -r key val _; do&#10;  if [ &quot;$key&quot; = &quot;TracerPid:&quot; ]; then tpid=$val; break; fi&#10;done &lt; /proc/self/status&#10;if [ &quot;$tpid&quot; != &quot;0&quot; ]; then&#10;  exit 0&#10;fi&#10;cd &quot;$(dirname &quot;$0&quot;)&quot; || exit 1&#10;touch .marker&#10;sleep 900"><span data-label>COPY</span></button></div>
+  <div class="codeblock-bar"><span class="mlabel">sh: /tmp/gh010/.sys-cache/sync.sh</span><button class="copy-btn" data-copy="#!/bin/sh&#10;# GH-010 lab payload. Benign: reads TracerPid, touches one&#10;# marker, then sleeps. No network, no persistence, no privilege.&#10;# Layer 1 (T1622): the payload reads its own TracerPid.&#10;# Tracer attached? Exit silently. No tracer? Run.&#10;tpid=0&#10;while read -r key val _; do&#10;  if [ &quot;$key&quot; = &quot;TracerPid:&quot; ]; then tpid=$val; break; fi&#10;done &lt; /proc/self/status&#10;if [ &quot;$tpid&quot; != &quot;0&quot; ]; then&#10;  exit 0&#10;fi&#10;cd &quot;$(dirname &quot;$0&quot;)&quot; || exit 1&#10;touch .marker&#10;sleep 900"><span data-label>COPY</span></button></div>
   <pre>#!/bin/sh
-# GH-010 lab: benign four-layer stealth stack stand-in.
-# Layer 1 (T1622): the payload itself reads TracerPid from
-# /proc/self/status and exits silently if a tracer is attached.
-# Then: touch one marker file inside its own directory, sleep.
-# No network, no persistence, no privilege.
+# GH-010 lab payload. Benign: reads TracerPid, touches one
+# marker, then sleeps. No network, no persistence, no privilege.
+# Layer 1 (T1622): the payload reads its own TracerPid.
+# Tracer attached? Exit silently. No tracer? Run.
 tpid=0
 while read -r key val _; do
   if [ "$key" = "TracerPid:" ]; then tpid=$val; break; fi
@@ -191,96 +200,99 @@ cd "$(dirname "$0")" || exit 1
 touch .marker
 sleep 900</pre>
 </div>
-              <div class="prose"><p>Line by line. <strong>#!/bin/sh</strong> runs the file under the system shell. The comment lines document the file; they do nothing. <strong>tpid=0</strong> assumes unwatched until proven otherwise. The <strong>while</strong> loop reads /proc/self/status line by line in the shell itself: the redirection is opened by this shell, so /proc/self is the payload, and <strong>read</strong> splits each line into a key and a value with no child process involved. That detail is load-bearing: delegating the read to awk or grep would read the child's own status, not the payload's. When the key <strong>TracerPid:</strong> appears, its value is saved and the loop stops. If the value is not 0, a tracer is attached, and <strong>exit 0</strong> dies silently: no error message, because an error message would itself be evidence. <strong>cd "$(dirname "$0")"</strong> moves into the script's own directory, so the marker lands beside the payload no matter where it was launched from. <strong>touch .marker</strong> is the only filesystem write the script ever makes, and the proof it executed. <strong>sleep 900</strong> keeps the process alive for fifteen minutes, 900 seconds, so the defender has something to find. No network call, no cron entry, no startup script.</p></div>
+              <div class="prose"><p><strong>tpid=0</strong> assumes unwatched until proven otherwise. The <strong>while</strong> loop reads /proc/self/status line by line in the shell itself, no child process, so /proc/self is the payload (delegating to awk or grep would read the child's own status). On the <strong>TracerPid:</strong> line the value is saved and the loop stops. Nonzero means a tracer is attached, and <strong>exit 0</strong> dies silently: an error message would itself be evidence. <strong>cd "$(dirname "$0")"</strong> moves into the script's own directory so the marker lands beside the payload wherever it was launched from. <strong>touch .marker</strong> is the only write the script ever makes, and the proof it executed. <strong>sleep 900</strong> keeps the process alive fifteen minutes so the defender has something to find.</p></div>
             </div>
           </div>
         </section>
 
         <section class="phase" id="phase-red">
-          <div class="phase-head"><span class="phase-num">03</span><h2>Phase Red: four layers on</h2><span class="phase-tag red">ATTACK</span></div>
-          <p class="lede">Four layers go on, one at a time, each tested against the observer it is meant to fool. Every command below is copy-pasteable.</p>
+          <div class="phase-head"><span class="phase-num">03</span><h2>Phase Red: the attack succeeds</h2><span class="phase-tag red">ATTACK</span></div>
+          <p class="lede">Watch the attack succeed first. Then watch it disappear three ways.</p>
           <figure class="recording reveal">
             <div class="recording-bar">
               <span class="rec-dot" aria-hidden="true"></span>
               <span class="mlabel">Real screen recording</span>
-              <span class="dur">100.7s</span>
+              <span class="dur">102.9s</span>
             </div>
             <video controls playsinline preload="metadata" poster="../../assets/vid/layered-red.jpg" aria-label="Screen recording: LAYERED RED, operator@lab">
               <source src="../../assets/vid/layered-red.mp4" type="video/mp4">
             </video>
-            <figcaption class="recording-cap"><strong>What you are watching:</strong> The tracer gate killing the payload under strace, the clean launch under a borrowed name, the hidden directory defeating the default listing, and the borrowed name in the process table. Every command below is copy-pasteable.</figcaption>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> The attack launching under a borrowed name, the marker proving it ran, the hidden directory defeating the default listing, the boring name in the process table, and the payload dying silently under strace. Every command below is copy-pasteable.</figcaption>
           </figure>
           <div class="step">
             <div class="step-num">1</div>
             <div>
-              <h3>The interrogation</h3>
-              <div class="prose"><p>First layer on. The payload goes under the tracer.</p></div>
+              <h3>Launch the attack</h3>
+              <div class="prose"><p>One command launches the payload in the background, wearing a false name.</p></div>
               <div class="codeblock codeblock-scrollhint">
-  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="chmod +x .sys-cache/sync.sh &amp;&amp; strace -f -o /dev/null ./.sys-cache/sync.sh; echo &quot;rc=$?&quot;"><span data-label>COPY</span></button></div>
-  <pre>$ chmod +x .sys-cache/sync.sh &amp;&amp; strace -f -o /dev/null ./.sys-cache/sync.sh; echo "rc=$?"
-rc=0</pre>
+  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="exec -a syslog-helper bash ./.sys-cache/sync.sh &amp;"><span data-label>COPY</span></button></div>
+  <pre>$ exec -a syslog-helper bash ./.sys-cache/sync.sh &amp;
+[1] 10999</pre>
 </div>
-              <div class="prose"><p><strong>rc=0.</strong> That is the exit code of a program that chose to die quietly, not of a crash: strace attached, the payload read a nonzero TracerPid, and it exited before its first write. <strong>-o /dev/null</strong> discards the trace itself.</p></div>
-              <div class="codeblock codeblock-scrollhint">
-  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="test ! -e .sys-cache/.marker &amp;&amp; echo &quot;no marker: tracer gate held, payload never ran&quot;"><span data-label>COPY</span></button></div>
-  <pre>$ test ! -e .sys-cache/.marker &amp;&amp; echo "no marker: tracer gate held, payload never ran"
-no marker: tracer gate held, payload never ran</pre>
-</div>
-              <div class="prose"><p>No marker. The gate held before any filesystem write happened. This is the file's end-to-end T1622 case: the check, the silent exit, the absent evidence. It is also the first signal the defender gets, and the blue phase spends it.</p></div>
+              <div class="prose"><p><strong>exec -a</strong> sets argv[0], the process's self-reported name, to syslog-helper before launching. A real bash binary runs the script, so the borrowed name survives (a shebang launch would re-execute the interpreter and drop it). The <strong>[1]</strong> line is the shell confirming the background job and its process id.</p></div>
             </div>
           </div>
           <div class="step">
             <div class="step-num">2</div>
             <div>
-              <h3>The clean launch and the borrowed name</h3>
-              <div class="prose"><p>Same payload, no tracer, and layer three goes on at launch.</p></div>
+              <h3>The attack worked</h3>
+              <div class="prose"><p>One check proves the payload executed. The marker file is the proof: only a running payload creates it.</p></div>
               <div class="codeblock codeblock-scrollhint">
-  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="exec -a syslog-helper bash ./.sys-cache/sync.sh &amp;"><span data-label>COPY</span></button></div>
-  <pre>$ exec -a syslog-helper bash ./.sys-cache/sync.sh &amp;
-[1] 7415</pre>
+  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="sleep 1; test -e .sys-cache/.marker &amp;&amp; echo &quot;payload ran: marker created&quot;"><span data-label>COPY</span></button></div>
+  <pre>$ sleep 1; test -e .sys-cache/.marker &amp;&amp; echo "payload ran: marker created"
+payload ran: marker created</pre>
 </div>
-              <div class="prose"><p><strong>exec -a</strong> sets argv[0], the process's self-reported name, before launching. bash is a real binary, so the borrowed name survives: had the payload been launched as a shebang script, the kernel would have re-executed the interpreter and dropped the borrowed argv[0]. The <strong>[1]</strong> line is the shell confirming the background job and its process id.</p></div>
-              <div class="codeblock codeblock-scrollhint">
-  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="sleep 1; test -e .sys-cache/.marker &amp;&amp; echo &quot;marker present: clean launch ran the payload&quot;"><span data-label>COPY</span></button></div>
-  <pre>$ sleep 1; test -e .sys-cache/.marker &amp;&amp; echo "marker present: clean launch ran the payload"
-marker present: clean launch ran the payload</pre>
-</div>
-              <div class="prose"><p>Marker present. With no tracer attached, TracerPid reads 0, the gate passes, and the payload touches its marker and sleeps. Layers one and three are now both live: the gate that kills it under observation, and the name it wears when unwatched.</p></div>
+              <div class="prose"><p>That line is the whole attack succeeding. No tracer was attached, TracerPid read 0, the gate passed, the payload touched its marker and went to sleep. Everything after this is the attacker making that success hard to see.</p></div>
             </div>
           </div>
           <div class="step">
             <div class="step-num">3</div>
             <div>
-              <h3>The drawer</h3>
-              <div class="prose"><p>Layer two was already in place: the payload lives in .sys-cache. Two commands, same directory.</p></div>
+              <h3>Invisible in the file listing</h3>
+              <div class="prose"><p>Same directory, two questions.</p></div>
               <div class="codeblock codeblock-scrollhint">
-  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="ls"><span data-label>COPY</span></button></div>
-  <pre>$ ls
-notes.txt</pre>
-</div>
-              <div class="prose"><p>One name: the decoy.</p></div>
-              <div class="codeblock codeblock-scrollhint">
-  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="ls -a"><span data-label>COPY</span></button></div>
-  <pre>$ ls -a
+  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="ls; echo ---; ls -a"><span data-label>COPY</span></button></div>
+  <pre>$ ls; echo ---; ls -a
+notes.txt
+---
 .  ..  .sys-cache  notes.txt</pre>
 </div>
-              <div class="prose"><p>Four names. Nothing changed between the commands except the question. The <strong>-a</strong> flag tells ls to skip its dotfile courtesy.</p></div>
+              <div class="prose"><p><strong>ls</strong> shows the decoy. <strong>ls -a</strong> shows the hidden directory. Nothing changed between the commands except the question asked. Layer two defeats the default listing and nothing else.</p></div>
             </div>
           </div>
           <div class="step">
             <div class="step-num">4</div>
             <div>
-              <h3>The false name in the process table</h3>
-              <div class="prose"><p>All four layers live. Ask the process table who is running.</p></div>
+              <h3>Invisible in the process table</h3>
+              <div class="prose"><p>Ask the process table who is running.</p></div>
               <div class="codeblock codeblock-scrollhint">
   <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="pgrep -af syslog-helper"><span data-label>COPY</span></button></div>
   <pre>$ pgrep -af syslog-helper
-7415 syslog-helper ./.sys-cache/sync.sh</pre>
+10999 syslog-helper ./.sys-cache/sync.sh</pre>
 </div>
-              <div class="prose"><p>One process, wearing a boring name. pgrep matched the borrowed argv[0] against the pattern; the kernel's process table has no opinion about whether the name is true.</p></div>
+              <div class="prose"><p>One process, wearing a boring name. pgrep matched the borrowed argv[0] against the pattern. The process table repeats the name; it never checks whether it is true. Layer three defeats the casual glance and nothing else.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">5</div>
+            <div>
+              <h3>Invisible to your debugger</h3>
+              <div class="prose"><p>Now try to watch it. The payload is copied aside and run under strace, the standard way to observe a program's system calls.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="mkdir -p /tmp/t; cp .sys-cache/sync.sh /tmp/t/; chmod +x /tmp/t/sync.sh; strace -f -o /dev/null /tmp/t/sync.sh; echo &quot;rc=$?&quot;"><span data-label>COPY</span></button></div>
+  <pre>$ mkdir -p /tmp/t; cp .sys-cache/sync.sh /tmp/t/; chmod +x /tmp/t/sync.sh; strace -f -o /dev/null /tmp/t/sync.sh; echo "rc=$?"
+rc=0</pre>
+</div>
+              <div class="prose"><p><strong>rc=0.</strong> That is a quiet death, not a crash. strace attached, the payload read a nonzero TracerPid, and it exited before its first write. The copy keeps the live lab untouched.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="test ! -e /tmp/t/.marker &amp;&amp; echo &quot;no marker: it saw the tracer and played dead&quot;; rm -rf /tmp/t"><span data-label>COPY</span></button></div>
+  <pre>$ test ! -e /tmp/t/.marker &amp;&amp; echo "no marker: it saw the tracer and played dead"; rm -rf /tmp/t
+no marker: it saw the tracer and played dead</pre>
+</div>
+              <div class="prose"><p>No marker: the gate held. The payload never ran, so there is nothing to analyze. Layer one defeats the tracer and nothing else. Three layers, three observers defeated, and the attack from step 2 is still sleeping where you cannot see it.</p></div>
               <div class="verdict red">
                 <span class="mlabel">Stealth confirmed</span>
-                <p>Under a tracer the payload dies before writing a byte; unwatched, it runs from a hidden directory under a borrowed name while the default listing shows one decoy file. The hiding cost one leading dot, one borrowed name, one /proc read.</p>
+                <p>The attack ran and proved it with a marker. The default listing shows one decoy file, the process table shows a boring name, and a tracer sees the payload die before it does anything. The hiding cost one leading dot, one borrowed name, one /proc read.</p>
               </div>
             </div>
           </div>
@@ -288,110 +300,130 @@ notes.txt</pre>
 
         <section class="phase" id="phase-blue">
           <div class="phase-head"><span class="phase-num">04</span><h2>Phase Blue: change the observer</h2><span class="phase-tag blue">DEFENSE</span></div>
-          <p class="lede">The red phase trusted one observer per layer. Now change the observer for each layer, and watch every layer fall to a different one. Every command below is copy-pasteable.</p>
-          <div class="prose">
-            <p>Here is the trap: looking harder through the same observer. Staring at the process list for a suspicious name cannot beat a borrowed name, because the borrowed name was designed for exactly that stare. The fix is not a harder look. It is a different observer.</p>
-          </div>
+          <p class="lede">Detection is changing the observer, not looking harder. Then removal.</p>
           <figure class="recording reveal">
             <div class="recording-bar">
               <span class="rec-dot blue" aria-hidden="true"></span>
               <span class="mlabel">Real screen recording</span>
-              <span class="dur">62.1s</span>
+              <span class="dur">75.3s</span>
             </div>
             <video controls playsinline preload="metadata" poster="../../assets/vid/layered-blue.jpg" aria-label="Screen recording: LAYERED BLUE, operator@lab">
               <source src="../../assets/vid/layered-blue.mp4" type="video/mp4">
             </video>
-            <figcaption class="recording-cap"><strong>What you are watching:</strong> The defender peeling all four layers: cmdline and exe against the borrowed name, find against the hidden directory, the sleeper killed, and the tracer gate confessing under strace. Every command below is copy-pasteable.</figcaption>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> The defender peeling every layer with a different observer: ls -a against the hidden directory, cmdline and exe against the borrowed name, find against the dot convention, the tracer gate confessing under strace, then kill and remove. Every command below is copy-pasteable.</figcaption>
           </figure>
           <div class="step">
             <div class="step-num">1</div>
             <div>
-              <h3>The listing still lies</h3>
+              <h3>What the victim sees</h3>
               <div class="prose"><p>Triage that stops at the default listing closes the case here.</p></div>
               <div class="codeblock codeblock-scrollhint">
   <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="cd /tmp/gh010 &amp;&amp; ls"><span data-label>COPY</span></button></div>
   <pre>$ cd /tmp/gh010 &amp;&amp; ls
 notes.txt</pre>
 </div>
-              <div class="prose"><p>One boring text file. Case closed, and the payload keeps sleeping.</p></div>
+              <div class="prose"><p>One boring text file. The payload keeps sleeping.</p></div>
             </div>
           </div>
           <div class="step">
             <div class="step-num">2</div>
             <div>
-              <h3>argv[0] lies; the kernel does not</h3>
-              <div class="prose"><p>The process table never honored the borrowed name. It only repeated it.</p></div>
+              <h3>Ask differently</h3>
+              <div class="prose"><p>First observer change: ask ls to skip its dotfile courtesy.</p></div>
               <div class="codeblock codeblock-scrollhint">
-  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="pgrep -af syslog-helper"><span data-label>COPY</span></button></div>
-  <pre>$ pgrep -af syslog-helper
-7215 syslog-helper ./.sys-cache/sync.sh</pre>
+  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="ls -a"><span data-label>COPY</span></button></div>
+  <pre>$ ls -a
+.  ..  .sys-cache  notes.txt</pre>
 </div>
-              <div class="prose"><p>Same sleeper, same borrowed command line. Now ask the two facts argv[0] cannot change.</p></div>
-              <div class="codeblock codeblock-scrollhint">
-  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="P=$(pgrep -f '[s]yslog-helper'); echo &quot;pid=$P&quot;; tr '\0' ' ' &lt; /proc/$P/cmdline; echo; readlink /proc/$P/exe"><span data-label>COPY</span></button></div>
-  <pre>$ P=$(pgrep -f '[s]yslog-helper'); echo "pid=$P"; tr '\0' ' ' &lt; /proc/$P/cmdline; echo; readlink /proc/$P/exe
-pid=7215
-syslog-helper ./.sys-cache/sync.sh
-/usr/bin/bash</pre>
-</div>
-              <div class="prose"><p>Three lines. The pid. The full command line: the borrowed argv[0] first, then the real script path it was launched with. And /proc/PID/exe, a link to the actual executable, /usr/bin/bash, which no argv[0] can rewrite. Two kernel facts against one self-reported name: that is what changing the observer buys.</p></div>
+              <div class="prose"><p>There is the hidden directory. Same observer, different question, and layer two is gone.</p></div>
             </div>
           </div>
           <div class="step">
             <div class="step-num">3</div>
             <div>
-              <h3>Walk past the dot convention</h3>
-              <div class="prose"><p><strong>find</strong> does not know about the dotfile courtesy. It walks the tree and matches names at the filesystem level, where a leading dot is just another character. <strong>-name '.*'</strong> matches every name starting with a dot; the quotes keep the shell from expanding the pattern before find sees it; <strong>sort</strong> orders the output.</p></div>
+              <h3>A boring name</h3>
+              <div class="prose"><p>The process table, as the attacker wants you to read it.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="pgrep -af syslog-helper"><span data-label>COPY</span></button></div>
+  <pre>$ pgrep -af syslog-helper
+10999 syslog-helper ./.sys-cache/sync.sh</pre>
+</div>
+              <div class="prose"><p>One sleeper with an unremarkable name. Nothing here says attack. So change the observer again.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div>
+              <h3>The kernel's two honest answers</h3>
+              <div class="prose"><p>argv[0] is a story the process tells. These two are facts the kernel keeps.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="P=$(pgrep -f '[s]yslog-helper'); echo &quot;pid=$P&quot;"><span data-label>COPY</span></button></div>
+  <pre>$ P=$(pgrep -f '[s]yslog-helper'); echo "pid=$P"
+pid=10999</pre>
+</div>
+              <div class="prose"><p>That pid goes into two kernel files that never consult argv[0].</p></div>
+              <div class="codeblock codeblock-scrollhint">
+  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="tr '\0' ' ' &lt; /proc/$P/cmdline; echo; readlink /proc/$P/exe"><span data-label>COPY</span></button></div>
+  <pre>$ tr '\0' ' ' &lt; /proc/$P/cmdline; echo; readlink /proc/$P/exe
+syslog-helper ./.sys-cache/sync.sh
+/usr/bin/bash</pre>
+</div>
+              <div class="prose"><p><strong>/proc/PID/cmdline</strong> is the full command line: the borrowed name first, then the real script path it was launched with. <strong>/proc/PID/exe</strong> is a link to the actual executable file, /usr/bin/bash, which no argv[0] can rewrite. Two kernel facts against one self-reported name: that is what changing the observer buys. Layer three is gone.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">5</div>
+            <div>
+              <h3>Proof it ran here</h3>
+              <div class="prose"><p><strong>find</strong> walks the tree at the filesystem level, where a leading dot is just another character. The dotfile courtesy does not exist down here.</p></div>
               <div class="codeblock codeblock-scrollhint">
   <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="find /tmp/gh010 -name '.*' | sort"><span data-label>COPY</span></button></div>
   <pre>$ find /tmp/gh010 -name '.*' | sort
 /tmp/gh010/.sys-cache
 /tmp/gh010/.sys-cache/.marker</pre>
 </div>
-              <div class="prose"><p>Two hidden paths, by their real names, marker included. The marker is the proof the payload executed here.</p></div>
-            </div>
-          </div>
-          <div class="step">
-            <div class="step-num">4</div>
-            <div>
-              <h3>Kill the sleeper</h3>
-              <div class="prose"><p>Stop the process by the same kernel match pgrep used.</p></div>
-              <div class="codeblock codeblock-scrollhint">
-  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="pkill -f '[s]yslog-helper'; sleep 0.5; pgrep -af syslog-helper || echo &quot;process gone&quot;"><span data-label>COPY</span></button></div>
-  <pre>$ pkill -f '[s]yslog-helper'; sleep 0.5; pgrep -af syslog-helper || echo "process gone"
-process gone</pre>
-</div>
-              <div class="prose"><p><strong>pkill</strong> signals by name pattern. The <strong>[s]</strong> bracket keeps pkill from matching its own command line and killing the shell that runs it. The echo is the confirmation: no matching processes remain.</p></div>
-            </div>
-          </div>
-          <div class="step">
-            <div class="step-num">5</div>
-            <div>
-              <h3>The gate confesses</h3>
-              <div class="prose"><p>The tracer gate was the payload's defense. Turned around, it is evidence. A process that dies the moment strace attaches is telling you it checks for tracers, and that confession costs the defender nothing: no payload execution, no marker, no risk.</p></div>
-              <div class="codeblock codeblock-scrollhint">
-  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="rm -f /tmp/gh010/.sys-cache/.marker &amp;&amp; strace -f -o /dev/null /tmp/gh010/.sys-cache/sync.sh; echo &quot;rc=$?&quot;; test ! -e /tmp/gh010/.sys-cache/.marker &amp;&amp; echo &quot;no marker: gate held under tracer&quot;"><span data-label>COPY</span></button></div>
-  <pre>$ rm -f /tmp/gh010/.sys-cache/.marker &amp;&amp; strace -f -o /dev/null /tmp/gh010/.sys-cache/sync.sh; echo "rc=$?"; test ! -e /tmp/gh010/.sys-cache/.marker &amp;&amp; echo "no marker: gate held under tracer"
-rc=0
-no marker: gate held under tracer</pre>
-</div>
-              <div class="prose"><p><strong>rc=0</strong> and no marker, exactly like the red phase. The defender learns the payload is tracer-aware without ever letting it run. This is the blue side of T1622: the check is itself a signal.</p></div>
+              <div class="prose"><p>Two hidden paths, by their real names, marker included. The marker is the proof the payload executed in this directory. <strong>-name '.*'</strong> matches names starting with a dot; the quotes keep the shell from expanding the pattern first; <strong>sort</strong> orders the output.</p></div>
             </div>
           </div>
           <div class="step">
             <div class="step-num">6</div>
             <div>
-              <h3>Remove the lab</h3>
-              <div class="prose"><p>Files last.</p></div>
+              <h3>The evasion is the evidence</h3>
+              <div class="prose"><p>The tracer gate was the attacker's defense. Turned around, it is a confession. Attach strace and watch what happens.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="rm -f /tmp/gh010/.sys-cache/.marker &amp;&amp; chmod +x /tmp/gh010/.sys-cache/sync.sh; strace -f -o /dev/null /tmp/gh010/.sys-cache/sync.sh; echo &quot;rc=$?&quot;"><span data-label>COPY</span></button></div>
+  <pre>$ rm -f /tmp/gh010/.sys-cache/.marker &amp;&amp; chmod +x /tmp/gh010/.sys-cache/sync.sh; strace -f -o /dev/null /tmp/gh010/.sys-cache/sync.sh; echo "rc=$?"
+rc=0</pre>
+</div>
+              <div class="prose"><p><strong>rc=0</strong>, same quiet death as the red phase. The marker was removed first, so check whether the payload ran.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="test ! -e /tmp/gh010/.sys-cache/.marker &amp;&amp; echo &quot;no marker: it saw the tracer&quot;"><span data-label>COPY</span></button></div>
+  <pre>$ test ! -e /tmp/gh010/.sys-cache/.marker &amp;&amp; echo "no marker: it saw the tracer"
+no marker: it saw the tracer</pre>
+</div>
+              <div class="prose"><p>No marker. A process that dies the moment a tracer attaches is telling you it checks for tracers, and that confession costs the defender nothing: no payload execution, no risk. This is the T1622 tell. Layer one is gone.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">7</div>
+            <div>
+              <h3>Kill it, remove it</h3>
+              <div class="prose"><p>Detection done. Stop the process, then remove the files.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="pkill -f '[s]yslog-helper'; sleep 0.5; pgrep -af syslog-helper || echo &quot;process gone&quot;"><span data-label>COPY</span></button></div>
+  <pre>$ pkill -f '[s]yslog-helper'; sleep 0.5; pgrep -af syslog-helper || echo "process gone"
+process gone</pre>
+</div>
+              <div class="prose"><p><strong>pkill</strong> signals by name pattern. The <strong>[s]</strong> bracket keeps pkill from matching its own command line and killing the shell that runs it. "process gone" is the confirmation: no matching processes remain.</p></div>
               <div class="codeblock codeblock-scrollhint">
   <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="rm -rf /tmp/gh010; ls /tmp/gh010 2&gt;/dev/null || echo &quot;lab directory gone&quot;"><span data-label>COPY</span></button></div>
   <pre>$ rm -rf /tmp/gh010; ls /tmp/gh010 2&gt;/dev/null || echo "lab directory gone"
 lab directory gone</pre>
 </div>
-              <div class="prose"><p><strong>rm -rf</strong> removes the whole tree, hidden names included, because rm never asked the display either. The ls error is the confirmation: no such file or directory. No process, no files, no marker. Nothing persists.</p></div>
+              <div class="prose"><p><strong>rm -rf</strong> removes the whole tree, hidden names included: rm never asked the display either. The error is the confirmation. No process, no files, no marker. Nothing persists.</p></div>
               <div class="verdict green">
                 <span class="mlabel">Detection verified</span>
-                <p>Each layer fell to a different observer, the tracer gate confessed without the payload ever running, and the lab directory is gone.</p>
+                <p>Every layer fell to a different observer, the tracer gate confessed without the payload ever running, and the lab directory is gone.</p>
               </div>
             </div>
           </div>
@@ -404,29 +436,30 @@ lab directory gone</pre>
             <div class="step-num">1</div>
             <div>
               <h3>Mitigate: compare observers, do not browse</h3>
-              <div class="prose"><p>In triage, stop asking any single tool and start cross-examining them. Compare the process table against the filesystem: anything executing from a dot-directory earns a closer look. Compare cmdline against exe: a borrowed name on a mismatched binary earns a closer look. This is the fleet form of the blue phase: the idea does not change, only the coverage. It clears the first-principles gate because it rests on what each tool actually promises: argv[0] is self-reported, exe is not.</p></div>
+              <div class="prose"><p>Stop asking any single tool and start cross-examining them. Compare cmdline against exe: a borrowed name on a mismatched binary earns a closer look. Compare the process table against the filesystem: anything executing from a dot-directory earns one too. This is the fleet form of the blue phase: the idea does not change, only the coverage.</p></div>
               <div class="codeblock codeblock-scrollhint">
-  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="P=$(pgrep -f '[s]yslog-helper'); echo &quot;pid=$P&quot;; tr '\0' ' ' &lt; /proc/$P/cmdline; echo; readlink /proc/$P/exe"><span data-label>COPY</span></button></div>
-  <pre>$ P=$(pgrep -f '[s]yslog-helper'); echo "pid=$P"; tr '\0' ' ' &lt; /proc/$P/cmdline; echo; readlink /proc/$P/exe
-pid=7215
+  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="tr '\0' ' ' &lt; /proc/$P/cmdline; echo; readlink /proc/$P/exe"><span data-label>COPY</span></button></div>
+  <pre>$ tr '\0' ' ' &lt; /proc/$P/cmdline; echo; readlink /proc/$P/exe
 syslog-helper ./.sys-cache/sync.sh
 /usr/bin/bash</pre>
 </div>
+              <div class="prose"><p><strong>Honest limit.</strong> Comparison only works when both answers are trustworthy. A rootkit underneath (<a href="https://attack.mitre.org/techniques/T1014/" rel="noopener">T1014</a>) hides from /proc and the process table alike: no observer comparison helps when every view is mediated.</p></div>
             </div>
           </div>
           <div class="step">
             <div class="step-num">2</div>
             <div>
               <h3>Monitor: watch writes, not names</h3>
-              <div class="prose"><p>A hidden file is still a created file, and a borrowed name still belongs to a real exec. <a href="https://d3fend.mitre.org/technique/d3f:FileIntegrityMonitoring/" rel="noopener">File integrity monitoring (D3-FIM)</a> notices the marker appearing in a watched directory regardless of its first character; the display convention is invisible at the layer FIM watches. <a href="https://d3fend.mitre.org/technique/d3f:SoftwareInventory/" rel="noopener">Software inventory (D3-SWI)</a> flags binaries that were never supposed to be on the machine, whatever their names start with. An EDR that logs process creation sees the real image path at exec time, before any argv[0] theater. Production versions run in the EDR or auditd, not by hand; the principle is the same: watch the kernel's facts, not the display's.</p></div>
+              <div class="prose"><p>A hidden file is still a created file, and a borrowed name still belongs to a real exec. <a href="https://d3fend.mitre.org/technique/d3f:FileIntegrityMonitoring/" rel="noopener">File integrity monitoring (D3-FIM)</a> notices the marker appearing in a watched directory regardless of its first character. <a href="https://d3fend.mitre.org/technique/d3f:SoftwareInventory/" rel="noopener">Software inventory (D3-SWI)</a> flags binaries that were never supposed to be on the machine, whatever their names start with. An EDR that logs process creation sees the real image path at exec time, before any argv[0] theater.</p></div>
+              <div class="prose"><p><strong>Honest limit.</strong> FIM sees the write only if it was already watching that path. Nobody watches all of /tmp by default.</p></div>
             </div>
           </div>
           <div class="step">
             <div class="step-num">3</div>
             <div>
               <h3>Prevent: decide what may run</h3>
-              <div class="prose"><p>Hiding is free, so prevention targets execution instead. Executable allowlisting means an unknown script dropped into a hidden directory never runs, whatever its name. The tracer gate itself is not preventable by policy: any process may read its own status. What policy can do is narrower: nothing here persists unless something runs it, so the inventory that matters is the process table, taken regularly, not the directory listing.</p></div>
-              <div class="callout"><p><strong>Honest limit.</strong> Every control above watches a layer the attacker can go under. A rootkit underneath (<a href="https://attack.mitre.org/techniques/T1014/" rel="noopener">T1014</a>) hides from find, /proc, and the process table alike: no observer comparison helps when the kernel's answers are all mediated. TracerPid itself can be masked by a careful tracer, so the gate is a tripwire, not a guarantee. FIM sees the write only if it was already watching that path, and an allowlist is only as good as its list. This file teaches the layer above the rootkit: changing the observer beats trusting any single view, right up until every view is compromised, and knowing where that boundary lies is the job.</p></div>
+              <div class="prose"><p>Hiding is free, so prevention targets execution instead. Executable allowlisting means an unknown script dropped into a hidden directory never runs, whatever its name. Nothing here persists unless something runs it, so the inventory that matters is the process table, taken regularly, not the directory listing.</p></div>
+              <div class="prose"><p><strong>Honest limit.</strong> The tracer gate itself is not preventable by policy: any process may read its own status. And an allowlist is only as good as its list. TracerPid can also be masked by a careful tracer, so the gate is a tripwire, not a guarantee.</p></div>
               <div class="verdict green">
                 <span class="mlabel">Countermeasures verified</span>
                 <p>Observers are cross-examined instead of trusted, writes are watched at the kernel's layer, execution is decided by policy, and every control's bypass is stated above.</p>

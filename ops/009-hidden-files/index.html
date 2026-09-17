@@ -160,7 +160,7 @@
               <div class="codeblock codeblock-scrollhint">
   <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="chmod +x .svc-data/sync.sh &amp;&amp; ./.svc-data/sync.sh &amp;"><span data-label>COPY</span></button></div>
   <pre>$ chmod +x .svc-data/sync.sh &amp;&amp; ./.svc-data/sync.sh &amp;
-[1] 9539</pre>
+[1] 11846</pre>
 </div>
               <div class="prose"><p>The <strong>[1]</strong> line is the shell confirming the background job and its process id. The payload is now detached: it touched its marker file and is sleeping. Nothing about the directory looks different to a casual glance, which is the entire attack.</p></div>
             </div>
@@ -231,7 +231,7 @@ notes.txt</pre>
               <div class="codeblock codeblock-scrollhint">
   <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="pgrep -af '[s]ync\.sh'"><span data-label>COPY</span></button></div>
   <pre>$ pgrep -af '[s]ync\.sh'
-9542 /bin/sh ./.svc-data/sync.sh</pre>
+11849 /bin/sh ./.svc-data/sync.sh</pre>
 </div>
               <div class="prose"><p>The kernel's answer: one process, /bin/sh running ./.svc-data/sync.sh. pgrep matched the command line against the pattern; the <strong>[s]</strong> bracket keeps the pattern from matching pgrep's own command line.</p></div>
               <div class="verdict red">
@@ -294,7 +294,7 @@ notes.txt</pre>
               <div class="codeblock codeblock-scrollhint">
   <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="pgrep -af '[s]ync\.sh'"><span data-label>COPY</span></button></div>
   <pre>$ pgrep -af '[s]ync\.sh'
-9542 /bin/sh ./.svc-data/sync.sh</pre>
+11849 /bin/sh ./.svc-data/sync.sh</pre>
 </div>
               <div class="prose"><p>Same sleeper, same command line.</p></div>
               <div class="codeblock codeblock-scrollhint">
@@ -389,10 +389,10 @@ ls: cannot access '/tmp/gh009': No such file or directory</pre>
           <a href="https://d3fend.mitre.org/technique/d3f:FileIntegrityMonitoring/" rel="noopener">D3FEND D3-FIM: File Integrity Monitoring</a>, <a href="https://d3fend.mitre.org/technique/d3f:SoftwareInventory/" rel="noopener">D3-SWI: Software Inventory</a>: version 1.6.0 maps its T1564 defenders to the whole Hide Artifacts family; FIM and SWI are the two that add real coverage for the .001 case, so those are the ones wired here</p></div>
         </section>
 
-        <a class="next-file" href="../010-layered-guest/index.html">
+        <a class="next-file" href="../010-debugger-evasion/index.html">
           <span class="mlabel">Next file</span>
-          <h3>GH-010 The Layered Guest</h3>
-          <p>One trick fools one observer. The next file stacks four, and shows how the defender peels them.</p>
+          <h3>GH-010 Debugger Evasion</h3>
+          <p>A payload can ask whether a debugger is watching it run. The next file takes that question apart.</p>
         </a>
       </div>
     </div>
