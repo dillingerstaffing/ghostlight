@@ -1,5 +1,5 @@
 {
-  "background_color": "#0a0c0f",
+  "background_color": "#ece6d5",
   "description": "Adversary stealth research: MITRE ATT&CK TA0005 case files, every command verified.",
   "display": "standalone",
   "icons": [
@@ -18,5 +18,5 @@
   "scope": "/ghostlight/",
   "short_name": "GHOSTLIGHT",
   "start_url": "/ghostlight/",
-  "theme_color": "#0a0c0f"
+  "theme_color": "#ece6d5"
 }
