@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>GH-009 The Unlisted (T1564.001): GHOSTLIGHT</title>
+<meta name="description" content="T1564.001 Hidden Files and Directories, reproduced on Ubuntu 24.04: a payload hides in a dot-directory that plain ls never lists, then the defender sweeps with find, kills the sleeper, and removes the lab. Every command verified.">
+<link rel="canonical" href="https://dillingerstaffing.github.io/ghostlight/ops/009-hidden-files/">
+<meta property="og:title" content="GH-009 The Unlisted (T1564.001): GHOSTLIGHT">
+<meta property="og:description" content="T1564.001 Hidden Files and Directories, reproduced on Ubuntu 24.04: a payload hides in a dot-directory that plain ls never lists, then the defender sweeps with find, kills the sleeper, and removes the lab. Every command verified.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dillingerstaffing.github.io/ghostlight/ops/009-hidden-files/">
+<meta property="og:site_name" content="GHOSTLIGHT">
+<meta property="og:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="GH-009 The Unlisted (T1564.001): GHOSTLIGHT">
+<meta name="twitter:description" content="T1564.001 Hidden Files and Directories, reproduced on Ubuntu 24.04: a payload hides in a dot-directory that plain ls never lists, then the defender sweeps with find, kills the sleeper, and removes the lab. Every command verified.">
+<meta name="twitter:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23ece6d5'/%3E%3Ccircle cx='256' cy='196' r='104' fill='none' stroke='%23241f17' stroke-width='20'/%3E%3Cline x1='256' y1='152' x2='256' y2='240' stroke='%238c3f22' stroke-width='16'/%3E%3Cline x1='256' y1='300' x2='256' y2='424' stroke='%23241f17' stroke-width='14'/%3E%3Cline x1='200' y1='424' x2='312' y2='424' stroke='%23241f17' stroke-width='18'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+<link rel="manifest" href="../../assets/manifest.webmanifest">
+<meta name="theme-color" content="#0a0c0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GHOSTLIGHT">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<script>
+(function () {
+  // Theme: notebook is the default; a stored visitor choice wins.
+  // Runs before the stylesheet is parsed so the first paint is already
+  // the right theme (no flash of the wrong one).
+  try {
+    var t = localStorage.getItem('emi-site-theme');
+    var theme = t === 'classic' ? 'classic' : 'notebook';
+    document.documentElement.dataset.theme = theme;
+    var m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute('content', theme === 'classic' ? '#0a0c0f' : '#ece6d5');
+  } catch (e) {
+    document.documentElement.dataset.theme = 'notebook';
+  }
+})();
+</script>
+<link rel="stylesheet" href="../../assets/site.css?v=31c4e11f">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"GH-009 The Unlisted (T1564.001): GHOSTLIGHT",
+"url":"https://dillingerstaffing.github.io/ghostlight/ops/009-hidden-files/","description":"T1564.001 Hidden Files and Directories, reproduced on Ubuntu 24.04: a payload hides in a dot-directory that plain ls never lists, then the defender sweeps with find, kills the sleeper, and removes the lab. Every command verified.",
+"author":{"@type":"Person","name":"Chris Dillinger","url":"https://www.linkedin.com/in/christopherdillinger/"},
+"inLanguage":"en"}
+</script>
+</head>
+<body>
+
+<header class="site-header">
+  <a class="brand" href="../../index.html" aria-label="GHOSTLIGHT home">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+    <span class="brand-name">GHOSTLIGHT</span>
+  </a>
+  <nav class="site-nav">
+    <a href="../../method.html">METHOD</a>
+    <a href="../../index.html">FILES</a>
+    <button class="theme-toggle" type="button" aria-label="Switch to dark field dossier theme" title="Switch theme">
+      <span class="theme-toggle-mark" aria-hidden="true"><i></i><i></i></span>
+    </button>
+  </nav>
+</header>
+
+<div class="onboard" data-onboard hidden>
+  <span><strong>How to read a file:</strong> every file follows the six-phase structure below. <span class="k-green">Green</span> is verified, <span class="k-red">red</span> is hostile.</span>
+  <button aria-label="Dismiss">GOT IT</button>
+</div>
+
+<div class="page" data-op="009">
+  <div class="wrap">
+    <section class="op-hero">
+      <div class="op-kicker">
+        <span class="case-no">GH-009</span>
+        <a class="tech-id" href="https://attack.mitre.org/techniques/T1564/001/" rel="noopener">T1564.001</a>
+        <span class="phase-tag red">PHASE RED INSIDE</span>
+      </div>
+      <h1>The Unlisted</h1>
+      <p class="lede">A file the listing never shows is still a file. This file plants a payload in a dot-directory that plain ls walks past, then sweeps it out with the tools that never honored the convention.</p>
+      <div class="op-meta-grid">
+        <div class="op-meta"><span class="mlabel">Technique</span><span class="mvalue">Hidden files and directories</span></div>
+        <div class="op-meta"><span class="mlabel">Target OS</span><span class="mvalue">Ubuntu 24.04.5 LTS</span></div>
+        <div class="op-meta"><span class="mlabel">Toolchain</span><span class="mvalue">bash 5.2, coreutils</span></div>
+        <div class="op-meta"><span class="mlabel">Level</span><span class="mvalue">Beginner</span></div>
+        <div class="op-meta"><span class="mlabel">Time</span><span class="mvalue">15 min</span></div>
+      </div>
+      <div class="objectives">
+        <h2>OBJECTIVES</h2>
+        <ol>
+          <li data-phase="phase-red"><span class="box"></span>Plant a payload in a hidden directory and watch the default listing miss it</li>
+          <li data-phase="phase-blue"><span class="box"></span>Sweep the filesystem with find, kill the sleeper, and remove the lab</li>
+          <li data-phase="countermeasures"><span class="box"></span>Learn the honest limits of every control, and what your listing tools actually promise</li>
+          <li data-phase="debrief"><span class="box"></span>Take the IOC checklist and the one-sentence lesson</li>
+        </ol>
+      </div>
+    </section>
+
+    <div class="op-layout">
+      <nav class="rail" aria-label="Phases">
+        <span class="mlabel">Phases</span>
+        <ol>
+          <li><a href="#intel-brief"><span class="pnum">01</span>INTEL BRIEF<span class="tick"></span></a></li>
+          <li><a href="#target-environment"><span class="pnum">02</span>TARGET ENV<span class="tick"></span></a></li>
+          <li><a href="#phase-red"><span class="pnum">03</span>PHASE RED<span class="tick"></span></a></li>
+          <li><a href="#phase-blue"><span class="pnum">04</span>PHASE BLUE<span class="tick"></span></a></li>
+          <li><a href="#countermeasures"><span class="pnum">05</span>COUNTERMEASURES<span class="tick"></span></a></li>
+          <li><a href="#debrief"><span class="pnum">06</span>DEBRIEF<span class="tick"></span></a></li>
+        </ol>
+      </nav>
+
+      <div class="op-content">
+        <section class="phase" id="intel-brief">
+          <div class="phase-head"><span class="phase-num">01</span><h2>Intel Brief</h2><span class="phase-tag neutral">CONTEXT</span></div>
+          <p class="lede">MITRE ATT&amp;CK <a href="https://attack.mitre.org/techniques/T1564/001/" rel="noopener">T1564.001</a>: adversaries hide files and directories from standard listings, most simply by giving them names the listing tools skip by convention. This file plants one such hiding place end to end, then takes the defender's side of the same directory.</p>
+          <div class="prose">
+            <p><strong>Why this technique.</strong> The default directory listing is a courtesy, not a census. Every name that starts with a dot is left out of plain ls output, and attackers have used that courtesy as a hiding place for decades: staging directories, dropped payloads, persistence scripts, all sitting in plain sight of anyone who asks with the right flag and invisible to everyone who does not. The technique is not a bug in ls. It is the gap between what the tool promises, a formatted display of names, and what the operator assumes, a complete inventory of what is there.</p>
+            <p><strong>Why not just always type ls -a.</strong> The obvious fix is to always add the flag and move on. Break it on a concrete input: a normal home directory already holds twenty or more dotfiles and dot-directories, .bashrc, .cache, .config, .local, and the attacker's .svc-data sits among them looking exactly as boring as the rest. ls -a answers which names exist but not which of them is running, and it cannot tell a payload from clutter. So the working move is to stop asking the display and start asking the system: find walks the directory tree at the filesystem level, where a leading dot is just another character, and pgrep asks the kernel's process table who is actually executing.</p>
+            <p><strong>The mechanism, with terms earned.</strong> A <strong>dotfile</strong> is any name beginning with a period; the name is the whole trick, because the hiding lives in ls, not in the filesystem. The kernel's <strong>readdir</strong> returns every entry including the dotted ones, and ls filters its display by convention, a choice from the 1970s that stuck. A <strong>hidden directory</strong> is the same trick one level up: a container whose name keeps it out of the default view. <strong>Detached</strong> means the payload keeps running after the shell that started it moves on; here the <strong>&amp;</strong> operator backgrounds it. The <strong>process table</strong> is the kernel's own list of running programs, exposed under /proc and queried with <strong>pgrep</strong>, which matches by name pattern instead of asking any listing tool for its opinion.</p>
+            <p><strong>The concrete case, before the abstraction.</strong> <strong>/tmp/gh009</strong> holds one visible file, notes.txt, and one hidden directory, .svc-data, containing sync.sh and the marker file it touched. Plain ls prints one name. ls -a prints four. find -name '.*' prints the two hidden paths by their real names. pgrep finds the sleeper by its command line. Four tools, four answers, and only the last two are asking the system instead of the display.</p>
+          </div>
+          <div class="callout"><p><strong>Scope.</strong> T1564 Hide Artifacts covers fourteen sub-techniques, from hidden files and directories (.001, this file) to alternate data streams and virtualization-based hiding. This file works the .001 case end to end on Linux: the dotfile convention, the listing that honors it, and the defender's filesystem-level sweep.</p></div>
+        </section>
+
+        <section class="phase" id="target-environment">
+          <div class="phase-head"><span class="phase-num">02</span><h2>Target Environment</h2><span class="phase-tag neutral">LOADOUT</span></div>
+          <p class="lede">Ubuntu 24.04.5 LTS, bash 5.2, x86-64. No privilege needed, no network, no persistence: the payload touches one marker file inside its own lab directory and sleeps. The lab stands in for the payload with one hidden directory and one script.</p>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Build the lab</h3>
+              <div class="prose"><p>One directory, one decoy file, one hidden directory, one script. The decoy, notes.txt, is the boring visible file the casual listing sees.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="rm -rf /tmp/gh009; mkdir -p /tmp/gh009 &amp;&amp; cd /tmp/gh009 &amp;&amp; touch notes.txt"><span data-label>COPY</span></button></div>
+  <pre>$ rm -rf /tmp/gh009; mkdir -p /tmp/gh009 &amp;&amp; cd /tmp/gh009 &amp;&amp; touch notes.txt</pre>
+</div>
+              <div class="prose"><p>A fresh lab directory with the decoy inside, and the shell moved into it. Now the hidden directory and the payload.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="mkdir .svc-data"><span data-label>COPY</span></button></div>
+  <pre>$ mkdir .svc-data</pre>
+</div>
+              <div class="codeblock codeblock-scrollhint">
+  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="cat &gt; .svc-data/sync.sh &lt;&lt;'EOF'&#10;#!/bin/sh&#10;# GH-009 lab: benign stand-in for a hidden payload.&#10;# Touches one marker file inside its own directory, then sleeps.&#10;# Nothing else. No network, no persistence, no privilege.&#10;touch .svc-data/.marker&#10;sleep 900&#10;EOF"><span data-label>COPY</span></button></div>
+  <pre>$ cat &gt; .svc-data/sync.sh &lt;&lt;'EOF'
+&gt; #!/bin/sh
+&gt; # GH-009 lab: benign stand-in for a hidden payload.
+&gt; # Touches one marker file inside its own directory, then sleeps.
+&gt; # Nothing else. No network, no persistence, no privilege.
+&gt; touch .svc-data/.marker
+&gt; sleep 900
+&gt; EOF</pre>
+</div>
+              <div class="codeblock codeblock-scrollhint">
+  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="chmod +x .svc-data/sync.sh &amp;&amp; ./.svc-data/sync.sh &amp;"><span data-label>COPY</span></button></div>
+  <pre>$ chmod +x .svc-data/sync.sh &amp;&amp; ./.svc-data/sync.sh &amp;
+[1] 9539</pre>
+</div>
+              <div class="prose"><p>The <strong>[1]</strong> line is the shell confirming the background job and its process id. The payload is now detached: it touched its marker file and is sleeping. Nothing about the directory looks different to a casual glance, which is the entire attack.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>The payload: sync.sh</h3>
+              <div class="prose"><p>Six lines. Every line glossed, because the whole technique lives in this file.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+  <div class="codeblock-bar"><span class="mlabel">sh: /tmp/gh009/.svc-data/sync.sh</span><button class="copy-btn" data-copy="#!/bin/sh&#10;# GH-009 lab: benign stand-in for a hidden payload.&#10;# Touches one marker file inside its own directory, then sleeps.&#10;# Nothing else. No network, no persistence, no privilege.&#10;touch .svc-data/.marker&#10;sleep 900"><span data-label>COPY</span></button></div>
+  <pre>#!/bin/sh
+# GH-009 lab: benign stand-in for a hidden payload.
+# Touches one marker file inside its own directory, then sleeps.
+# Nothing else. No network, no persistence, no privilege.
+touch .svc-data/.marker
+sleep 900</pre>
+</div>
+              <div class="prose"><p>Line by line. <strong>#!/bin/sh</strong> runs the file under the system shell. The comment lines say what the file is for; they do nothing. <strong>touch .svc-data/.marker</strong> creates the marker file: the only filesystem write the script ever makes, and the proof it actually executed. <strong>touch</strong> on a name that does not exist creates an empty file. <strong>sleep 900</strong> keeps the process alive for fifteen minutes, 900 seconds, so the defender has something to find; it does nothing else. There is no network call, no cron entry, no startup script: when the process dies, nothing remains but the files, and the blue phase removes those too.</p></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="phase-red">
+          <div class="phase-head"><span class="phase-num">03</span><h2>Phase Red: the drawer stays shut</h2><span class="phase-tag red">ATTACK</span></div>
+          <p class="lede">The payload is planted and sleeping. Now ask the directory what is in it, three different ways, and watch the answers disagree. Every command below is copy-pasteable.</p>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">54.2s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/unlisted-red.jpg" aria-label="Screen recording: UNLISTED RED, operator@lab">
+              <source src="../../assets/vid/unlisted-red.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> The hidden payload planted and launched, then plain ls missing it, ls -a revealing it, and the sleeper found in the process table. Every command below is copy-pasteable.</figcaption>
+          </figure>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>The listing lies by omission</h3>
+              <div class="prose"><p>Two commands, same directory, seconds apart.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="ls"><span data-label>COPY</span></button></div>
+  <pre>$ ls
+notes.txt</pre>
+</div>
+              <div class="prose"><p>One name: the decoy.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="ls -a"><span data-label>COPY</span></button></div>
+  <pre>$ ls -a
+.  ..  .svc-data  notes.txt</pre>
+</div>
+              <div class="prose"><p>Four names. Nothing about the directory changed between the two commands; only the question changed. The <strong>-a</strong> flag tells ls to skip its dotfile courtesy and print everything readdir returned.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>The hidden directory is real, and so is the process</h3>
+              <div class="prose"><p>The hidden directory is not an idea; it holds files.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="ls -a .svc-data/"><span data-label>COPY</span></button></div>
+  <pre>$ ls -a .svc-data/
+.  ..  .marker	sync.sh</pre>
+</div>
+              <div class="prose"><p>.marker is the proof of execution: the script touched it when it started. sync.sh is the payload itself, sitting in the open for anyone who looks past the default view.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="pgrep -af '[s]ync\.sh'"><span data-label>COPY</span></button></div>
+  <pre>$ pgrep -af '[s]ync\.sh'
+9542 /bin/sh ./.svc-data/sync.sh</pre>
+</div>
+              <div class="prose"><p>The kernel's answer: one process, /bin/sh running ./.svc-data/sync.sh. pgrep matched the command line against the pattern; the <strong>[s]</strong> bracket keeps the pattern from matching pgrep's own command line.</p></div>
+              <div class="verdict red">
+                <span class="mlabel">Stealth confirmed</span>
+                <p>The payload executed, wrote its marker, and persists as a running process, while the default listing shows a single boring text file. The hiding cost one leading dot.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="phase-blue">
+          <div class="phase-head"><span class="phase-num">04</span><h2>Phase Blue: open the drawer</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">The red phase asked the display. Now ask the defender's questions: what sees past the convention, how to stop the sleeper, and how to leave nothing behind. Every command below is copy-pasteable.</p>
+          <div class="prose">
+            <p>Here is the trap: treating the dotfile as a hostile artifact and hunting for dots. Dots are not hostile. Your own shell config lives in dotfiles. The hiding is not an object to find; it is a convention to stop trusting, and the fix is to ask tools that never honored it.</p>
+          </div>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot blue" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">28.2s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/unlisted-blue.jpg" aria-label="Screen recording: UNLISTED BLUE, operator@lab">
+              <source src="../../assets/vid/unlisted-blue.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> The defender's find sweep surfacing every hidden path, the sleeper located and killed, and the lab removed completely. Every command below is copy-pasteable.</figcaption>
+          </figure>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>The listing still lies</h3>
+              <div class="prose"><p>Triage that stops at the default listing closes the case here.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="cd /tmp/gh009 &amp;&amp; ls"><span data-label>COPY</span></button></div>
+  <pre>$ cd /tmp/gh009 &amp;&amp; ls
+notes.txt</pre>
+</div>
+              <div class="prose"><p>One boring text file. Case closed, and the payload keeps sleeping.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>The defender's sweep: ask the filesystem</h3>
+              <div class="prose"><p>find does not know about the dotfile courtesy. It walks the tree and matches names at the filesystem level, where a leading dot is just another character. <strong>-name '.*'</strong> matches every name that starts with a dot; the quotes keep the shell from expanding the pattern before find sees it; <strong>sort</strong> orders the output.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="find /tmp/gh009 -name '.*' | sort"><span data-label>COPY</span></button></div>
+  <pre>$ find /tmp/gh009 -name '.*' | sort
+/tmp/gh009/.svc-data
+/tmp/gh009/.svc-data/.marker</pre>
+</div>
+              <div class="prose"><p>Two hidden paths, by their real names. No flag on ls could have produced this list, because the hiding was never in the filesystem.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>Kill the sleeper</h3>
+              <div class="prose"><p>The process table never honored the convention either.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="pgrep -af '[s]ync\.sh'"><span data-label>COPY</span></button></div>
+  <pre>$ pgrep -af '[s]ync\.sh'
+9542 /bin/sh ./.svc-data/sync.sh</pre>
+</div>
+              <div class="prose"><p>Same sleeper, same command line.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="pkill -f '[s]ync\.sh'"><span data-label>COPY</span></button></div>
+  <pre>$ pkill -f '[s]ync\.sh'</pre>
+</div>
+              <div class="prose"><p>pkill signals by the same name match pgrep uses. The <strong>[s]</strong> bracket keeps pkill from matching its own command line and killing the shell that runs it.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="pgrep -af '[s]ync\.sh' || echo &quot;process gone&quot;"><span data-label>COPY</span></button></div>
+  <pre>$ pgrep -af '[s]ync\.sh' || echo "process gone"
+process gone</pre>
+</div>
+              <div class="prose"><p>Empty output, and the echo confirms it: no matching processes. The sleeper is gone.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div>
+              <h3>Remove the lab completely</h3>
+              <div class="prose"><p>Files last.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="rm -rf /tmp/gh009; ls /tmp/gh009"><span data-label>COPY</span></button></div>
+  <pre>$ rm -rf /tmp/gh009; ls /tmp/gh009
+ls: cannot access '/tmp/gh009': No such file or directory</pre>
+</div>
+              <div class="prose"><p>rm -rf removes the whole tree, hidden names included, because rm never asked the display either. The ls error is the confirmation: no such file or directory. Nothing persists after the demo: no process, no files, no marker.</p></div>
+              <div class="verdict green">
+                <span class="mlabel">Detection verified</span>
+                <p>The filesystem-level sweep surfaced what the display hid, the process table named the sleeper, and the lab directory is gone.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="countermeasures">
+          <div class="phase-head"><span class="phase-num">05</span><h2>Countermeasures</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">Three moves, in order: stop trusting the display, watch the writes, decide what may run. Each is one way, not the way.</p>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Mitigate: sweep, do not browse</h3>
+              <div class="prose"><p>In triage, replace the listing with a walk. Run find -name '.*' on any directory you are inventorying, and compare the process table against the file list: anything executing from a dot-directory earns a closer look. This is the fleet form of the blue phase: the idea does not change, only the coverage. This control clears the first-principles gate: it works because it rests on what the tools actually promise, not on what their output looks like.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="find /tmp/gh009 -name '.*' | sort"><span data-label>COPY</span></button></div>
+  <pre>$ find /tmp/gh009 -name '.*' | sort
+/tmp/gh009/.svc-data
+/tmp/gh009/.svc-data/.marker</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>Monitor: watch writes, not names</h3>
+              <div class="prose"><p>A hidden file is still a created file. <a href="https://d3fend.mitre.org/technique/d3f:FileIntegrityMonitoring/" rel="noopener">File integrity monitoring (D3-FIM)</a> notices a new file appearing in a watched directory regardless of its first character; the display convention is invisible at the layer FIM watches. <a href="https://d3fend.mitre.org/technique/d3f:SoftwareInventory/" rel="noopener">Software inventory (D3-SWI)</a> flags binaries that were never supposed to be on the machine, whatever their names start with. Production versions run in the EDR or auditd, not by hand; the principle is the same: watch the kernel's facts, not the display's.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>Prevent: decide what may run</h3>
+              <div class="prose"><p>The payload needed no privilege to hide; hiding is free, so prevention targets execution instead. Executable allowlisting means an unknown script dropped into a hidden directory never runs, whatever its name. Cheaper and closer to this file's lesson: nothing here persists unless something runs it, so the inventory that matters is the process table, taken regularly, not the directory listing.</p></div>
+              <div class="callout"><p><strong>Honest limit.</strong> Every control above watches a layer the attacker can go under. A rootkit that hooks directory reads or hides processes from /proc, T1014, the subject of GH-002, hides from find and pgrep too. FIM sees the write only if it was already watching that path, and an allowlist is only as good as its list. This file teaches the layer beneath all of those: what your listing tools actually promise. A defender who knows ls is a display convention is never fooled by a leading dot. A defender who mistakes it for a census is.</p></div>
+              <div class="verdict green">
+                <span class="mlabel">Countermeasures verified</span>
+                <p>The display is replaced by the walk, the writes are watched at the kernel's layer, and execution is decided by policy. None of them changes the core fact: a leading dot was never a lock, only a shut drawer.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="debrief">
+          <div class="phase-head"><span class="phase-num">06</span><h2>Debrief</h2><span class="phase-tag neutral">TAKEAWAY</span></div>
+          <p class="takeaway">A file the listing never shows is still a file: ls hides dotfiles by convention, not by enforcement, so triage asks the filesystem and the process table, never the display.</p>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">IOC checklist: signs this technique was used</span></p></div>
+          <ul class="checklist">
+            <li><span>Dot-directories appearing outside the usual home-directory clutter, especially under <strong>/tmp</strong>, <strong>/var/tmp</strong>, or service directories</span></li>
+            <li><span>A process whose command line points into a dot-directory</span></li>
+            <li><span>A directory whose plain-ls and find counts disagree during triage</span></li>
+            <li><span>Recently created dotfiles with no legitimate owner: check mtime, then ask who wrote it</span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Reproducibility checklist</span></p></div>
+          <ul class="checklist">
+            <li><span>Verified on <strong>Ubuntu 24.04.5 LTS</strong>, <strong>bash 5.2</strong>, x86-64, on 2026-09-17</span></li>
+            <li><span>Both recordings are real executions on that platform, not simulations</span></li>
+            <li><span>No privilege needed; no network activity; no persistence mechanisms</span></li>
+            <li><span>Cleanup: pkill -f '[s]ync.sh'; rm -rf /tmp/gh009 (both already run in the blue pass)</span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Sources</span></p></div>
+          <div class="prose"><p><a href="https://attack.mitre.org/techniques/T1564/001/" rel="noopener">MITRE ATT&amp;CK T1564.001: Hidden Files and Directories</a><br>
+          ls(1), find(1), pgrep(1), pkill(1)<br>
+          <a href="https://d3fend.mitre.org/technique/d3f:FileIntegrityMonitoring/" rel="noopener">D3FEND D3-FIM: File Integrity Monitoring</a>, <a href="https://d3fend.mitre.org/technique/d3f:SoftwareInventory/" rel="noopener">D3-SWI: Software Inventory</a>: version 1.6.0 maps its T1564 defenders to the whole Hide Artifacts family; FIM and SWI are the two that add real coverage for the .001 case, so those are the ones wired here</p></div>
+        </section>
+
+        <a class="next-file" href="../010-debugger-evasion/index.html">
+          <span class="mlabel">Next file</span>
+          <h3>GH-010 Debugger Evasion</h3>
+          <p>A payload can ask whether a debugger is watching it run. The next file takes that question apart.</p>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <div>
+      <div class="footer-brand">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+        <span class="brand-name" style="font-size:17px">GHOSTLIGHT</span>
+      </div>
+      <p class="footer-note">An independent adversary-stealth research publication. Every command verified on the named OS before publishing. No trackers, no frameworks, no autoplay.</p>
+    </div>
+    <nav class="footer-links">
+      <a href="../../method.html">METHOD</a>
+      <a href="../../index.html">FILES</a>
+      <a href="https://attack.mitre.org/tactics/TA0005/" rel="noopener">MITRE TA0005</a>
+    </nav>
+    <div class="footer-elsewhere">
+      <span class="mlabel">Elsewhere</span><a href="https://dillingerstaffing.github.io/portfolio/" target="_blank" rel="noopener">Portfolio</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/proving-ground/" target="_blank" rel="noopener">Proving Ground</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/unstuck/" target="_blank" rel="noopener">Unstuck</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../../assets/site.js?v=512f8825"></script>
+</body>
+</html>
