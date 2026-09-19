@@ -410,7 +410,7 @@ $ auditctl -a exit,always -F arch=b64 -S execve -F path=/usr/bin/base64 -k decod
           <p class="takeaway">An obfuscated command still has to be decoded before it runs, so the defender never reads the typed form; the defender reads the decoded form.</p>
           <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">IOC checklist: signs this technique was used</span></p></div>
           <ul class="checklist">
-            <li><span>Process lines containing <strong>base64 -d</strong>, <strong>xxd -r</strong>, <strong>tr</strong>, or <strong>eval</strong> chained into a shell</span></li>
+            <li><span>Process lines containing <strong>base64 -d</strong>, <strong>tr</strong>, <strong>eval</strong>, or a <strong>python3 -c</strong> base64 decode chained into a shell</span></li>
             <li><span>Long base64-looking blobs inside <strong>sh -c</strong> command lines</span></li>
             <li><span>A long-lived process like <strong>sleep</strong> whose command line is a single unreadable blob</span></li>
             <li><span>Process-creation logs where the typed form is encoded but the decoded tree was never resolved</span></li>
@@ -421,7 +421,7 @@ $ auditctl -a exit,always -F arch=b64 -S execve -F path=/usr/bin/base64 -k decod
             <li><span>Verified on <strong>Ubuntu 24.04.5 LTS</strong>, x86-64, on 2026-09-19</span></li>
             <li><span>Both recordings are real executions on that platform, not simulations</span></li>
             <li><span>The attack runs fully unprivileged: any user can pipe base64 into sh</span></li>
-            <li><span>Cleanup: pkill -f 'base64 -d'; pkill -f 'sleep 900'; rm -rf /tmp/gh011</span></li>
+            <li><span>Cleanup: kill the wrapper by PID (confirm the sealed order in /proc/&lt;pid&gt;/cmdline first), the payload with <strong>pkill -f '[s]leep 900'</strong>, then <strong>rm -rf /tmp/gh011</strong>. Never <strong>pkill -f 'base64 -d'</strong>: the pattern matches innocent decoders too</span></li>
           </ul>
           <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Sources</span></p></div>
           <div class="prose"><p><a href="https://attack.mitre.org/techniques/T1027/010/" rel="noopener">MITRE ATT&amp;CK T1027.010: Command Obfuscation</a><br>

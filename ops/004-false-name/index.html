@@ -285,7 +285,7 @@ lrwxrwxrwx 1 root root 0 Sep 16 15:27 /proc/17306/exe -&gt; /tmp/gh004/cron</pre
 
         <section class="phase" id="debrief">
           <div class="phase-head"><span class="phase-num">06</span><h2>Debrief</h2><span class="phase-tag neutral">TAKEAWAY</span></div>
-          <p class="takeaway">ps asks the process for its name. /proc/PID/exe asks the kernel where the file lives. When they disagree, believe the kernel.</p>
+          <p class="takeaway">ps reads the name from comm, a field the kernel stores but the process supplies: exec sets it from the basename, and prctl(PR_SET_NAME) rewrites it at will. /proc/PID/exe is the kernel's own record, written at exec, with no call to rewrite it. When the claim and the record disagree, believe the record.</p>
           <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">IOC checklist: signs this technique was used</span></p></div>
           <ul class="checklist">
             <li><span>A process whose name matches a system daemon while <strong>/proc/&lt;pid&gt;/exe</strong> points at a user-writable path</span></li>
