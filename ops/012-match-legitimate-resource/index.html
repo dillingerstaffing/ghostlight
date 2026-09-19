@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>GH-012 The Exact Address (T1036.005): GHOSTLIGHT</title>
+<meta name="description" content="T1036.005 Match Legitimate Resource Name or Location, reproduced on Ubuntu 24.04: a scheduled utility is swapped for a same-named twin at the same path. The name, the location, and the visible behavior all check out; only the bytes changed. The defender hashes the bytes.">
+<link rel="canonical" href="https://dillingerstaffing.github.io/ghostlight/ops/012-match-legitimate-resource/">
+<meta property="og:title" content="GH-012 The Exact Address (T1036.005): GHOSTLIGHT">
+<meta property="og:description" content="T1036.005 Match Legitimate Resource Name or Location, reproduced on Ubuntu 24.04: a scheduled utility is swapped for a same-named twin at the same path. The name, the location, and the visible behavior all check out; only the bytes changed. The defender hashes the bytes.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dillingerstaffing.github.io/ghostlight/ops/012-match-legitimate-resource/">
+<meta property="og:site_name" content="GHOSTLIGHT">
+<meta property="og:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="GH-012 The Exact Address (T1036.005): GHOSTLIGHT">
+<meta name="twitter:description" content="T1036.005 Match Legitimate Resource Name or Location, reproduced on Ubuntu 24.04: a scheduled utility is swapped for a same-named twin at the same path. The name, the location, and the visible behavior all check out; only the bytes changed. The defender hashes the bytes.">
+<meta name="twitter:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23ece6d5'/%3E%3Ccircle cx='256' cy='196' r='104' fill='none' stroke='%23241f17' stroke-width='20'/%3E%3Cline x1='256' y1='152' x2='256' y2='240' stroke='%238c3f22' stroke-width='16'/%3E%3Cline x1='256' y1='300' x2='256' y2='424' stroke='%23241f17' stroke-width='14'/%3E%3Cline x1='200' y1='424' x2='312' y2='424' stroke='%23241f17' stroke-width='18'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+<link rel="manifest" href="../../assets/manifest.webmanifest">
+<meta name="theme-color" content="#0a0c0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GHOSTLIGHT">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<script>
+(function () {
+  // Theme: notebook is the default; a stored visitor choice wins.
+  // Runs before the stylesheet is parsed so the first paint is already
+  // the right theme (no flash of the wrong one).
+  try {
+    var t = localStorage.getItem('emi-site-theme');
+    var theme = t === 'classic' ? 'classic' : 'notebook';
+    document.documentElement.dataset.theme = theme;
+    var m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute('content', theme === 'classic' ? '#0a0c0f' : '#ece6d5');
+  } catch (e) {
+    document.documentElement.dataset.theme = 'notebook';
+  }
+})();
+</script>
+<link rel="stylesheet" href="../../assets/site.css?v=36a0084f">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"GH-012 The Exact Address (T1036.005): GHOSTLIGHT",
+"url":"https://dillingerstaffing.github.io/ghostlight/ops/012-match-legitimate-resource/","description":"T1036.005 Match Legitimate Resource Name or Location, reproduced on Ubuntu 24.04: a scheduled utility is swapped for a same-named twin at the same path. The name, the location, and the visible behavior all check out; only the bytes changed. The defender hashes the bytes.",
+"author":{"@type":"Person","name":"Chris Dillinger","url":"https://www.linkedin.com/in/christopherdillinger/"},
+"inLanguage":"en"}
+</script>
+</head>
+<body>
+
+<header class="site-header">
+  <a class="brand" href="../../index.html" aria-label="GHOSTLIGHT home">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+    <span class="brand-name">GHOSTLIGHT</span>
+  </a>
+  <nav class="site-nav">
+    <a href="../../method.html">METHOD</a>
+    <a href="../../index.html">FILES</a>
+    <button class="theme-toggle" type="button" aria-label="Switch to dark field dossier theme" title="Switch theme">
+      <span class="theme-toggle-mark" aria-hidden="true"><i></i><i></i></span>
+    </button>
+  </nav>
+</header>
+
+<div class="onboard" data-onboard hidden>
+  <span><strong>How to read a file:</strong> every file follows the six-phase structure below. <span class="k-green">Green</span> is verified, <span class="k-red">red</span> is hostile.</span>
+  <button aria-label="Dismiss">GOT IT</button>
+</div>
+
+<div class="page" data-op="012">
+  <div class="wrap">
+    <section class="op-hero">
+      <div class="op-kicker">
+        <span class="case-no">GH-012</span>
+        <a class="tech-id" href="https://attack.mitre.org/techniques/T1036/005/" rel="noopener">T1036.005</a>
+        <span class="phase-tag red">PHASE RED INSIDE</span>
+      </div>
+      <h1>The Exact Address</h1>
+      <p class="lede">A scheduler runs /tmp/gh012/bin/report every few seconds because the path is trusted. This file swaps the bytes at that path for a twin with the same name, the same job, and one quiet extra. The name checks out, the location checks out, the visible behavior checks out. Only the bytes changed, and the defender hashes the bytes.</p>
+      <div class="op-meta-grid">
+        <div class="op-meta"><span class="mlabel">Technique</span><span class="mvalue">Masquerading: Match Legitimate Name or Location (T1036.005)</span></div>
+        <div class="op-meta"><span class="mlabel">Target OS</span><span class="mvalue">Ubuntu 24.04.5 LTS</span></div>
+        <div class="op-meta"><span class="mlabel">Toolchain</span><span class="mvalue">bash, coreutils</span></div>
+        <div class="op-meta"><span class="mlabel">Level</span><span class="mvalue">Beginner</span></div>
+        <div class="op-meta"><span class="mlabel">Time</span><span class="mvalue">20 min</span></div>
+      </div>
+      <div class="objectives">
+        <h2>OBJECTIVES</h2>
+        <ol>
+          <li data-phase="phase-red"><span class="box"></span>Swap a scheduled utility for a same-named twin and watch the marker prove it ran</li>
+          <li data-phase="phase-blue"><span class="box"></span>Catch the swap with a hash baseline and scope what ran trojaned</li>
+          <li data-phase="countermeasures"><span class="box"></span>Restore from known-good, then lock the directory read-only</li>
+          <li data-phase="debrief"><span class="box"></span>Take the IOC checklist and the one-sentence lesson</li>
+        </ol>
+      </div>
+    </section>
+
+    <div class="op-layout">
+      <nav class="rail" aria-label="Phases">
+        <span class="mlabel">Phases</span>
+        <ol>
+          <li><a href="#intel-brief"><span class="pnum">01</span>INTEL BRIEF<span class="tick"></span></a></li>
+          <li><a href="#target-environment"><span class="pnum">02</span>TARGET ENV<span class="tick"></span></a></li>
+          <li><a href="#phase-red"><span class="pnum">03</span>PHASE RED<span class="tick"></span></a></li>
+          <li><a href="#phase-blue"><span class="pnum">04</span>PHASE BLUE<span class="tick"></span></a></li>
+          <li><a href="#countermeasures"><span class="pnum">05</span>COUNTERMEASURES<span class="tick"></span></a></li>
+          <li><a href="#debrief"><span class="pnum">06</span>DEBRIEF<span class="tick"></span></a></li>
+        </ol>
+      </nav>
+
+      <div class="op-content">
+        <section class="phase" id="intel-brief">
+          <div class="phase-head"><span class="phase-num">01</span><h2>Intel Brief</h2><span class="phase-tag neutral">CONTEXT</span></div>
+          <p class="lede">MITRE ATT&amp;CK <a href="https://attack.mitre.org/techniques/T1036/005/" rel="noopener">T1036.005</a>: adversaries match the name or location of a legitimate resource so the hostile file inherits the trust of the real one. This file swaps one scheduled utility for a same-named twin at the exact same path, and shows the one check that sees through it.</p>
+          <div class="prose">
+            <p><strong>Why this technique.</strong> Schedulers, init scripts, and installers address their helpers by absolute path. The operating system resolves that path fresh on every run and never asks whether the bytes at the end of it are the bytes that were installed. That gap is the whole technique. The defender's inventory says the utility lives at its path, and it does, so every check that stops at the path passes. The attack is not on the name or the schedule; it is on the assumption that a trusted path ends at trusted bytes.</p>
+            <p><strong>Why not just hide the payload.</strong> That is the obvious move, and this file breaks it on the concrete case: the scheduler runs <strong>/tmp/gh012/bin/report</strong> because the path is written into its loop. A payload hidden anywhere else never executes; the scheduler keeps running the real utility and the attack does nothing. Hiding answers the question "where is the file", and the scheduler never asks that question. It asks "what is at this address", and the attacker makes sure the answer is the twin.</p>
+            <p><strong>Why not rename a legitimate utility.</strong> That is the neighboring sub-technique, T1036.003, and it breaks on the concrete input too: <strong>ls /tmp/gh012/bin/</strong> would show the wrong name, and any admin auditing the directory would see it. The .005 case shows the RIGHT name at the RIGHT path, so even the careful admin sees nothing to question. The two sub-techniques hide different things: one borrows a name for a foreign file, the other keeps the name and swaps the contents.</p>
+            <p><strong>The mechanism, in one line.</strong> <strong>Masquerading</strong> is borrowing the trust of a legitimate identity. The <strong>resource name</strong> is the filename; the <strong>location</strong> is the directory path. Together they form the address the system trusts. A <strong>hash</strong> is a short fingerprint of a file's bytes: change one byte and the fingerprint changes completely. The twin keeps the address and changes the bytes, so every name-based check passes and only the hash-based check fails. That is the entire detection in one operation: hash the bytes, not the name.</p>
+            <p><strong>The concrete case, before the abstraction.</strong> The utility does one thing: append one timestamped line to its log. The scheduler runs it every three seconds. The twin does the same thing, then touches a marker file. Same name, same path, same visible job, one quiet extra.</p>
+          </div>
+          <div class="callout"><p><strong>Scope.</strong> T1036.005 covers matching legitimate names or locations broadly: lookalike filenames in system directories, hostile files dropped where installers look, service binaries replaced in place. This file works the exact-name, exact-location replacement of a scheduled utility end to end: the swap, and the hash check that catches it.</p></div>
+        </section>
+
+        <section class="phase" id="target-environment">
+          <div class="phase-head"><span class="phase-num">02</span><h2>Target Environment</h2><span class="phase-tag neutral">LOADOUT</span></div>
+          <p class="lede">Ubuntu 24.04.5 LTS, x86-64, in a disposable VM used only for this lab. The swap needs write access to the utility's directory, the assumed breach; the read-only mount demo needs root. Run it on a throwaway box anyway, because you are about to practice replacing system files.</p>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Build the lab</h3>
+              <div class="prose"><p>One disposable directory. <strong>bin/</strong> holds the utility, <strong>var/</strong> its log, <strong>baseline/</strong> the known-good copy and the manifest. Everything the lab touches lives inside it, so cleanup is a single rm.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="rm -rf /tmp/gh012; mkdir -p /tmp/gh012/bin /tmp/gh012/var /tmp/gh012/baseline &amp;&amp; echo &quot;lab built: /tmp/gh012&quot;"><span data-label>COPY</span></button></div>
+<pre>$ rm -rf /tmp/gh012; mkdir -p /tmp/gh012/bin /tmp/gh012/var /tmp/gh012/baseline &amp;&amp; echo "lab built: /tmp/gh012"
+lab built: /tmp/gh012</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>The utility: four lines</h3>
+              <div class="prose"><p>Line by line. <strong>#!/bin/sh</strong> runs the script under the system shell. The comment lines are notes; the shell ignores them. <strong>echo "$(date -u +%FT%TZ) report ok" &gt;&gt; /tmp/gh012/var/report.log</strong> builds one timestamped line, <strong>date -u</strong> in UTC, <strong>+%FT%TZ</strong> in ISO 8601 form, and appends it to the log; the double <strong>&gt;&gt;</strong> appends, it never truncates. <strong>chmod +x</strong> makes the file executable, so the scheduler can run it by path.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">sh: utility</span><button class="copy-btn" data-copy="cat &gt; /tmp/gh012/bin/report &lt;&lt;'EOF'&#10;#!/bin/sh&#10;# GH-012 lab utility: a scheduled-task stand-in. Appends one&#10;# timestamped line to the report log. Benign by design.&#10;echo &quot;$(date -u +%FT%TZ) report ok&quot; &gt;&gt; /tmp/gh012/var/report.log&#10;EOF&#10;chmod +x /tmp/gh012/bin/report &amp;&amp; cat /tmp/gh012/bin/report"><span data-label>COPY</span></button></div>
+<pre>$ cat &gt; /tmp/gh012/bin/report &lt;&lt;'EOF'
+#!/bin/sh
+# GH-012 lab utility: a scheduled-task stand-in. Appends one
+# timestamped line to the report log. Benign by design.
+echo "$(date -u +%FT%TZ) report ok" &gt;&gt; /tmp/gh012/var/report.log
+EOF
+chmod +x /tmp/gh012/bin/report &amp;&amp; cat /tmp/gh012/bin/report
+#!/bin/sh
+# GH-012 lab utility: a scheduled-task stand-in. Appends one
+# timestamped line to the report log. Benign by design.
+echo "$(date -u +%FT%TZ) report ok" &gt;&gt; /tmp/gh012/var/report.log</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>The baseline and the scheduler</h3>
+              <div class="prose"><p>Two load-bearing moves before anything hostile exists. <strong>cp bin/report baseline/report</strong> takes the known-good copy: this is the source of truth everything later is measured against. <strong>sha256sum bin/report &gt; baseline.sha256</strong> writes the manifest, a fingerprint of the installed bytes. Then the scheduler: <strong>(while true; do /tmp/gh012/bin/report; sleep 3; done) &amp;</strong> runs the utility by its absolute path every three seconds, the shape of a cron job. <strong>$!</strong> is the background loop's pid; the page keeps it in <strong>SCHED</strong> to stop it later.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="cp /tmp/gh012/bin/report /tmp/gh012/baseline/report &amp;&amp; (cd /tmp/gh012 &amp;&amp; sha256sum bin/report &gt; baseline.sha256) &amp;&amp; cat /tmp/gh012/baseline.sha256&#10;(while true; do /tmp/gh012/bin/report; sleep 3; done) &amp; SCHED=$!; echo &quot;scheduler pid=$SCHED&quot;; sleep 4"><span data-label>COPY</span></button></div>
+<pre>$ cp /tmp/gh012/bin/report /tmp/gh012/baseline/report &amp;&amp; (cd /tmp/gh012 &amp;&amp; sha256sum bin/report &gt; baseline.sha256) &amp;&amp; cat /tmp/gh012/baseline.sha256
+39c4b33b03d266f613f04dca8f3b2181e3edc1eed77d375771db3f77fa4c6317  bin/report
+$ (while true; do /tmp/gh012/bin/report; sleep 3; done) &amp; SCHED=$!; echo "scheduler pid=$SCHED"; sleep 4
+[1] 13
+scheduler pid=13</pre>
+</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="phase-red">
+          <div class="phase-head"><span class="phase-num">03</span><h2>Phase Red: take the address</h2><span class="phase-tag red">ATTACK</span></div>
+          <p class="lede">The swap, live: first the utility proves itself, then the twin takes its address. The marker file is the witness. Watch what the outside view shows, and what it does not.</p>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">138.9s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/address-red.jpg" aria-label="Screen recording: EXACT RED, operator@lab">
+              <source src="../../assets/vid/address-red.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> A scheduled utility runs from its trusted path, then a same-named twin takes its place. The log keeps growing; the marker says the twin ran. Every command below is copy-pasteable.</figcaption>
+          </figure>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Normal operation</h3>
+              <div class="prose"><p>Baseline first: the log grows one line per scheduler run, and the hash matches the install-time manifest. This is the healthy system the attack will be measured against.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="tail -3 /tmp/gh012/var/report.log; (cd /tmp/gh012 &amp;&amp; sha256sum -c baseline.sha256)"><span data-label>COPY</span></button></div>
+<pre>$ tail -3 /tmp/gh012/var/report.log; (cd /tmp/gh012 &amp;&amp; sha256sum -c baseline.sha256)
+2026-09-19T23:25:19Z report ok
+2026-09-19T23:25:22Z report ok
+bin/report: OK</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>The swap</h3>
+              <div class="prose"><p>The attacker overwrites the utility at its exact path. Same filename, same directory, same permissions. Nothing about the address changed; only the bytes did. The twin does the original job, then touches its marker.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="cat &gt; /tmp/gh012/bin/report &lt;&lt;'EOF'&#10;#!/bin/sh&#10;# Trojaned twin: same name, same location, same visible job,&#10;# plus one quiet marker. This is the T1036.005 case.&#10;echo &quot;$(date -u +%FT%TZ) report ok&quot; &gt;&gt; /tmp/gh012/var/report.log&#10;touch /tmp/gh012/.pwned&#10;EOF&#10;chmod +x /tmp/gh012/bin/report &amp;&amp; echo &quot;swapped: same name, same path&quot;"><span data-label>COPY</span></button></div>
+<pre>$ cat &gt; /tmp/gh012/bin/report &lt;&lt;'EOF'
+#!/bin/sh
+# Trojaned twin: same name, same location, same visible job,
+# plus one quiet marker. This is the T1036.005 case.
+echo "$(date -u +%FT%TZ) report ok" &gt;&gt; /tmp/gh012/var/report.log
+touch /tmp/gh012/.pwned
+EOF
+chmod +x /tmp/gh012/bin/report &amp;&amp; echo "swapped: same name, same path"
+swapped: same name, same path</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>The twin runs</h3>
+              <div class="prose"><p>The scheduler never noticed. It runs the path, and the path now serves the twin. The log kept growing in the same format, so nothing looks broken; the marker is the only new fact, and only the attacker knows to look for it.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="sleep 4; ls /tmp/gh012/bin/; test -e /tmp/gh012/.pwned &amp;&amp; echo &quot;marker present: the twin ran&quot;; tail -2 /tmp/gh012/var/report.log"><span data-label>COPY</span></button></div>
+<pre>$ sleep 4; ls /tmp/gh012/bin/; test -e /tmp/gh012/.pwned &amp;&amp; echo "marker present: the twin ran"; tail -2 /tmp/gh012/var/report.log
+report
+marker present: the twin ran
+2026-09-19T23:25:22Z report ok
+2026-09-19T23:25:25Z report ok</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div>
+              <h3>The outside view</h3>
+              <div class="prose"><p>Everything an admin checks without hashing: the directory listing shows the right name, the log is still growing, the scheduler is still running. The address is exactly where it should be.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- the outside view ---&quot;; ls -l /tmp/gh012/bin/; echo &quot;log lines: $(wc -l &lt; /tmp/gh012/var/report.log) (still growing)&quot;; test -e /tmp/gh012/.pwned &amp;&amp; echo &quot;marker: the twin ran at this address&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- the outside view ---"; ls -l /tmp/gh012/bin/; echo "log lines: $(wc -l &lt; /tmp/gh012/var/report.log) (still growing)"; test -e /tmp/gh012/.pwned &amp;&amp; echo "marker: the twin ran at this address"
+--- the outside view ---
+total 4
+-rwxrwx--- 1 root root 213 Sep 19 23:25 report
+log lines: 3 (still growing)
+marker: the twin ran at this address</pre>
+</div>
+              <div class="verdict red">
+                <span class="mlabel">Stealth confirmed</span>
+                <p>The name is right, the location is right, the behavior is right. An admin listing the directory, watching the log, or confirming the scheduler is alive sees a healthy system. The check that stops at the path cannot fail, because the path is exactly where it should be. Only the bytes changed, and nobody hashed them.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="phase-blue">
+          <div class="phase-head"><span class="phase-num">04</span><h2>Phase Blue: hash the bytes</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">The defender stops reading the name and starts reading the bytes. One hash check against the install-time manifest, then the window, then the restore.</p>
+          <div class="prose">
+            <p>Here is the trap: listing the directory, reading the log, confirming the scheduler is alive, and calling it healthy. All three check the address. The address is the one thing the attacker did not change. Verification means comparing the bytes to the source of truth.</p>
+          </div>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot blue" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">127.6s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/address-blue.jpg" aria-label="Screen recording: EXACT BLUE, operator@lab">
+              <source src="../../assets/vid/address-blue.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> The directory looks right and the log looks right, so the defender hashes the binary against its install-time manifest. The hash fails, the diff names the extra, the window gets scoped, and the known-good bytes go back. Every command below is copy-pasteable.</figcaption>
+          </figure>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>The first look</h3>
+              <div class="prose"><p>The defender arrives and sees what the attacker wants seen: the right name, a growing log. Looking is not verifying.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="ls -l /tmp/gh012/bin/; tail -2 /tmp/gh012/var/report.log"><span data-label>COPY</span></button></div>
+<pre>$ ls -l /tmp/gh012/bin/; tail -2 /tmp/gh012/var/report.log
+total 4
+-rwxrwx--- 1 root root 213 Sep 19 23:25 report
+2026-09-19T23:25:22Z report ok
+2026-09-19T23:25:25Z report ok</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>The tell</h3>
+              <div class="prose"><p>The manifest was recorded at install time, before anything hostile existed. <strong>sha256sum -c</strong> re-hashes the file and compares. <strong>FAILED</strong> means the bytes at the trusted path are not the installed bytes. Good versus bad, concrete: good is <strong>OK</strong> with an mtime older than the last authorized change; bad is <strong>FAILED</strong> on any path a scheduler executes. The name told the truth about the address; the hash tells the truth about the bytes.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="(cd /tmp/gh012 &amp;&amp; sha256sum -c baseline.sha256)"><span data-label>COPY</span></button></div>
+<pre>$ (cd /tmp/gh012 &amp;&amp; sha256sum -c baseline.sha256)
+bin/report: FAILED
+sha256sum: WARNING: 1 computed checksum did NOT match</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>Confirm the change</h3>
+              <div class="prose"><p><strong>diff</strong> against the known-good copy names the twin's added lines; <strong>stat</strong> shows the new mtime and size. The mtime is the start of the incident window: everything the scheduler ran after that moment ran trojaned.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="diff /tmp/gh012/baseline/report /tmp/gh012/bin/report; stat -c 'mtime=%y size=%s name=%n' /tmp/gh012/bin/report"><span data-label>COPY</span></button></div>
+<pre>$ diff /tmp/gh012/baseline/report /tmp/gh012/bin/report; stat -c 'mtime=%y size=%s name=%n' /tmp/gh012/bin/report
+2,3c2,3
+&lt; # GH-012 lab utility: a scheduled-task stand-in. Appends one
+&lt; # timestamped line to the report log. Benign by design.
+---
+&gt; # Trojaned twin: same name, same location, same visible job,
+&gt; # plus one quiet marker. This is the T1036.005 case.
+4a5
+&gt; touch /tmp/gh012/.pwned
+mtime=2026-09-19 23:25:23.652158141 +0000 size=213 name=/tmp/gh012/bin/report</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div>
+              <h3>Scope the window</h3>
+              <div class="prose"><p>The binary's mtime says when the swap landed; the marker's mtime says when the twin first ran. The <strong>find -newer</strong> sweep lists every file changed since the baseline was recorded, excluding <strong>var/</strong> whose log legitimately grows: the swapped binary and the marker, nothing else. That is the full extent of the change on this box. Note what mitigation is not: deleting the trojan leaves the scheduler with no utility, and the window's log lines still need review.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;binary mtime:  $(stat -c %y /tmp/gh012/bin/report)&quot;; echo &quot;marker mtime:  $(stat -c %y /tmp/gh012/.pwned)&quot;; find /tmp/gh012 -newer /tmp/gh012/baseline.sha256 -not -path '/tmp/gh012/var/*' | sort"><span data-label>COPY</span></button></div>
+<pre>$ echo "binary mtime:  $(stat -c %y /tmp/gh012/bin/report)"; echo "marker mtime:  $(stat -c %y /tmp/gh012/.pwned)"; find /tmp/gh012 -newer /tmp/gh012/baseline.sha256 -not -path '/tmp/gh012/var/*' | sort
+binary mtime:  2026-09-19 23:25:23.652158141 +0000
+marker mtime:  2026-09-19 23:25:25.651158133 +0000
+/tmp/gh012
+/tmp/gh012/.pwned
+/tmp/gh012/bin/report
+/tmp/gh012/var</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">5</div>
+            <div>
+              <h3>Stop, restore, restart</h3>
+              <div class="prose"><p>Kill the scheduler by the pid kept in <strong>SCHED</strong>, and confirm it is gone before touching files. Restore the binary from the known-good copy, then re-verify: <strong>OK</strong>. Remove the attacker's marker. Restart the scheduler and watch one clean cycle: the log grows, the hash holds. The utility is back at its address, and this time the bytes match the manifest.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="kill $SCHED; sleep 0.5; kill -0 $SCHED 2&gt;/dev/null || echo &quot;scheduler stopped&quot;&#10;cp /tmp/gh012/baseline/report /tmp/gh012/bin/report &amp;&amp; rm -f /tmp/gh012/.pwned &amp;&amp; (cd /tmp/gh012 &amp;&amp; sha256sum -c baseline.sha256) &amp;&amp; echo &quot;marker removed, binary restored&quot;&#10;(while true; do /tmp/gh012/bin/report; sleep 3; done) &amp; SCHED=$!; sleep 4; tail -1 /tmp/gh012/var/report.log; (cd /tmp/gh012 &amp;&amp; sha256sum -c baseline.sha256)"><span data-label>COPY</span></button></div>
+<pre>$ kill $SCHED; sleep 0.5; kill -0 $SCHED 2&gt;/dev/null || echo "scheduler stopped"
+scheduler stopped
+$ cp /tmp/gh012/baseline/report /tmp/gh012/bin/report &amp;&amp; rm -f /tmp/gh012/.pwned &amp;&amp; (cd /tmp/gh012 &amp;&amp; sha256sum -c baseline.sha256) &amp;&amp; echo "marker removed, binary restored"
+bin/report: OK
+marker removed, binary restored
+$ (while true; do /tmp/gh012/bin/report; sleep 3; done) &amp; SCHED=$!; sleep 4; tail -1 /tmp/gh012/var/report.log; (cd /tmp/gh012 &amp;&amp; sha256sum -c baseline.sha256)
+[1] 48
+2026-09-19T23:25:31Z report ok
+bin/report: OK</pre>
+</div>
+              <div class="verdict green">
+                <span class="mlabel">Detection verified</span>
+                <p>One hash check found the swap; one diff named the extra; the mtimes drew the window. The defender never needed to suspect the name, because the name was never the lie. Hash the bytes, not the name, and the twin has nowhere to stand.</p>
+              </div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">6</div>
+            <div>
+              <h3>Lock the address</h3>
+              <div class="prose"><p>Prevention makes the swap impossible instead of detectable. Bind-mounting <strong>bin/</strong> read-only means even a writer with directory access gets <strong>Read-only file system</strong>. The attempt fails in the open, on the record.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="mount --bind /tmp/gh012/bin /tmp/gh012/bin &amp;&amp; mount -o remount,ro --bind /tmp/gh012/bin &amp;&amp; echo &quot;bin/ is now read-only&quot; &amp;&amp; (echo evil &gt; /tmp/gh012/bin/report &amp;&amp; echo &quot;WRITE SUCCEEDED (bad)&quot; || echo &quot;write blocked: Read-only file system&quot;)"><span data-label>COPY</span></button></div>
+<pre>$ mount --bind /tmp/gh012/bin /tmp/gh012/bin &amp;&amp; mount -o remount,ro --bind /tmp/gh012/bin &amp;&amp; echo "bin/ is now read-only" &amp;&amp; (echo evil &gt; /tmp/gh012/bin/report &amp;&amp; echo "WRITE SUCCEEDED (bad)" || echo "write blocked: Read-only file system")
+bin/ is now read-only
+bash: /tmp/gh012/bin/report: Read-only file system
+write blocked: Read-only file system</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">7</div>
+            <div>
+              <h3>Cleanup</h3>
+              <div class="prose"><p>Unmount the bind, stop the scheduler, remove the lab. The bind mount dies with the lab's namespace regardless; the unmount keeps the rm honest.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="umount /tmp/gh012/bin &amp;&amp; kill $SCHED 2&gt;/dev/null; sleep 0.5; rm -rf /tmp/gh012; ls /tmp/gh012 2&gt;/dev/null || echo &quot;lab directory gone&quot;"><span data-label>COPY</span></button></div>
+<pre>$ umount /tmp/gh012/bin &amp;&amp; kill $SCHED 2&gt;/dev/null; sleep 0.5; rm -rf /tmp/gh012; ls /tmp/gh012 2&gt;/dev/null || echo "lab directory gone"
+lab directory gone</pre>
+</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="countermeasures">
+          <div class="phase-head"><span class="phase-num">05</span><h2>Countermeasures</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">Three moves, in order: put the known-good bytes back, watch the bytes on a schedule, make the bytes unwritable. Each is one way, not the way.</p>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Mitigate: stop, restore, scope</h3>
+              <div class="prose"><p>Stop the scheduler by pid and confirm it is gone. Restore the binary from the known-good copy and re-verify the hash. Remove the attacker's artifacts. Scope the window from the binary's mtime and review what ran inside it. D3FEND names the restore <a href="https://d3fend.mitre.org/technique/d3f:RestoreFile/" rel="noopener">Restore File (D3-RF)</a>: restoring a file for an entity to access.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="kill $SCHED; sleep 0.5; kill -0 $SCHED 2&gt;/dev/null || echo &quot;scheduler stopped&quot;&#10;cp /tmp/gh012/baseline/report /tmp/gh012/bin/report &amp;&amp; rm -f /tmp/gh012/.pwned &amp;&amp; (cd /tmp/gh012 &amp;&amp; sha256sum -c baseline.sha256) &amp;&amp; echo &quot;marker removed, binary restored&quot;"><span data-label>COPY</span></button></div>
+<pre>$ kill $SCHED; sleep 0.5; kill -0 $SCHED 2&gt;/dev/null || echo "scheduler stopped"
+scheduler stopped
+$ cp /tmp/gh012/baseline/report /tmp/gh012/bin/report &amp;&amp; rm -f /tmp/gh012/.pwned &amp;&amp; (cd /tmp/gh012 &amp;&amp; sha256sum -c baseline.sha256) &amp;&amp; echo "marker removed, binary restored"
+bin/report: OK
+marker removed, binary restored</pre>
+</div>
+              <div class="callout"><p><strong>Honest limit.</strong> Restoring the binary does not undo what the twin did while it ran. The restore fixes the address; the window scoping decides whether the twin's extra did anything worse than touching a marker. On this box the extra was one file; on a real box the diff names the extra and the window names the exposure. A restore without scoping is a cleanup, not an incident response.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>Monitor: hash the bytes on a schedule</h3>
+              <div class="prose"><p>The install-time manifest plus a scheduled <strong>sha256sum -c</strong> is the hand-rolled form of file integrity monitoring. Record the manifest at install time, store it where the attacker cannot rewrite it, and check it on a timer; the <strong>find -newer</strong> sweep catches anything the manifest does not cover. D3FEND's grounded set for this sub-technique: <a href="https://d3fend.mitre.org/technique/d3f:FileIntegrityMonitoring/" rel="noopener">File Integrity Monitoring (D3-FIM)</a>, detecting any suspicious changes to files; <a href="https://d3fend.mitre.org/technique/d3f:ServiceBinaryVerification/" rel="noopener">Service Binary Verification (D3-SBV)</a>, comparing service binaries to a source of truth, the exact scheduled-binary case; <a href="https://d3fend.mitre.org/technique/d3f:FileHashing/" rel="noopener">File Hashing (D3-FH)</a>, hash comparisons; and <a href="https://d3fend.mitre.org/technique/d3f:FileCreationAnalysis/" rel="noopener">File Creation Analysis (D3-FCA)</a>, analyzing file-create syscalls, modeled for .005 specifically, the auditd watch on the utility's directory.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="(cd /tmp/gh012 &amp;&amp; sha256sum -c baseline.sha256)&#10;echo &quot;binary mtime:  $(stat -c %y /tmp/gh012/bin/report)&quot;; echo &quot;marker mtime:  $(stat -c %y /tmp/gh012/.pwned)&quot;; find /tmp/gh012 -newer /tmp/gh012/baseline.sha256 -not -path '/tmp/gh012/var/*' | sort"><span data-label>COPY</span></button></div>
+<pre>$ (cd /tmp/gh012 &amp;&amp; sha256sum -c baseline.sha256)
+bin/report: FAILED
+sha256sum: WARNING: 1 computed checksum did NOT match
+$ echo "binary mtime:  $(stat -c %y /tmp/gh012/bin/report)"; echo "marker mtime:  $(stat -c %y /tmp/gh012/.pwned)"; find /tmp/gh012 -newer /tmp/gh012/baseline.sha256 -not -path '/tmp/gh012/var/*' | sort
+binary mtime:  2026-09-19 23:25:23.652158141 +0000
+marker mtime:  2026-09-19 23:25:25.651158133 +0000
+/tmp/gh012
+/tmp/gh012/.pwned
+/tmp/gh012/bin/report
+/tmp/gh012/var</pre>
+</div>
+              <div class="callout"><p><strong>Honest limit.</strong> A baseline recorded after the compromise verifies the trojan. The manifest is only a source of truth if it predates the attacker and lives somewhere the attacker cannot rewrite; a manifest sitting in the same writable directory is a speed bump, not a control. Hashing also says nothing about a trojan installed before the first baseline, which is why install media and package signatures exist.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>Prevent: make the swap impossible</h3>
+              <div class="prose"><p>Mount the utility directory read-only, demonstrated above: the write fails with <strong>Read-only file system</strong>. Keep the scheduler's files owned by root and writable only by root, so a compromised service account cannot swap them (<a href="https://d3fend.mitre.org/technique/d3f:LocalFilePermissions/" rel="noopener">Local File Permissions, D3-LFP</a>). Keep admin utilities in packaged paths and verify with <strong>debsums</strong>, the packaged form of the manifest check.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="mount --bind /tmp/gh012/bin /tmp/gh012/bin &amp;&amp; mount -o remount,ro --bind /tmp/gh012/bin &amp;&amp; echo &quot;bin/ is now read-only&quot; &amp;&amp; (echo evil &gt; /tmp/gh012/bin/report &amp;&amp; echo &quot;WRITE SUCCEEDED (bad)&quot; || echo &quot;write blocked: Read-only file system&quot;)"><span data-label>COPY</span></button></div>
+<pre>$ mount --bind /tmp/gh012/bin /tmp/gh012/bin &amp;&amp; mount -o remount,ro --bind /tmp/gh012/bin &amp;&amp; echo "bin/ is now read-only" &amp;&amp; (echo evil &gt; /tmp/gh012/bin/report &amp;&amp; echo "WRITE SUCCEEDED (bad)" || echo "write blocked: Read-only file system")
+bin/ is now read-only
+bash: /tmp/gh012/bin/report: Read-only file system
+write blocked: Read-only file system</pre>
+</div>
+              <div class="callout"><p><strong>Honest limit.</strong> Read-only does not stop root: remounting read-write is one command for anyone with privilege, as the cleanup step demonstrates. Permissions do not stop a root compromise either; they raise the price from "any writer" to "root". The per-file form is <strong>chattr +i</strong>, with the same root caveat; the lab's throwaway tmpfs refuses the flag, so this page demonstrates the mount form, which the lab can actually run.</p></div>
+              <div class="verdict green">
+                <span class="mlabel">Countermeasures verified</span>
+                <p>The twin was stopped by pid, the known-good bytes restored and re-verified, the window scoped to two files, and the directory locked read-only with the swap visibly failing. Detection hashes the bytes; prevention makes the bytes unwritable. Neither trusts the name.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="debrief">
+          <div class="phase-head"><span class="phase-num">06</span><h2>Debrief</h2><span class="phase-tag neutral">TAKEAWAY</span></div>
+          <p class="takeaway">A trusted path says nothing about the bytes at the end of it: verify the bytes, not the name.</p>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">IOC checklist: signs this technique was used</span></p></div>
+          <ul class="checklist">
+            <li><span>A scheduled-task binary whose sha256 no longer matches its install-time manifest</span></li>
+            <li><span>An executable on a scheduler-run path whose mtime is newer than its last authorized change</span></li>
+            <li><span>A utility that does its old job plus an unexplained extra, found by diffing against the known-good copy</span></li>
+            <li><span>Marker-style artifacts, files touched in <strong>/tmp</strong>, paired with a recently replaced utility</span></li>
+            <li><span>A find -newer sweep showing utility files changed outside a maintenance window</span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Reproducibility checklist</span></p></div>
+          <ul class="checklist">
+            <li><span>Verified on <strong>Ubuntu 24.04.5 LTS</strong>, x86-64, on 2026-09-19</span></li>
+            <li><span>Both recordings are real executions on that platform, not simulations</span></li>
+            <li><span>The swap needs write access to the utility's directory (the assumed breach); the read-only mount demo needs root</span></li>
+            <li><span>Cleanup: unmount the bind (<strong>umount /tmp/gh012/bin</strong>), kill the scheduler pid, then <strong>rm -rf /tmp/gh012</strong>; the bind mount dies with the lab's namespace regardless</span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Sources</span></p></div>
+          <div class="prose"><p><a href="https://attack.mitre.org/techniques/T1036/005/" rel="noopener">MITRE ATT&amp;CK T1036.005: Match Legitimate Resource Name or Location</a><br>
+          <a href="https://man7.org/linux/man-pages/man1/sha256sum.1.html" rel="noopener">sha256sum(1)</a> (the manifest check)<br>
+          <a href="https://man7.org/linux/man-pages/man1/stat.1.html" rel="noopener">stat(1)</a> (mtimes that draw the incident window)<br>
+          <a href="https://man7.org/linux/man-pages/man8/mount.8.html" rel="noopener">mount(8)</a> (the read-only bind)<br>
+          <a href="https://d3fend.mitre.org/" rel="noopener">MITRE D3FEND</a>: <a href="https://d3fend.mitre.org/technique/d3f:FileIntegrityMonitoring/" rel="noopener">D3-FIM</a>, <a href="https://d3fend.mitre.org/technique/d3f:ServiceBinaryVerification/" rel="noopener">D3-SBV</a>, <a href="https://d3fend.mitre.org/technique/d3f:FileHashing/" rel="noopener">D3-FH</a>, <a href="https://d3fend.mitre.org/technique/d3f:RestoreFile/" rel="noopener">D3-RF</a>, <a href="https://d3fend.mitre.org/technique/d3f:LocalFilePermissions/" rel="noopener">D3-LFP</a> (each modeled against T1036.005 in the technique mapping)</p></div>
+        </section>
+
+        <a class="next-file" href="../013-port-knocking/index.html">
+          <span class="mlabel">Next file</span>
+          <h3>GH-013 Port Knocking</h3>
+          <p>A port that stays closed until it hears the right knock. The next file runs the sequence, and shows what the firewall never logged.</p>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <div>
+      <div class="footer-brand">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+        <span class="brand-name" style="font-size:17px">GHOSTLIGHT</span>
+      </div>
+      <p class="footer-note">An independent adversary-stealth research publication. Every command verified on the named OS before publishing. No trackers, no frameworks, no autoplay.</p>
+    </div>
+    <nav class="footer-links">
+      <a href="../../method.html">METHOD</a>
+      <a href="../../index.html">FILES</a>
+      <a href="https://attack.mitre.org/tactics/TA0005/" rel="noopener">MITRE TA0005</a>
+    </nav>
+    <div class="footer-elsewhere">
+      <span class="mlabel">Elsewhere</span><a href="https://dillingerstaffing.github.io/portfolio/" target="_blank" rel="noopener">Portfolio</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/proving-ground/" target="_blank" rel="noopener">Proving Ground</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/tapeout/" target="_blank" rel="noopener">Tapeout</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/old-iron/" target="_blank" rel="noopener">Old Iron</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/unstuck/" target="_blank" rel="noopener">Unstuck</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../../assets/site.js?v=512f8825"></script>
+</body>
+</html>
