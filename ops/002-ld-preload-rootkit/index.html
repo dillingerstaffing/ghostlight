@@ -412,7 +412,8 @@ HIDDEN PID 4120     comm=ghost-miner  (invisible to ps, pgrep, top)</pre>
             <div class="step-num">3</div>
             <div>
               <h3>Confirm directly, find the hook</h3>
-              <div class="prose"><p><strong>/proc/&lt;pid&gt;/cmdline</strong> is read as file contents, not a directory listing, so the <strong>readdir</strong> hook does not filter it. A direct <strong>ps -p &lt;pid&gt;</strong> is worth trying too, and worth knowing the limit of: on this build it printed only its heading, because even the direct lookup path consults the same enumeration.</p></div>
+              <div class="prose"><p><strong>/proc/&lt;pid&gt;/cmdline</strong> is read as file contents, not a directory listing, so the <strong>readdir</strong> hook does not filter it. A direct <strong>ps -p &lt;pid&gt;</strong> is worth trying too, and worth knowing the limit of: on this build it printed only its heading, because even ps's direct lookup path still consults the hooked enumeration.</p></div>
+              <div class="prose"><p>Measured nuance: <strong>top -b -n1 -p &lt;pid&gt;</strong> on this build <strong>did</strong> show the process, because top's <strong>-p</strong> path reads <strong>/proc/&lt;pid&gt;</strong> directly instead of enumerating. So the blind-direct-lookup limit is ps-specific here, not universal. Try both; believe the one that does not enumerate.</p></div>
               <div class="codeblock codeblock-scrollhint">
                 <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="P=$(./deepscan | awk &#x27;/HIDDEN/ {print $3}&#x27;); echo &quot;target PID: $P&quot;&#10;cat /proc/$P/cmdline | tr &#x27;\0&#x27; &#x27; &#x27;; echo&#10;cat /etc/ld.so.preload"><span data-label>COPY</span></button></div>
                 <pre>$ P=$(./deepscan | awk '/HIDDEN/ {print $3}'); echo "target PID: $P"
@@ -437,17 +438,32 @@ $ cat /etc/ld.so.preload
           <div class="step">
             <div class="step-num">1</div>
             <div>
-              <h3>Mitigate: remove it</h3>
-              <div class="prose"><p>Kill the payload, delete the preload file, delete the library, then re-run the cross-view check. Confirm the views agree again. On a real box this is also where you sweep the other persistence routes this file does not cover (cron, systemd units, shell profiles) and consider the box compromised until rebuilt, because a rootkit is evidence of root access, not the extent of it.</p></div>
+              <h3>Mitigate: remove it, in the order that works</h3>
+              <div class="prose"><p>The hook blinds every tool that enumerates processes, and that includes <strong>pkill</strong>: <strong>pkill -x ghost-miner</strong> run while the hook is active exits 1 and the miner survives, because pkill lists /proc through the same hooked readdir (verified). So do not start from a name. Start from the uncompromised view:</p></div>
               <div class="codeblock codeblock-scrollhint">
-                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="pkill -x ghost-miner&#10;rm -f /etc/ld.so.preload /tmp/ghost-ops/libghost.so&#10;./deepscan&#10;ls /tmp | grep ghost || echo &quot;views agree: nothing hidden&quot;"><span data-label>COPY</span></button></div>
-                <pre>$ pkill -x ghost-miner
-$ rm -f /etc/ld.so.preload /tmp/ghost-ops/libghost.so
-$ ./deepscan
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="P=$(./deepscan | awk &#x27;/HIDDEN/ {print $3}&#x27;); echo &quot;target PID: $P&quot;&#10;kill -9 $P"><span data-label>COPY</span></button></div>
+                <pre>$ P=$(./deepscan | awk '/HIDDEN/ {print $3}'); echo "target PID: $P"
+target PID: 26
+$ kill -9 $P</pre>
+              </div>
+              <div class="prose"><p><strong>kill</strong> takes a PID directly and never enumerates, so the hook cannot blind it. Then remove the persistence and the dropped files, the whole directory, not just the library:</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="rm -f /etc/ld.so.preload&#10;rm -rf /tmp/ghost-ops"><span data-label>COPY</span></button></div>
+                <pre>$ rm -f /etc/ld.so.preload
+$ rm -rf /tmp/ghost-ops</pre>
+              </div>
+              <div class="prose"><p>Then re-run the cross-view check and confirm the views agree:</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="./deepscan&#10;ls /tmp | grep ghost || echo &quot;views agree: nothing hidden&quot;"><span data-label>COPY</span></button></div>
+                <pre>$ ./deepscan
 no hidden processes found
 $ ls /tmp | grep ghost || echo "views agree: nothing hidden"
 views agree: nothing hidden</pre>
               </div>
+              <div class="prose"><p>(The last line only agrees because the drop directory is gone: removing just the .so leaves <strong>/tmp/ghost-ops</strong> behind, and an unhooked <strong>ls</strong> will still show it.)</p></div>
+              <div class="prose"><p><strong>Good vs bad:</strong> after the kill, deepscan must show no HIDDEN lines AND pgrep must agree with it. If deepscan still names a PID, the kill missed; if pgrep and deepscan disagree, a hook is still loaded somewhere.</p></div>
+              <div class="prose"><p>On a real box this is also where you sweep the other persistence routes this file does not cover (cron, systemd units, shell profiles) and consider the box compromised until rebuilt, because a rootkit is evidence of root access, not the extent of it.</p></div>
+              <div class="prose"><p><strong>First principle:</strong> never ask a compromised layer to act against itself. pkill asks the hooked enumeration to find the hidden process; kill by PID from the second observation path does not ask the liar anything.</p></div>
             </div>
           </div>
           <div class="step">

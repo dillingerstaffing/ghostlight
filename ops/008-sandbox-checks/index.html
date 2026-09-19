@@ -334,7 +334,7 @@ cpu flag:      hypervisor
 detect-virt:   systemd-nspawn
 verdict: VM/sandbox indicators present</pre>
               </div>
-              <div class="prose"><p>The firmware strings lied, and the verdict did not move. The remaining channels, the CPU flag and systemd's detector, still told the truth, and the OR logic only needs one honest channel. This is the bar deception must clear: a convincing sandbox falsifies every channel the check reads, not one. Miss a single channel, and the interrogation still convicts you.</p></div>
+              <div class="prose"><p>The DMI strings lied, and the verdict did not move: the CPU flag and systemd's CPUID read still told the truth, and the OR logic only needs one honest evidence source. Note what systemd's detector is here: a second opinion on overlapping evidence, not a separate channel. It re-reads the same DMI files the script read. The bar deception must clear is therefore every evidence source, not every channel: forged DMI, hidden CPUID hypervisor bit, masked container layer. Miss a single source, and the interrogation still convicts you.</p></div>
               <div class="verdict green">
                 <span class="mlabel">Detection verified</span>
                 <p>The interrogation is observable as a burst of DMI and cpuinfo reads at process start, even though no single read is hostile. And the lying-room run proved the checker's trust boundary: it believes whatever the environment tells it, so the defense is to control the environment completely or not rely on the verdict at all.</p>
@@ -350,7 +350,23 @@ verdict: VM/sandbox indicators present</pre>
             <div class="step-num">1</div>
             <div>
               <h3>Mitigate: never let the payload's verdict decide</h3>
-              <div class="prose"><p>The check only protects the payload if you honor its decision to stay quiet. Detonate anyway: run the sample in a disposable, instrumented VM regardless of what its interrogation concludes, and capture everything it does. Static analysis sidesteps the question entirely: the checker's strings and branches are visible without executing anything. Either way the interrogation becomes theater: it asked, and nobody listened.</p></div>
+              <div class="prose"><p>The check only protects the payload if you honor its decision to stay quiet. The mitigation is procedural and has two halves: see the interrogation without running it, then run the sample where its verdict does not matter.</p></div>
+              <div class="prose"><p>1. Static triage first. The checker's evidence sources are visible without executing anything:</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="grep -nE &#x27;dmi|cpuinfo|detect-virt|cpuid|CPUID&#x27; sample.sh"><span data-label>COPY</span></button></div>
+                <pre>$ grep -nE &#x27;dmi|cpuinfo|detect-virt|cpuid|CPUID&#x27; sample.sh
+5:vendor=$(cat /sys/class/dmi/id/sys_vendor)
+6:product=$(cat /sys/class/dmi/id/product_name)
+7:cpuflag=$(grep -m1 -o &#x27;hypervisor&#x27; /proc/cpuinfo || echo absent)
+8:virt=$(systemd-detect-virt)
+12:echo &quot;detect-virt:   $virt&quot;</pre>
+              </div>
+              <div class="prose"><p>Four reads, one verdict. If the sample branches on these, you now know what it wanted to learn and what it planned to do with the answer, before it learned anything.</p></div>
+              <div class="prose"><p>2. Detonate anyway. Run the sample in a disposable, instrumented VM regardless of what its interrogation concludes, and capture everything it does: process tree, file writes, network attempts. The interrogation becomes theater: it asked, and nobody listened.</p></div>
+              <div class="prose"><p>3. If it stayed quiet anyway, the quiet is itself data: compare the static triage (it checks for sandboxes) against the dynamic run (it did nothing) and treat the sample as sandbox-aware in all future handling.</p></div>
+              <div class="prose"><p>Good vs bad: a sample with no environment reads that detonates fully is a simpler problem; a sample whose first act is four environment reads and whose second act is silence is telling you its condition for detonation. Meet the condition in a room you control.</p></div>
+              <div class="callout"><p><strong>Honest limit.</strong> Static analysis misses packed or obfuscated checks: if the strings are not visible, the dynamic run in the disposable VM is the whole answer. And the deepest limit: none of this helps if the analyst lets the sample decide whether to run. Run it anyway, in a room you control, and the interrogation answers to an empty room.</p></div>
+              <div class="prose"><p>First principle: never let the adversary's sensor decide your response. The interrogation exists to make you stand down; the mitigation is a procedure that does not stand down.</p></div>
             </div>
           </div>
           <div class="step">
@@ -372,11 +388,11 @@ $ grep -oE '/sys/class/dmi/id/[a-z_]+|/proc/cpuinfo' trace.log | sort -u
             <div class="step-num">3</div>
             <div>
               <h3>Prevent: build the lie the checker cannot see through</h3>
-              <div class="prose"><p>Falsify every channel the interrogation reads, and keep them consistent: DMI strings via the hypervisor's firmware-string controls, the hypervisor CPUID bit hidden by the hypervisor itself, and the container layer camouflaged so systemd-detect-virt answers none. Or skip the arms race: detonate on bare metal reimaged from known-good media, where there is nothing to detect. D3FEND maps no defender to this sub-technique; the controls above are the site's own, and their limits are stated below.</p></div>
-              <div class="callout"><p><strong>Honest limit.</strong> Every one of these checks is trivially fooled by a sandbox that bothers to lie; absence of VM indicators proves nothing about bare metal, it proves the four channels were quiet. DMI strings are written by whoever built the VM. The hypervisor flag can be hidden by the hypervisor. The read-burst monitor misses checks that execute the CPUID instruction directly instead of reading files, and it races any check that runs before the monitor attaches. Static analysis misses packed or obfuscated checks. And the deepest limit: the checker's verdict is only useful to the attacker if the analyst lets the sample decide whether to run. Run it anyway, in a room you control, and the interrogation answers to an empty room.</p></div>
+              <div class="prose"><p>Falsify every evidence source the interrogation reads, and keep them consistent: DMI strings via the hypervisor's firmware-string controls, the hypervisor CPUID bit hidden by the hypervisor itself, and the container layer camouflaged so systemd-detect-virt answers none. Or skip the arms race: detonate on bare metal reimaged from known-good media, where there is nothing to detect. D3FEND maps no defender to this sub-technique; the controls above are the site's own, and their limits are stated below.</p></div>
+              <div class="callout"><p><strong>Honest limit.</strong> Every one of these checks is trivially fooled by a sandbox that bothers to lie; absence of VM indicators proves nothing about bare metal, it proves the evidence sources were quiet. DMI strings are written by whoever built the VM. The hypervisor flag can be hidden by the hypervisor. The read-burst monitor misses checks that execute the CPUID instruction directly instead of reading files, and it races any check that runs before the monitor attaches. Static analysis misses packed or obfuscated checks. And the deepest limit: the checker's verdict is only useful to the attacker if the analyst lets the sample decide whether to run. Run it anyway, in a room you control, and the interrogation answers to an empty room.</p></div>
               <div class="verdict green">
                 <span class="mlabel">Countermeasures verified</span>
-                <p>The interrogation cannot be prevented, only answered dishonestly or observed in the act. A sandbox that falsifies every channel defeats the check; a monitor that watches the read burst sees it coming; an analyst who detonates anyway makes the verdict irrelevant. None of them changes the core fact: a program can always read its own environment.</p>
+                <p>The interrogation cannot be prevented, only answered dishonestly or observed in the act. A sandbox that falsifies every evidence source defeats the check; a monitor that watches the read burst sees it coming; an analyst who detonates anyway makes the verdict irrelevant. None of them changes the core fact: a program can always read its own environment.</p>
               </div>
             </div>
           </div>

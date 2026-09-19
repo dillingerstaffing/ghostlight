@@ -415,6 +415,13 @@ no marker: it saw the tracer</pre>
 process gone</pre>
 </div>
               <div class="prose"><p><strong>pkill</strong> signals by name pattern. The <strong>[s]</strong> bracket keeps pkill from matching its own command line and killing the shell that runs it. "process gone" is the confirmation: no matching processes remain.</p></div>
+              <div class="prose"><p>Before the files go, scope the incident: persistence, timeline, ownership. The layered guest earned its name by stacking evasions; assume the visible layer is not the only one until the persistence sweep and the timeline say so.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="stat -c '%y %U %n' /tmp/gh010/.sys-cache/*&#10;crontab -l 2&gt;/dev/null; systemctl --user list-units --all 2&gt;/dev/null | grep -i -E 'sync|cache|syslog'&#10;grep -rl 'sys-cache\|syslog-helper' ~/.bashrc ~/.profile /etc/cron* /etc/systemd/system 2&gt;/dev/null"><span data-label>COPY</span></button></div>
+  <pre>$ stat -c '%y %U %n' /tmp/gh010/.sys-cache/*     # when it arrived, who owns it
+$ crontab -l 2&gt;/dev/null; systemctl --user list-units --all 2&gt;/dev/null | grep -i -E 'sync|cache|syslog'
+$ grep -rl 'sys-cache\|syslog-helper' ~/.bashrc ~/.profile /etc/cron* /etc/systemd/system 2&gt;/dev/null</pre>
+</div>
               <div class="codeblock codeblock-scrollhint">
   <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="rm -rf /tmp/gh010; ls /tmp/gh010 2&gt;/dev/null || echo &quot;lab directory gone&quot;"><span data-label>COPY</span></button></div>
   <pre>$ rm -rf /tmp/gh010; ls /tmp/gh010 2&gt;/dev/null || echo "lab directory gone"
@@ -436,13 +443,29 @@ lab directory gone</pre>
             <div class="step-num">1</div>
             <div>
               <h3>Mitigate: compare observers, do not browse</h3>
-              <div class="prose"><p>Stop asking any single tool and start cross-examining them. Compare cmdline against exe: a borrowed name on a mismatched binary earns a closer look. Compare the process table against the filesystem: anything executing from a dot-directory earns one too. This is the fleet form of the blue phase: the idea does not change, only the coverage.</p></div>
+              <div class="prose"><p>Stop asking any single tool and start cross-examining them. Compare cmdline against exe, minus the known-benign classes: a login shell reads argv[0]="-bash" against exe /bin/bash; a shebang script reads argv[0]="/path/script" against the interpreter in exe, the normal interpreter case; busybox applets and distro exec -a wrappers rename on purpose too. Without those exclusions, comparing cmdline against exe as a standing check pages the team for every login shell on the fleet. Compare the process table against the filesystem too: anything executing from a dot-directory earns a closer look.</p></div>
               <div class="codeblock codeblock-scrollhint">
   <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="tr '\0' ' ' &lt; /proc/$P/cmdline; echo; readlink /proc/$P/exe"><span data-label>COPY</span></button></div>
   <pre>$ tr '\0' ' ' &lt; /proc/$P/cmdline; echo; readlink /proc/$P/exe
 syslog-helper ./.sys-cache/sync.sh
 /usr/bin/bash</pre>
 </div>
+              <div class="prose"><p>The standing-check form, narrowed so the benign classes stay quiet. This is the fleet form of the blue phase: the idea does not change, only the coverage.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="for d in /proc/[0-9]*/; do&#10;  pid=${d#/proc/}; pid=${pid%/}&#10;  a0=$(tr '\0' '\n' &lt; &quot;$d/cmdline&quot; 2&gt;/dev/null | head -1); [ -n &quot;$a0&quot; ] || continue&#10;  exe=$(readlink &quot;$d/exe&quot; 2&gt;/dev/null); [ -n &quot;$exe&quot; ] || continue&#10;  base=${exe##*/}&#10;  case &quot;$a0&quot; in&#10;    &quot;$base&quot;|&quot;$exe&quot;|/*|-&quot;$base&quot;) continue ;;  # real name, full path, script path, login shell&#10;  esac&#10;  echo &quot;pid=$pid argv0=[$a0] exe=[$exe]&quot;&#10;done"><span data-label>COPY</span></button></div>
+  <pre>$ for d in /proc/[0-9]*/; do
+  pid=${d#/proc/}; pid=${pid%/}
+  a0=$(tr '\0' '\n' &lt; "$d/cmdline" 2&gt;/dev/null | head -1); [ -n "$a0" ] || continue
+  exe=$(readlink "$d/exe" 2&gt;/dev/null); [ -n "$exe" ] || continue
+  base=${exe##*/}
+  case "$a0" in
+    "$base"|"$exe"|/*|-"$base") continue ;;  # real name, full path, script path, login shell
+  esac
+  echo "pid=$pid argv0=[$a0] exe=[$exe]"
+done
+pid=5 argv0=[syslog-helper] exe=[/usr/bin/bash]</pre>
+</div>
+              <div class="prose"><p>Tested: in the lab this flagged only the syslog-helper process against /usr/bin/bash. The tracer tell gets the same treatment in reverse: you cannot strace every process, so sample a suspicious one under strace in a sandbox and watch for the quiet death, exactly the blue phase's step 6, labeled as sampling rather than monitoring.</p></div>
               <div class="prose"><p><strong>Honest limit.</strong> Comparison only works when both answers are trustworthy. A rootkit underneath (<a href="https://attack.mitre.org/techniques/T1014/" rel="noopener">T1014</a>) hides from /proc and the process table alike: no observer comparison helps when every view is mediated.</p></div>
             </div>
           </div>
@@ -450,8 +473,15 @@ syslog-helper ./.sys-cache/sync.sh
             <div class="step-num">2</div>
             <div>
               <h3>Monitor: watch writes, not names</h3>
-              <div class="prose"><p>A hidden file is still a created file, and a borrowed name still belongs to a real exec. <a href="https://d3fend.mitre.org/technique/d3f:FileIntegrityMonitoring/" rel="noopener">File integrity monitoring (D3-FIM)</a> notices the marker appearing in a watched directory regardless of its first character. <a href="https://d3fend.mitre.org/technique/d3f:SoftwareInventory/" rel="noopener">Software inventory (D3-SWI)</a> flags binaries that were never supposed to be on the machine, whatever their names start with. An EDR that logs process creation sees the real image path at exec time, before any argv[0] theater.</p></div>
-              <div class="prose"><p><strong>Honest limit.</strong> FIM sees the write only if it was already watching that path. Nobody watches all of /tmp by default.</p></div>
+              <div class="prose"><p>A hidden file is still a created file, and a borrowed name still belongs to a real exec. <a href="https://d3fend.mitre.org/technique/d3f:FileIntegrityMonitoring/" rel="noopener">File integrity monitoring (D3-FIM)</a> notices the marker appearing in a watched directory regardless of its first character. <a href="https://d3fend.mitre.org/technique/d3f:SoftwareInventory/" rel="noopener">Software inventory (D3-SWI)</a> flags binaries that were never supposed to be on the machine, whatever their names start with. Creation-time telemetry records the image path and the argv array as separate fields of the same execve event. The theater is not hidden from the log; it is in it, as a0. Detection is the join: image path says what ran, a0 says what it claimed to be.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="auditctl -a exit,always -F arch=b64 -S execve -k exec-all&#10;auditctl -a exit,always -F arch=b32 -S execve -k exec-all&#10;ausearch -k exec-all --start recent -m EXECVE,SYSCALL 2&gt;/dev/null | grep -B2 'a0='"><span data-label>COPY</span></button></div>
+  <pre>$ auditctl -a exit,always -F arch=b64 -S execve -k exec-all
+$ auditctl -a exit,always -F arch=b32 -S execve -k exec-all
+$ ausearch -k exec-all --start recent -m EXECVE,SYSCALL 2&gt;/dev/null | grep -B2 'a0='</pre>
+</div>
+              <div class="prose"><p>Read each hit as a pair: type=SYSCALL ... exe="/real/image" plus type=EXECVE ... a0="claimed-name". Good versus bad: good is exe="/usr/bin/bash" a0="-bash" (a login shell), exe="/usr/bin/python3" a0="/opt/app/main.py" (a shebang script), or a busybox applet. Bad is exe="/usr/bin/bash" a0="syslog-helper", or any a0 with no path relationship to exe and no benign explanation. Sysmon for Linux users get the same pair as Event 1 fields Image and CommandLine.</p></div>
+              <div class="prose"><p><strong>Honest limit.</strong> FIM sees the write only if it was already watching that path. Nobody watches all of /tmp by default. And the join trusts the log: a rootkit under /proc (T1014) defeats every observer comparison.</p></div>
             </div>
           </div>
           <div class="step">

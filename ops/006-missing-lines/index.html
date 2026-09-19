@@ -242,15 +242,39 @@ $ grep -c attacker ship.log
             <div class="step-num">1</div>
             <div>
               <h3>Mitigate: treat the local log as a suspect</h3>
-              <div class="prose"><p>The moment a box is suspect, its local logs are evidence of what the attacker wants you to believe, not what happened. Pull the forwarded copy first and diff the two: the lines present in the shipped copy but missing locally are the edit, mapped precisely. Do not "fix" the local log by restoring it; preserve both, because the divergence is the proof of tampering.</p></div>
+              <div class="prose"><p>The moment a box is suspect, its local logs are evidence of what the attacker wants you to believe, not what happened. Pull the forwarded copy first and diff the two: the lines present in the shipped copy but missing locally are the edit, mapped precisely.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="diff /var/log/auth.log /var/log/ship/auth.log"><span data-label>COPY</span></button></div>
+                <pre>$ diff /var/log/auth.log /var/log/ship/auth.log
+1a2,3
+&gt; Sep 16 15:40:44 lab sshd[601]: Accepted password for attacker from 45.9.8.7
+&gt; Sep 16 15:41:19 lab sudo[602]: attacker : COMMAND=/bin/bash</pre>
+              </div>
+              <div class="prose"><p>Do not "fix" the local log by restoring it; preserve both, because the divergence is the proof of tampering. Then contain: isolate the host from the network, snapshot both copies before the attacker returns to finish the job, and scope the incident from the shipped copy, which the demonstrated edit could not reach.</p></div>
+              <div class="prose"><p>First principle: independent observation paths. The local log and the shipped copy are two witnesses; when they disagree, the disagreement itself is the detection.</p></div>
             </div>
           </div>
           <div class="step">
             <div class="step-num">2</div>
             <div>
               <h3>Monitor: watch for the log shrinking</h3>
-              <div class="prose"><p>Logs grow; they do not shrink, except on rotation. Track line counts or sizes of security logs on a timer and alert on any decrease outside the rotation window. D3FEND names the family <a href="https://d3fend.mitre.org/technique/d3f:FileIntegrityMonitoring/" rel="noopener">File Integrity Monitoring (D3-FIM)</a>, which explicitly covers this technique: detecting suspicious changes to files, including the quiet kind.</p></div>
-              <div class="callout"><p><strong>Honest limit.</strong> Logrotate also shrinks logs, so the monitor must know the rotation schedule or it pages on routine maintenance. And size monitoring catches wholesale deletion, not the quiet edit that keeps the file growing: the shipped copy is what catches that.</p></div>
+              <div class="prose"><p>Logs grow; they do not shrink, except on rotation. Keep yesterday's line count in a state file, compare on a timer, and alert on any decrease. The check is copy-pasteable (run it from cron every few minutes):</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="prev=$(cat /var/lib/logwatch/auth.prev 2&gt;/dev/null || echo 0)&#10;now=$(wc -l &lt; /var/log/auth.log)&#10;[ &quot;$now&quot; -lt &quot;$prev&quot; ] &amp;&amp; logger -p auth.alert &quot;auth.log shrank: $prev -&gt; $now lines&quot;&#10;echo &quot;$now&quot; &gt; /var/lib/logwatch/auth.prev"><span data-label>COPY</span></button></div>
+                <pre>$ prev=$(cat /var/lib/logwatch/auth.prev 2&gt;/dev/null || echo 0)
+$ now=$(wc -l &lt; /var/log/auth.log)
+$ [ &quot;$now&quot; -lt &quot;$prev&quot; ] &amp;&amp; logger -p auth.alert &quot;auth.log shrank: $prev -&gt; $now lines&quot;
+$ echo &quot;$now&quot; &gt; /var/lib/logwatch/auth.prev</pre>
+              </div>
+              <div class="prose"><p>What a catch looks like (real output, the demo's deletion):</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">output</span><button class="copy-btn" data-copy="prev=3 now=1&#10;ALERT: log shrank 3 -&gt; 1 lines"><span data-label>COPY</span></button></div>
+                <pre>prev=3 now=1
+ALERT: log shrank 3 -&gt; 1 lines</pre>
+              </div>
+              <div class="prose"><p>Good vs bad: on a healthy box the count only climbs between rotations; any decrease outside the rotation window is either the attacker or logrotate, and the monitor must know the rotation schedule to tell them apart. Check <strong>/etc/logrotate.d/</strong> and the last rotation timestamp before paging anyone.</p></div>
+              <div class="callout"><p><strong>Honest limit.</strong> Size monitoring catches wholesale deletion, not the quiet edit that keeps the file growing: an in-place rewrite (<strong>sed -i 's/attacker/operator/g'</strong>) held the count at 2 and fired no alert, while the shipped copy still held all three original lines. The shipped copy is what catches that; the counter is only the tripwire.</p></div>
+              <div class="prose"><p>First principle: monitor the property the attacker must disturb. Deleting lines must shrink the file; a check on that property cannot be evaded without leaving the lines in place.</p></div>
             </div>
           </div>
           <div class="step">
@@ -258,7 +282,7 @@ $ grep -c attacker ship.log
             <div>
               <h3>Prevent: forward off-host, as it happens</h3>
               <div class="prose"><p>The production version of the demo's UDP receiver is <strong>rsyslog</strong> forwarding security logs in real time to a hardened collector: a separate host, with credentials the endpoint does not hold, over TCP with TLS. The attacker can rewrite every log on the box and the collector still has the originals. Where the filesystem allows it, <strong>chattr +a</strong> makes the local log append-only, which stops the quiet edit from non-root attackers.</p></div>
-              <div class="callout"><p><strong>Honest limit.</strong> The demo's receiver ran on the same box; a root attacker here could kill it too, which is why production puts the collector on separate hardware. UDP can drop datagrams under load; production uses TCP. Append-only slows a non-root attacker and does nothing against root. Against root on the endpoint, only the off-host copy counts.</p></div>
+              <div class="callout"><p><strong>Honest limit.</strong> The demo's receiver ran on the same box, as the same user the attacker holds. Verified: a same-user <strong>kill</strong> stops it, no privilege needed, no root required. The demo receiver is a teaching stand-in with no protection at all; do not mistake it for a control. That is why production puts the collector on separate hardware, with credentials the endpoint does not hold. UDP can drop datagrams under load; production uses TCP with TLS. Where the filesystem allows it, <strong>chattr +a</strong> makes the local log append-only, which stops the quiet edit from non-root attackers (setting or clearing the flag needs root, and it needs a filesystem that supports it, ext4/xfs class). Append-only slows a non-root attacker and does nothing against root. Against root on the endpoint, only the off-host copy counts.</p></div>
               <div class="verdict green">
                 <span class="mlabel">Countermeasures verified</span>
                 <p>The shipped copy is the whole defense: written before the attack through a second write path, it makes the demonstrated edit pointless. Size monitoring catches the loud deletion; real-time off-host forwarding catches everything else. The local log is a convenience; the collector is the record.</p>

@@ -314,7 +314,15 @@ process gone</pre>
             <div class="step-num">4</div>
             <div>
               <h3>Remove the lab completely</h3>
-              <div class="prose"><p>Files last.</p></div>
+              <div class="prose"><p>Files last. But before the files go, scope the incident: persistence, timeline, ownership. The four lines below decide whether this was one sleeper or a foothold.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="ls -la /tmp/gh009/.svc-data/&#10;stat -c '%y %U %n' /tmp/gh009/.svc-data/*&#10;crontab -l 2&gt;/dev/null; systemctl --user list-timers --all 2&gt;/dev/null | head&#10;grep -rl 'svc-data' ~/.bashrc ~/.profile /etc/cron* 2&gt;/dev/null"><span data-label>COPY</span></button></div>
+  <pre>$ ls -la /tmp/gh009/.svc-data/                       # what is actually in the drawer
+$ stat -c '%y %U %n' /tmp/gh009/.svc-data/*          # when it arrived, who owns it
+$ crontab -l 2&gt;/dev/null; systemctl --user list-timers --all 2&gt;/dev/null | head  # persistence
+$ grep -rl 'svc-data' ~/.bashrc ~/.profile /etc/cron* 2&gt;/dev/null              # launch hooks</pre>
+</div>
+              <div class="prose"><p>Rule: kill stops the bleeding; the four lines above decide whether the incident is one sleeper or a foothold. Only then <strong>rm -rf</strong>.</p></div>
               <div class="codeblock codeblock-scrollhint">
   <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="rm -rf /tmp/gh009; ls /tmp/gh009"><span data-label>COPY</span></button></div>
   <pre>$ rm -rf /tmp/gh009; ls /tmp/gh009
@@ -336,13 +344,28 @@ ls: cannot access '/tmp/gh009': No such file or directory</pre>
             <div class="step-num">1</div>
             <div>
               <h3>Mitigate: sweep, do not browse</h3>
-              <div class="prose"><p>In triage, replace the listing with a walk. Run find -name '.*' on any directory you are inventorying, and compare the process table against the file list: anything executing from a dot-directory earns a closer look. This is the fleet form of the blue phase: the idea does not change, only the coverage. This control clears the first-principles gate: it works because it rests on what the tools actually promise, not on what their output looks like.</p></div>
+              <div class="prose"><p>In triage, replace the listing with a walk, but narrow the walk. A raw find -name '.*' under $HOME returns hundreds of legitimate dotfiles, and comparing inherited working directories flags your own session, so the fleet form scopes the walk to world-writable and service dirs and compares command-line paths instead of inherited cwd. This is the fleet form of the blue phase: the idea does not change, only the coverage. This control clears the first-principles gate: it works because it rests on what the tools actually promise, not on what their output looks like.</p></div>
               <div class="codeblock codeblock-scrollhint">
-  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="find /tmp/gh009 -name '.*' | sort"><span data-label>COPY</span></button></div>
-  <pre>$ find /tmp/gh009 -name '.*' | sort
+  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="for d in /tmp /var/tmp /dev/shm; do&#10;  [ -d &quot;$d&quot; ] &amp;&amp; find &quot;$d&quot; -name '.*' -newermt '7 days ago' 2&gt;/dev/null&#10;done | sort"><span data-label>COPY</span></button></div>
+  <pre>$ for d in /tmp /var/tmp /dev/shm; do
+  [ -d "$d" ] &amp;&amp; find "$d" -name '.*' -newermt '7 days ago' 2&gt;/dev/null
+done | sort
 /tmp/gh009/.svc-data
 /tmp/gh009/.svc-data/.marker</pre>
 </div>
+              <div class="prose"><p>Second, the process-table half. Compare command-line paths, not inherited working directories, and keep your own session out of the results.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="me=$$&#10;for d in /proc/[0-9]*/; do&#10;  pid=${d#/proc/}; pid=${pid%/}&#10;  [ &quot;$pid&quot; = &quot;$me&quot; ] &amp;&amp; continue&#10;  tr '\0' ' ' &lt; &quot;$d/cmdline&quot; 2&gt;/dev/null | grep -q '/\.[^/]*/' &amp;&amp; echo &quot;pid=$pid: $(tr '\0' ' ' &lt; $d/cmdline)&quot;&#10;done"><span data-label>COPY</span></button></div>
+  <pre>$ me=$$
+$ for d in /proc/[0-9]*/; do
+  pid=${d#/proc/}; pid=${pid%/}
+  [ "$pid" = "$me" ] &amp;&amp; continue
+  tr '\0' ' ' &lt; "$d/cmdline" 2&gt;/dev/null | grep -q '/\.[^/]*/' &amp;&amp; echo "pid=$pid: $(tr '\0' ' ' &lt; $d/cmdline)"
+done
+pid=5: sh ./.svc-data/sync.sh </pre>
+</div>
+              <div class="prose"><p>Tested: the sweep listed the two hidden paths, and the process loop flagged the sleeper by its script path, while a raw cwd scan had flagged the operator's own shell. Good versus bad: good is a dot-directory with an old mtime and no process pointing into it (config, cache). Bad is a dot-directory with a fresh mtime, check with stat -c '%y %n', plus a live process whose command line references it. The fastest triage signal is the count disagreement from the IOC checklist: ls &lt;dir&gt; | wc -l against find &lt;dir&gt; -maxdepth 1 | wc -l.</p></div>
+              <div class="prose"><p><strong>Honest limit.</strong> A rootkit below /proc (<a href="https://attack.mitre.org/techniques/T1014/" rel="noopener">T1014</a>, named in step 3) defeats this loop, and a bind mount over the directory defeats find.</p></div>
             </div>
           </div>
           <div class="step">
@@ -356,7 +379,14 @@ ls: cannot access '/tmp/gh009': No such file or directory</pre>
             <div class="step-num">3</div>
             <div>
               <h3>Prevent: decide what may run</h3>
-              <div class="prose"><p>The payload needed no privilege to hide; hiding is free, so prevention targets execution instead. Executable allowlisting means an unknown script dropped into a hidden directory never runs, whatever its name. Cheaper and closer to this file's lesson: nothing here persists unless something runs it, so the inventory that matters is the process table, taken regularly, not the directory listing.</p></div>
+              <div class="prose"><p>The payload needed no privilege to hide; hiding is free, so prevention targets execution instead. Executable allowlisting means an unknown script dropped into a hidden directory never runs, whatever its name. Cheaper and closer to this file's lesson: nothing here persists unless something runs it, so the inventory that matters is the process table, taken regularly, not the directory listing. One executable form, verified: log every exec under the world-writable dirs. It is cheap and targeted; nobody watches all of /tmp by default, so say what you do watch.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+  <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="auditctl -a exit,always -F arch=b64 -S execve -F dir=/tmp -k t1564-tmp-exec&#10;auditctl -a exit,always -F arch=b64 -S execve -F dir=/var/tmp -k t1564-tmp-exec&#10;ausearch -k t1564-tmp-exec --start recent | grep -E 'exe=.*tmp'"><span data-label>COPY</span></button></div>
+  <pre>$ auditctl -a exit,always -F arch=b64 -S execve -F dir=/tmp -k t1564-tmp-exec
+$ auditctl -a exit,always -F arch=b64 -S execve -F dir=/var/tmp -k t1564-tmp-exec
+$ ausearch -k t1564-tmp-exec --start recent | grep -E 'exe=.*tmp'</pre>
+</div>
+              <div class="prose"><p>Honest limit: this logs executions, not the dot convention. Pair it with a weekly find /tmp /var/tmp /dev/shm -name '.*' -newermt '7 days ago' sweep. Allowlisting remains the durable control for servers that can carry it.</p></div>
               <div class="callout"><p><strong>Honest limit.</strong> Every control above watches a layer the attacker can go under. A rootkit that hooks directory reads or hides processes from /proc, T1014, the subject of GH-002, hides from find and pgrep too. FIM sees the write only if it was already watching that path, and an allowlist is only as good as its list. This file teaches the layer beneath all of those: what your listing tools actually promise. A defender who knows ls is a display convention is never fooled by a leading dot. A defender who mistakes it for a census is.</p></div>
               <div class="verdict green">
                 <span class="mlabel">Countermeasures verified</span>

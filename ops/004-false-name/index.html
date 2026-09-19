@@ -204,7 +204,7 @@ $ ps -C cron -o pid,comm,args
 
         <section class="phase" id="phase-blue">
           <div class="phase-head"><span class="phase-num">04</span><h2>Phase Blue: ask the kernel</h2><span class="phase-tag blue">DEFENSE</span></div>
-          <p class="lede">ps asked the process for its name and printed the answer. Now ask the kernel a question the process cannot answer for itself: which file did you actually execute.</p>
+          <p class="lede">ps printed the process's name and you believed it. Here is the precise mechanism, because the imprecision is the vulnerability: ps reads comm from /proc/&lt;pid&gt;/stat, where the kernel stores it in the task struct. But the process chooses that value: exec sets it from the file's basename, and the process can rewrite it any time with prctl(PR_SET_NAME). Try it: rename any sleeper to <strong>totally-legit</strong> via prctl and ps vouches for the new name while the binary is unchanged. So the name is kernel-stored but process-supplied. Now ask the kernel the question the process cannot answer for itself: which file did you actually execute. That answer lives in /proc/&lt;pid&gt;/exe, written at exec time, and the process has no call to rewrite it. Compare the claim (comm) against the record (exe), and believe the record.</p>
           <div class="prose">
             <p>Here is the trap: opening htop, seeing cron, and closing htop. The name is data the process supplied, laundered through a trusted tool. The check that works does not read any label. It reads the kernel's own record of the execution.</p>
           </div>
@@ -247,7 +247,7 @@ $ readlink /proc/$CPID/exe
             <div class="step-num">1</div>
             <div>
               <h3>Mitigate: kill the impostor</h3>
-              <div class="prose"><p>It is an ordinary unprivileged process. Killing it ends the masquerade; there is no persistence here, no rootkit, no reinfection. Confirm the exe path first, so you kill the impostor and not the real daemon.</p></div>
+              <div class="prose"><p>It is an ordinary unprivileged process. Killing it ends the masquerade; there is no persistence here, no rootkit, no reinfection. Confirm the exe path first, so you kill the impostor and not the real daemon. If a real cron daemon is running, kill by PID, not by name: <strong>kill $CPID</strong> takes only the suspect, while <strong>pkill -x cron</strong> would take the real daemon too.</p></div>
               <div class="codeblock codeblock-scrollhint">
                 <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="readlink /proc/$(pgrep -x cron)/exe&#10;pkill -x cron"><span data-label>COPY</span></button></div>
                 <pre>$ readlink /proc/$(pgrep -x cron)/exe
@@ -260,7 +260,7 @@ $ pkill -x cron</pre>
             <div class="step-num">2</div>
             <div>
               <h3>Monitor: sweep for executables in writable dirt</h3>
-              <div class="prose"><p>The tell was not the name; it was the address. System daemons do not execute from /tmp, /dev/shm, or /var/tmp. One line lists every process whose executable lives in a world-writable directory.</p></div>
+              <div class="prose"><p>The tell was not the name; it was the address. System daemons <strong>usually</strong> do not execute from /tmp, /dev/shm, or /var/tmp, so a hit here is a lead, not a verdict: installers and user services legitimately stage in these directories. Run the Blue 1 comparison on every hit before acting. And know what this net catches: it finds executables in the wrong <strong>place</strong>. A process can also lie about its name while its exe sits somewhere respectable (a prctl-renamed interpreter in /usr/bin will not match this sweep); the name-vs-exe comparison is the detector, this sweep is the wide net. One line lists every process whose executable lives in a world-writable directory.</p></div>
               <div class="codeblock codeblock-scrollhint">
                 <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="ls -l /proc/[0-9]*/exe 2&gt;/dev/null | grep -E '/(tmp|dev/shm|var/tmp)'"><span data-label>COPY</span></button></div>
                 <pre>$ ls -l /proc/[0-9]*/exe 2&gt;/dev/null | grep -E '/(tmp|dev/shm|var/tmp)'
@@ -274,7 +274,7 @@ lrwxrwxrwx 1 root root 0 Sep 16 15:27 /proc/17306/exe -&gt; /tmp/gh004/cron</pre
             <div>
               <h3>Prevent: take away the stage</h3>
               <div class="prose"><p>The forgery needs two things: a writable directory and permission to execute from it. Mount /tmp, /dev/shm, and /var/tmp with <strong>noexec</strong> and the copy-rename-run sequence dies at the exec step. AppArmor or SELinux profiles do the same job per-application.</p></div>
-              <div class="callout"><p><strong>Honest limit.</strong> noexec breaks legitimate installers that stage in /tmp, and a determined attacker writes elsewhere: $HOME, /var/tmp on a lazy admin's box, a mounted USB. This control raises the cost of the trick; it does not remove the trick. The exe check in Phase Blue works regardless of where the file sits, which is why detection outlives prevention here.</p></div>
+              <div class="callout"><p><strong>Honest limit.</strong> noexec breaks legitimate installers that stage in /tmp, and a determined attacker writes elsewhere: $HOME, /var/tmp on a lazy admin's box, a mounted USB. And noexec does not stop the interpreter route at all: <strong>bash /tmp/x.sh</strong> runs fine on a noexec mount (verified), because noexec blocks execve while a legitimate interpreter just reads the file as data. A shebang script is blocked (the kernel execs the script itself), but <strong>sh</strong>, <strong>python3</strong>, or <strong>perl</strong> invoked explicitly are not. This control raises the cost of the trick; it does not remove the trick. The exe check in Phase Blue works regardless of where the file sits, which is why detection outlives prevention here.</p></div>
               <div class="verdict green">
                 <span class="mlabel">Countermeasures verified</span>
                 <p>The impostor is an ordinary process, so killing it is trivial. The writable-directory sweep finds its siblings fleet-wide with one line. noexec and mandatory access control narrow where the trick can run. None of them changes the core fact: names are claims, and claims get checked against the kernel.</p>

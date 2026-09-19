@@ -208,11 +208,11 @@ $ ls -l --time-style=long-iso .systemd-cache
               <div class="codeblock codeblock-scrollhint">
                 <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="stat -c 'access: %x\nmodify: %y\nchange: %z' .systemd-cache"><span data-label>COPY</span></button></div>
                 <pre>$ stat -c 'access: %x' .systemd-cache
-access: 2019-06-10 23:14:00.000000000 -0400
+access: 2019-06-11 03:14:00.000000000 +0000
 $ stat -c 'modify: %y' .systemd-cache
-modify: 2019-06-10 23:14:00.000000000 -0400
+modify: 2019-06-11 03:14:00.000000000 +0000
 $ stat -c 'change: %z' .systemd-cache
-change: 2026-09-16 15:26:23.024766798 -0400</pre>
+change: 2026-09-19 19:22:25.971542372 +0000</pre>
               </div>
               <div class="prose"><p>Modify says 2019, exactly as forged. Change says today, down to the nanosecond: the moment the <strong>touch</strong> command rewrote the metadata. The attacker set the clock on the file, and the kernel timestamped the act of setting it. A file whose modification date is years older than its change date is not old; it is edited. The full <strong>stat</strong> output adds a fourth witness, the birth time, also today. Two timestamps the owner set, two the kernel wrote, and the kernel's are the ones that matter.</p></div>
               <div class="verdict green">
@@ -225,16 +225,16 @@ change: 2026-09-16 15:26:23.024766798 -0400</pre>
 
         <section class="phase" id="countermeasures">
           <div class="phase-head"><span class="phase-num">05</span><h2>Countermeasures</h2><span class="phase-tag blue">DEFENSE</span></div>
-          <p class="lede">Three moves, in order: hunt by the receipt, watch for the pattern, stop trusting the claim. Each is one way, not the way.</p>
+          <p class="lede">Four moves, in order: hunt by the receipt, baseline the metadata, stop trusting the claim, freeze the evidence. Each is one way, not the way.</p>
           <div class="step">
             <div class="step-num">1</div>
             <div>
-              <h3>Mitigate: hunt by change time, not modify time</h3>
+              <h3>Hunt by change time, not modify time</h3>
               <div class="prose"><p>If you are hunting the payload, do not sort by mtime; the attacker chose that sort order. Sort by ctime: the kernel's record of when the metadata was actually touched.</p></div>
               <div class="codeblock codeblock-scrollhint">
                 <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="find /tmp /var/tmp /dev/shm -newerct '2026-09-01' -type f -printf '%p change=%C+ modify=%T+\n' 2&gt;/dev/null"><span data-label>COPY</span></button></div>
                 <pre>$ find /tmp /var/tmp /dev/shm -newerct '2026-09-01' -type f -printf '%p change=%C+ modify=%T+\n' 2&gt;/dev/null
-/tmp/gh005/.systemd-cache change=2026-09-16+15:26:23.0247667980 modify=2019-06-10+23:14:00.0000000000</pre>
+/tmp/gh005/.systemd-cache change=2026-09-16+15:26:23.0247667980 modify=2019-06-11+03:14:00.0000000000</pre>
               </div>
               <div class="prose"><p>One line, and the "2019" file is the newest thing in /tmp. Printing change and modify side by side turns every timestomped file into a self-confession: the wider the gap, the louder the lie.</p></div>
             </div>
@@ -242,9 +242,27 @@ change: 2026-09-16 15:26:23.024766798 -0400</pre>
           <div class="step">
             <div class="step-num">2</div>
             <div>
-              <h3>Monitor: baseline the metadata, not just the bytes</h3>
-              <div class="prose"><p>File integrity monitoring watches for changes; the trick is watching the right changes. A FIM baseline that records hashes, ctimes, and inodes notices the touch even though the bytes never changed. D3FEND names the family <a href="https://d3fend.mitre.org/technique/d3f:FileIntegrityMonitoring/" rel="noopener">File Integrity Monitoring (D3-FIM)</a>: detecting suspicious changes to files, including the metadata kind.</p></div>
-              <div class="callout"><p><strong>Honest limit.</strong> FIM sees only what changed after the baseline was taken; a file timestomped before the first scan looks legitimately old to it. ctime trusts the system clock: an attacker who can set the clock (root, or a VM host) can narrow the gap. And ctime is per-filesystem: copying the file elsewhere mints fresh stamps, so a payload smuggled in as a copy carries no gap to find. The receipt is honest, not omniscient.</p></div>
+              <h3>Prevent: baseline the metadata, not just the bytes</h3>
+              <div class="prose"><p>A hash-only baseline is blind to timestomping: the bytes never change, so the hash never changes. Record the metadata the attacker cannot forge instead: inode, size, mtime, and ctime. The check below is copy-pasteable.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="find /tmp /var/tmp /dev/shm -type f -printf &#x27;%p|%i|%s|%T@|%C@\n&#x27; 2&gt;/dev/null | sort &gt; /root/fim-baseline.txt&#10;# ...later, after the window you care about...&#10;find /tmp /var/tmp /dev/shm -type f -printf &#x27;%p|%i|%s|%T@|%C@\n&#x27; 2&gt;/dev/null | sort &gt; /root/fim-check.txt&#10;diff /root/fim-baseline.txt /root/fim-check.txt"><span data-label>COPY</span></button></div>
+                <pre>$ find /tmp /var/tmp /dev/shm -type f -printf &#x27;%p|%i|%s|%T@|%C@\n&#x27; 2&gt;/dev/null | sort &gt; /root/fim-baseline.txt
+$ # ...later, after the window you care about...
+$ find /tmp /var/tmp /dev/shm -type f -printf &#x27;%p|%i|%s|%T@|%C@\n&#x27; 2&gt;/dev/null | sort &gt; /root/fim-check.txt
+$ diff /root/fim-baseline.txt /root/fim-check.txt</pre>
+              </div>
+              <div class="prose"><p>What a catch looks like (real output: baseline taken, file re-forged, baseline re-taken):</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">output</span><button class="copy-btn" data-copy="1c1&#10;&lt; .systemd-cache inode=3 size=18 mtime=2018-01-01 00:00:00.000000000 +0000 ctime=2026-09-19 19:22:25.989542372 +0000&#10;---&#10;&gt; .systemd-cache inode=3 size=18 mtime=2019-06-11 03:14:00.000000000 +0000 ctime=2026-09-19 19:22:27.100542415 +0000"><span data-label>COPY</span></button></div>
+                <pre>1c1
+&lt; .systemd-cache inode=3 size=18 mtime=2018-01-01 00:00:00.000000000 +0000 ctime=2026-09-19 19:22:25.989542372 +0000
+---
+&gt; .systemd-cache inode=3 size=18 mtime=2019-06-11 03:14:00.000000000 +0000 ctime=2026-09-19 19:22:27.100542415 +0000</pre>
+              </div>
+              <div class="prose"><p>Inode and size identical, ctime moved: someone touched the metadata. An mtime-only check sees the same 2019 date before and after and reports nothing.</p></div>
+              <div class="prose"><p>Good vs bad: a legitimately old file has change and modify dates close together; a timestomped file has them years apart, and a re-forged file has a ctime newer than its baseline entry. Alert on ctime newer than baseline with mtime unchanged or older.</p></div>
+              <div class="callout"><p><strong>Honest limit.</strong> FIM sees only what changed after the baseline was taken; a file timestomped before the first scan looks legitimately old to it. ctime trusts the system clock: an attacker who can set the clock (root, or the VM host) can narrow the gap. And ctime is per-filesystem: copying the file elsewhere mints fresh stamps, so a payload smuggled in as a copy carries no gap to find (verified: cp -p preserved the forged 2019 mtime with fresh birth and change stamps). The receipt is honest, not omniscient.</p></div>
+              <div class="prose"><p>First principle: distrust the claim, read the receipt. mtime is the file's own story about itself; ctime is the kernel's record of the edit, and the two are written by different authors.</p></div>
             </div>
           </div>
           <div class="step">
@@ -252,6 +270,22 @@ change: 2026-09-16 15:26:23.024766798 -0400</pre>
             <div>
               <h3>Prevent: nothing to prevent, everything to distrust</h3>
               <div class="prose"><p>There is no prevention here, and that is the point. Setting timestamps is a legitimate syscall; <strong>touch</strong> is coreutils, <strong>utimensat</strong> is how backups and build tools preserve dates. You cannot remove the capability without breaking the system. The control is procedural: never let mtime alone decide what is old. Triage sorts by ctime, FIM baselines include metadata, and timelines are built from the receipt, not the claim.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div>
+              <h3>Mitigate: freeze the metadata, then rebuild the timeline from elsewhere</h3>
+              <div class="prose"><p>Hunting finds the file; mitigation preserves what it proves. On a live box:</p></div>
+              <div class="prose"><p>1. Capture the receipt before it ages: <strong>stat</strong> the suspect file now. ctime only tells you the last metadata change; every later touch overwrites it.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="stat /tmp/.systemd-cache &gt; /root/evidence-stat.txt"><span data-label>COPY</span></button></div>
+                <pre>$ stat /tmp/.systemd-cache &gt; /root/evidence-stat.txt</pre>
+              </div>
+              <div class="prose"><p>2. Do not trust any local timeline built from mtime. Rebuild from sources the attacker could not rewrite with touch: the off-host log collector, network flow records, and the FIM baseline diff above.</p></div>
+              <div class="prose"><p>3. Isolate the host from the network before cleanup. Deleting the file ends the payload but also ends the evidence; image or snapshot first if the incident warrants it.</p></div>
+              <div class="prose"><p>What this does not do: it does not prevent the next forge. Prevention is the baseline above, run on a schedule. Mitigation buys you the true story of this one.</p></div>
+              <div class="prose"><p>First principle: evidence has a half-life. ctime is overwritten by the next touch, so the containment step is capture, not analysis.</p></div>
               <div class="verdict green">
                 <span class="mlabel">Countermeasures verified</span>
                 <p>The capability cannot be removed without breaking the system, so the forgery is seen through, not prevented. Hunting by ctime finds the payload despite its 2019 costume, FIM baselines catch the metadata change, and the procedural fix costs nothing: read the receipt, not the story.</p>

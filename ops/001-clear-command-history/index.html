@@ -237,7 +237,8 @@ $ ls -la ~/.bash_history</pre>
 
         <section class="phase" id="phase-blue">
           <div class="phase-head"><span class="phase-num">04</span><h2>Phase Blue: Detection</h2><span class="phase-tag blue">DEFENSE</span></div>
-          <p class="lede">Four independent ways to prove the wipe happened. None of them require anything you set up in advance.</p>
+          <p class="lede">Four independent ways to prove the wipe happened. Three of them need nothing set up in advance. The fourth, the live watch, must be running before the deletion: a watch started after the file is gone fails outright (inotify_add_watch: No such file or directory), because there is nothing left to watch. The watch is for catching the wipe live, or proving the mechanism to a skeptic. It is never a post-incident tool.</p>
+          <div class="prose"><p><strong>First principle:</strong> the absence of evidence is not the evidence of absence, but a missing history on a known-active account is itself a measurement, and a detection that needs no prior setup is worth more than a perfect one that needed last month's foresight.</p></div>
           <div class="step">
             <div class="step-num">1</div>
             <div>
@@ -335,7 +336,7 @@ $ sudo cp -a /home/ghostdemo/.bash_history /root/case-gh001/ 2&gt;/dev/null
 $ sudo journalctl --since "24 hours ago" &gt; /root/case-gh001/journal.txt
 $ grep -rn "HISTFILE\|history -c" /home/*/.bash_logout /home/*/.bashrc 2&gt;/dev/null</pre>
               </div>
-              <div class="prose"><p>Then sweep every account with the Phase Blue hunt, check cron tables, <strong>authorized_keys</strong>, and user systemd units, and rotate the compromised account's credentials plus any secrets it could read.</p></div>
+              <div class="prose"><p>Then sweep every account with the Phase Blue hunt, check cron tables, <strong>authorized_keys</strong>, and user systemd units, and rotate the compromised account's credentials plus any secrets it could read. Isolate the host from the network before the sweep: a history wipe is evidence of an intrusion, not the intrusion itself, and the box stays considered compromised until it is rebuilt. The wipe tells you someone was here; assume they are still here until the rebuild says otherwise.</p></div>
             </div>
           </div>
           <div class="step">
@@ -411,7 +412,7 @@ ghostdemo [10446] 2026-09-15 08:44:01 echo "intruder: trail is clean"</pre>
             <div class="step-num">3</div>
             <div>
               <h3>Prevent, layer two: kernel audit watches (full VM only)</h3>
-              <div class="prose"><p>Kernel-level file watches cannot be bypassed from user space and survive everything short of root. First, check your environment can run them:</p></div>
+              <div class="prose"><p>Kernel-level file watches cannot be removed from user space: a non-root attacker cannot unset them, and with <strong>auditctl -e 2</strong> even root cannot change the rules until reboot. That is the whole of the guarantee, and it has edges. Root can still reboot with audit=0 or rewrite the rules for the next boot. The watches cover only the paths someone configured. And many containers ship without audit userspace at all: if <strong>auditctl -w</strong> answers "The audit system is disabled," you are in one, and this layer does not exist there. What survives a compromised box is the off-host copy (layer three), not the local rules. First, check your environment can run them:</p></div>
               <div class="codeblock codeblock-scrollhint">
                 <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="sudo auditctl -w /tmp -p wa -k test"><span data-label>COPY</span></button></div>
                 <pre>$ sudo auditctl -w /tmp -p wa -k test

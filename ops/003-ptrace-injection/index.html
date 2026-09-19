@@ -475,15 +475,38 @@ non-child attach as nobody -&gt; -1 errno 1</pre>
           <div class="step">
             <div class="step-num">1</div>
             <div>
-              <h3>Mitigate: confirm it is memory-only</h3>
-              <div class="prose"><p>Kill the victim and the cave dies with the address space. This injection has no file, no persistence, and no reboot survival: it is a purely in-memory borrowing. That cuts two ways. Recovery is trivial, kill the process. But there is also nothing to find afterward except the maps diff, which is why observation two exists. (The /tmp/gh003_pwned file is our proof artifact, not the attacker's tradecraft; a real payload exfiltrates or stays resident, it does not leave labeled evidence.)</p></div>
+              <h3>Mitigate: capture, then kill, then scope</h3>
+              <div class="prose"><p>Killing the victim ends the borrowing: the cave dies with the address space (verified: after the kill, /proc/&lt;pid&gt; is gone and the mapping with it). But the kill also ends the evidence. On a live box, in this order:</p></div>
+              <div class="prose"><p><strong>1. Capture the kernel's record before you touch anything:</strong> the tracer relationship and the full maps, timestamped, off to your case directory.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="grep -E '^(TracerPid|State):' /proc/$VPID/status &gt; /root/case-gh003/tracer.txt&#10;cat /proc/$VPID/maps &gt; /root/case-gh003/maps.live&#10;diff /root/case-gh003/maps.$VPID.base /root/case-gh003/maps.live"><span data-label>COPY</span></button></div>
+                <pre>$ grep -E '^(TracerPid|State):' /proc/$VPID/status &gt; /root/case-gh003/tracer.txt
+$ cat /proc/$VPID/maps &gt; /root/case-gh003/maps.live
+$ diff /root/case-gh003/maps.$VPID.base /root/case-gh003/maps.live</pre>
+              </div>
+              <div class="prose"><p>TracerPid names the injector's PID: that is your next suspect, not just this victim.</p></div>
+              <div class="prose"><p><strong>2. Kill the victim.</strong> <strong>kill -9 $VPID</strong>: it is memory-only, there is nothing to uninstall and no reboot survival.</p></div>
+              <div class="prose"><p><strong>3. Scope for siblings.</strong> The injector is a parent. List its other children and diff their maps too; one borrowed body means checking the whole family:</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="ps --ppid $INJECTOR_PID -o pid,comm,args"><span data-label>COPY</span></button></div>
+                <pre>$ ps --ppid $INJECTOR_PID -o pid,comm,args</pre>
+              </div>
+              <div class="prose"><p><strong>4. Then the injector itself.</strong> It is an ordinary process. Kill it, and image or snapshot the box before cleanup if the incident warrants it.</p></div>
+              <div class="prose"><p>What this does not do: it does not tell you what the shellcode <strong>did</strong> while it ran. The maps diff proves a cave existed, not what it contained. If the window matters, that is what the off-host telemetry (the D3-SCA sequence: ptrace, remote mmap, process_vm_writev from one parent) is for.</p></div>
+              <div class="prose"><p><strong>First principle:</strong> evidence has a half-life, and the kill is what ends it. Capture first, contain second.</p></div>
             </div>
           </div>
           <div class="step">
             <div class="step-num">2</div>
             <div>
               <h3>Monitor: watch the map</h3>
-              <div class="prose"><p>Baseline /proc/&lt;pid&gt;/maps for the long-lived processes that matter, diff on a timer, alert on new anonymous rwxp regions. The one-liner below is the whole monitor; production versions add baselines and alerting, not new ideas.</p></div>
+              <div class="prose"><p>Baseline /proc/&lt;pid&gt;/maps for the long-lived processes that matter, diff on a timer, alert on new anonymous rwxp regions. First, create the baselines the one-liner reads. Once, for every long-lived process that matters, and again after every legitimate change (upgrades, restarts):</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="mkdir -p /var/lib/ghostlight&#10;for p in $(pgrep -x cron); do cat /proc/$p/maps &gt; /var/lib/ghostlight/maps.$p.base; done"><span data-label>COPY</span></button></div>
+                <pre>$ mkdir -p /var/lib/ghostlight
+$ for p in $(pgrep -x cron); do cat /proc/$p/maps &gt; /var/lib/ghostlight/maps.$p.base; done</pre>
+              </div>
+              <div class="prose"><p>Then the monitor from the page runs unchanged. Alert on any added line with <strong>rwxp</strong> and no file behind it (the <strong>00:00</strong> device): legitimate processes almost never gain anonymous executable mappings mid-life; JIT compilers are the exception, and cron is not a JIT. The one-liner below is the whole monitor; production versions add alerting, not new ideas.</p></div>
               <div class="codeblock codeblock-scrollhint">
                 <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="for p in $(pgrep -x cron); do diff &quot;/var/lib/ghostlight/maps.$p.base&quot; &quot;/proc/$p/maps&quot;; done"><span data-label>COPY</span></button></div>
                 <pre>$ for p in $(pgrep -x cron); do diff "/var/lib/ghostlight/maps.$p.base" "/proc/$p/maps"; done</pre>

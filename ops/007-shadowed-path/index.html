@@ -321,7 +321,28 @@ drwxrwxrwx 2 root root 60 Sep 17 01:27 /tmp/gh007/bin</pre>
                 <pre>$ for d in ${PATH//:/ }; do find -L "$d" -maxdepth 0 -perm -0002 2&gt;/dev/null; done
 /tmp/gh007/bin</pre>
               </div>
-              <div class="prose"><p>Exactly one open door, and it is the attacker's. Run this on a timer across the fleet and you have the whole monitor; production versions add alerting, not new ideas. D3FEND names the heavier form <a href="https://d3fend.mitre.org/technique/d3f:ConfigurationInventory/" rel="noopener">Configuration Inventory (D3-CI)</a>: record the configuration, including PATH, and notice when it changes.</p></div>
+              <div class="prose"><p>Exactly one open door, and it is the attacker's.</p></div>
+              <div class="prose"><p>That sweep has a hole, and the hole is the realistic case. It only flags world-writable directories. A directory owned by you, mode 755, sitting early in your PATH, is not world-writable and shadows you just as well. Verified: a 755 user-owned directory placed ahead of the world-writable one answered <strong>ls</strong> first (its marker proved it ran), and the sweep above never flagged it. Sweep for what is writable by you, not just by everyone, and flag the empty entries the simple loop skips (an empty entry means your current directory is on PATH):</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="IFS=: read -ra DIRS &lt;&lt;&lt; &quot;$PATH&quot;&#10;for d in &quot;${DIRS[@]}&quot;; do&#10;  [ -z &quot;$d&quot; ] &amp;&amp; { echo &quot;EMPTY PATH ENTRY: current directory is on PATH&quot;; continue; }&#10;  find -L &quot;$d&quot; -maxdepth 0 -writable 2&gt;/dev/null&#10;done"><span data-label>COPY</span></button></div>
+                <pre>$ IFS=: read -ra DIRS &lt;&lt;&lt; &quot;$PATH&quot;
+$ for d in &quot;${DIRS[@]}&quot;; do
+&gt;   [ -z &quot;$d&quot; ] &amp;&amp; { echo &quot;EMPTY PATH ENTRY: current directory is on PATH&quot;; continue; }
+&gt;   find -L &quot;$d&quot; -maxdepth 0 -writable 2&gt;/dev/null
+&gt; done
+/tmp/early/bin
+/tmp/ww/bin</pre>
+              </div>
+              <div class="prose"><p>Both doors now, including the one that actually shadowed you. Run this form as yourself: -writable is evaluated for the user running it, which is exactly the question "can I be shadowed through this directory."</p></div>
+              <div class="prose"><p>The fleet form, run as root across hosts, flags what any non-root attacker could plant into: world-writable, or owned by someone other than root:</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="for d in ${PATH//:/ }; do find -L &quot;$d&quot; -maxdepth 0 \( -perm -0002 -o ! -user root \) 2&gt;/dev/null; done"><span data-label>COPY</span></button></div>
+                <pre>$ for d in ${PATH//:/ }; do find -L &quot;$d&quot; -maxdepth 0 \( -perm -0002 -o ! -user root \) 2&gt;/dev/null; done</pre>
+              </div>
+              <div class="prose"><p>Run the personal form on a timer for the shells that matter (yours, root's, the service accounts'): PATH is per-process, and your PATH is not root's.</p></div>
+              <div class="prose"><p>Good vs bad: a clean box prints nothing (or only directories you recognize as yours). Any entry you did not put there, any empty entry, any directory writable by a user who should not be writing executables, is the finding.</p></div>
+              <div class="callout"><p><strong>Honest limit.</strong> The sweep sees the current shell's PATH only. A directory late in PATH, after the system directories, cannot shadow the system binaries but is still poor hygiene; the sweep flags it anyway, and that is fine. What the sweep can never see is the PATH-edit case: an attacker who rewrote your ~/.bashrc does not need a writable directory. Pair the sweep with the startup-file watch below.</p></div>
+              <div class="prose"><p>First principle: ask the resolver, and ask it the complete question. A check that only looks for world-writable doors teaches the attacker to use doors with your name on them.</p></div>
             </div>
           </div>
           <div class="step">
@@ -343,14 +364,17 @@ ls is /usr/bin/ls</pre>
             <div class="step-num">6</div>
             <div>
               <h3>Disarm it: take the directory out of the search</h3>
-              <div class="prose"><p>The parameter expansion deletes the attacker directory from PATH. hash -r clears the shell's remembered locations: bash caches where names resolved, so a cached shadow would survive a PATH fix without it. type -a confirms the search is clean.</p></div>
+              <div class="prose"><p>Remove the attacker directory from PATH with a pattern that does not depend on where it sits, then confirm the search is clean:</p></div>
               <div class="codeblock codeblock-scrollhint">
-                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="export PATH=${PATH/\/tmp\/gh007\/bin:/}; hash -r; type -a ls"><span data-label>COPY</span></button></div>
-                <pre>$ export PATH=${PATH/\/tmp\/gh007\/bin:/}; hash -r; type -a ls
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="export PATH=$(IFS=:; set -f; for d in $PATH; do [ &quot;$d&quot; = /tmp/gh007/bin ] || printf &#x27;%s:&#x27; &quot;$d&quot;; done | sed &#x27;s/:$//&#x27;)&#10;type -a ls"><span data-label>COPY</span></button></div>
+                <pre>$ export PATH=$(IFS=:; set -f; for d in $PATH; do [ &quot;$d&quot; = /tmp/gh007/bin ] || printf &#x27;%s:&#x27; &quot;$d&quot;; done | sed &#x27;s/:$//&#x27;)
+$ type -a ls
 ls is /usr/bin/ls
 ls is /bin/ls</pre>
               </div>
               <div class="prose"><p>The shadow file is still on disk; removing its directory from the search disarms it for this shell. Deleting the file disarms it for every shell. Do both: fix the search, then remove the file.</p></div>
+              <div class="prose"><p>A note on the old form: <strong>export PATH=${PATH/\/tmp\/gh007\/bin:/}</strong> only matches when the directory is followed by a colon, so an attacker directory sitting last in PATH survives it (verified). And <strong>hash -r</strong> after a PATH edit is belt-and-braces: bash already flushes its remembered command locations every time PATH is assigned, so a cached shadow cannot survive the edit. The PATH edit is the mechanism; the re-check with <strong>type -a</strong> is the proof.</p></div>
+              <div class="prose"><p>First principle: verify the disarm with the same question that found the problem. <strong>type -a</strong> named the shadow; <strong>type -a</strong> confirms it is gone.</p></div>
               <div class="verdict green">
                 <span class="mlabel">Detection verified</span>
                 <p>The resolver was asked directly and named the shadow first. The search order showed the attacker directory ahead of every system directory. The sweep flagged exactly one world-writable directory on PATH. sudo's secure_path proved the fix's shape: a search path you control answers to files you trust.</p>
@@ -361,7 +385,7 @@ ls is /bin/ls</pre>
 
         <section class="phase" id="countermeasures">
           <div class="phase-head"><span class="phase-num">05</span><h2>Countermeasures</h2><span class="phase-tag blue">DEFENSE</span></div>
-          <p class="lede">Three moves, in order: remove it, watch for the next one, make the trick harder to run. Each is one way, not the way.</p>
+          <p class="lede">Four moves, in order: remove it, watch for the next one, make the trick harder to run, scope what it reached. Each is one way, not the way.</p>
           <div class="step">
             <div class="step-num">1</div>
             <div>
@@ -371,18 +395,20 @@ ls is /bin/ls</pre>
                 <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="rm -rf /tmp/gh007"><span data-label>COPY</span></button></div>
                 <pre>$ rm -rf /tmp/gh007</pre>
               </div>
+              <div class="prose"><p>Then hunt the export at its source. A typed export dies with the shell; a real attacker's persists, so check every place an export can live:</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="grep -rn &#x27;PATH=&#x27; ~/.bashrc ~/.profile ~/.bash_profile /etc/profile /etc/profile.d/ /etc/environment 2&gt;/dev/null&#10;grep -rn &#x27;Environment=PATH&#x27; ~/.config/systemd/user/ /etc/systemd/system/ 2&gt;/dev/null&#10;grep -r &#x27;PATH=&#x27; /etc/cron* /var/spool/cron/ 2&gt;/dev/null"><span data-label>COPY</span></button></div>
+                <pre>$ grep -rn &#x27;PATH=&#x27; ~/.bashrc ~/.profile ~/.bash_profile /etc/profile /etc/profile.d/ /etc/environment 2&gt;/dev/null
+$ grep -rn &#x27;Environment=PATH&#x27; ~/.config/systemd/user/ /etc/systemd/system/ 2&gt;/dev/null
+$ grep -r &#x27;PATH=&#x27; /etc/cron* /var/spool/cron/ 2&gt;/dev/null</pre>
+              </div>
             </div>
           </div>
           <div class="step">
             <div class="step-num">2</div>
             <div>
               <h3>Monitor: sweep the search on a schedule</h3>
-              <div class="prose"><p>The same one-line sweep from Phase Blue, run on a timer. Alert on any world-writable directory appearing on PATH, and on any PATH assignment changing in shell startup files. This is the fleet form of the check: the idea does not change, only the coverage.</p></div>
-              <div class="codeblock codeblock-scrollhint">
-                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="for d in ${PATH//:/ }; do find -L &quot;$d&quot; -maxdepth 0 -perm -0002 2&gt;/dev/null; done"><span data-label>COPY</span></button></div>
-                <pre>$ for d in ${PATH//:/ }; do find -L "$d" -maxdepth 0 -perm -0002 2&gt;/dev/null; done
-/tmp/gh007/bin</pre>
-              </div>
+              <div class="prose"><p>The fixed sweep from Phase Blue, run on a timer: the personal form for the shells that matter (yours, root's, the service accounts'), the fleet form across hosts as root. Alert on any entry you did not put there, any empty entry, or any directory writable by a user who should not be writing executables. Pair it with the startup-file watch in the mitigation below: an attacker who rewrote your shell startup files never needed a writable directory. This is the fleet form of the check: the idea does not change, only the coverage.</p></div>
             </div>
           </div>
           <div class="step">
@@ -391,6 +417,25 @@ ls is /bin/ls</pre>
               <h3>Prevent: own the search path</h3>
               <div class="prose"><p>Keep every directory on PATH owned by root and not world-writable, and the drop-in-file case dies: the attacker has nowhere early to plant the shadow. Pin absolute paths in cron jobs and scripts, where no human is typing and nothing is lost by spelling it out. sudo's secure_path, shown in Phase Blue, is the production form of the same idea: the privileged search path is chosen by the defender. D3FEND's heavier answer is <a href="https://d3fend.mitre.org/technique/d3f:ExecutableAllowlisting/" rel="noopener">Executable Allowlisting (D3-EAL)</a>: only signed, approved executables run at all, so a shadow planted anywhere is refused at exec time.</p></div>
               <div class="callout"><p><strong>Honest limit.</strong> Root-owned PATH directories stop the drop-in-file case, not the PATH-edit case: an attacker who can write your ~/.bashrc does not need a writable directory, they just prepend their own. The sweep only sees the current shell's PATH, and PATH is per-process, so sweep the shells that matter (root's, the service accounts') not just your own. sudo's secure_path protects commands run through sudo only; it does nothing for the interactive shell where you type bare names all day. Absolute paths defeat the search entirely, but only where they are used. And this demo is user-level: no privilege was gained and none was needed. PATH interception is a stealth technique, not a privilege escalation; do not present it as one.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div>
+              <h3>Mitigate: scope what the shadow ran as</h3>
+              <div class="prose"><p>Deleting the file ends the trick; it does not end the incident. The shadow ran with your privileges, in every shell that sourced the poisoned PATH. Until scoped, assume everything that user could reach was reached.</p></div>
+              <div class="prose"><p>1. Find where the export came from. A typed export dies with the shell; a real attacker's persists. Hunt it:</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="grep -rn &#x27;PATH=&#x27; ~/.bashrc ~/.profile ~/.bash_profile /etc/profile /etc/profile.d/ /etc/environment 2&gt;/dev/null&#10;grep -rn &#x27;Environment=PATH&#x27; ~/.config/systemd/user/ /etc/systemd/system/ 2&gt;/dev/null&#10;grep -r &#x27;PATH=&#x27; /etc/cron* /var/spool/cron/ 2&gt;/dev/null"><span data-label>COPY</span></button></div>
+                <pre>$ grep -rn &#x27;PATH=&#x27; ~/.bashrc ~/.profile ~/.bash_profile /etc/profile /etc/profile.d/ /etc/environment 2&gt;/dev/null
+$ grep -rn &#x27;Environment=PATH&#x27; ~/.config/systemd/user/ /etc/systemd/system/ 2&gt;/dev/null
+$ grep -r &#x27;PATH=&#x27; /etc/cron* /var/spool/cron/ 2&gt;/dev/null</pre>
+              </div>
+              <div class="prose"><p>Kill the persistence, not just the file: remove the export at its source, then the directory, then start a clean shell and re-run <strong>type -a</strong> on the names you type most.</p></div>
+              <div class="prose"><p>2. Scope what ran. The shadow executed as you. Inventory what that user can touch without a password: SSH keys (~/.ssh), cloud and API tokens in shell history and env files, sudo without password (check <strong>sudo -n true</strong>), and any agent sockets. Anything the shadow could have read, rotate or re-issue; "it probably only logged" is not a finding.</p></div>
+              <div class="prose"><p>3. Check for siblings. One shadow is a technique; look for the campaign: re-run the fixed sweep for every user with an interactive shell, and diff the startup files above against your configuration baseline.</p></div>
+              <div class="prose"><p>What this does not do: it does not prove the negative. If the shadow was sophisticated, assume the shell's history is also co-authored and corroborate from the host's auth logs and the network egress records, which the shadow could not rewrite from inside your shell.</p></div>
+              <div class="prose"><p>First principle: contain the blast radius, not the file. The file was never the asset at risk; your user's reach was.</p></div>
               <div class="verdict green">
                 <span class="mlabel">Countermeasures verified</span>
                 <p>The shadow is disarmed by removing its directory from the search and deleting the file. The sweep finds the next one. Root-owned PATH directories, absolute paths in automation, and sudo's secure_path narrow where the trick can run. None of them changes the core fact: a bare name is a question, and the search order decides who answers.</p>

@@ -270,13 +270,14 @@ root          14       1  0 12:14 ?        00:00:00 sh -c echo dG91Y2ggL3RtcC9na
             <div class="step-num">1</div>
             <div>
               <h3>The tell</h3>
-              <div class="prose"><p>Watch for the shape, not the words: a process line that decodes its own command. Legitimate software does not hand-type <strong>sh -c 'echo &lt;blob&gt; | base64 -d | sh'</strong>; an attacker sealing an order does.</p></div>
+              <div class="prose"><p>Watch for the shape, not the words: a process line that decodes its own command. The typed form is a lead, not a verdict. Decode-then-execute is everyday legitimate infrastructure: <a href="https://github.com/canonical/cloud-init/blob/HEAD/doc/rtd/reference/datasources/smartos.rst" rel="noopener">cloud-init</a> decodes base64 user-data and runs it as a shell script on every cloud boot, and CI pipelines routinely pipe <strong>echo "$VAR" | base64 -d | bash</strong>. So the shape alone never convicts. Decode the blob; the decoded command is the finding. A blob that decodes to <strong>touch /tmp/...; sleep 900</strong> with no provisioning context is the attack. A blob that decodes to your own cloud-init user-data is Tuesday.</p></div>
               <div class="codeblock codeblock-scrollhint">
                 <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="ps -ef | grep '[b]ase64'"><span data-label>COPY</span></button></div>
                 <pre>$ ps -ef | grep '[b]ase64'
 root          14       1  0 12:14 ?        00:00:00 sh -c echo dG91Y2ggL3RtcC9naDAxMS8ubWFya2VyOyBzbGVlcCA5MDA= | base64 -d | sh</pre>
               </div>
               <div class="prose"><p>There it is: the wrapper, with the full blob in its command line. The detection keyed on <strong>base64 -d</strong> inside a <strong>sh -c</strong>, not on any property of the blob. The blob is evidence to be opened, not a string to be matched.</p></div>
+              <div class="prose"><p>Good versus bad, concrete: good is a decode pipeline whose decoded content matches a known provisioning source (cloud-init user-data, a CI job definition, an installer you can name). Bad is a decode pipeline whose decoded content references paths and persistence no legitimate job owns (/tmp markers, sleep loops, outbound fetches). The check is always on the decoded form.</p></div>
             </div>
           </div>
           <div class="step">
@@ -311,18 +312,34 @@ root          20      18  0 12:14 ?        00:00:00 sleep 900</pre>
             <div class="step-num">4</div>
             <div>
               <h3>Break it down</h3>
-              <div class="prose"><p>Kill the wrapper by its decoder pattern, kill the sleeper, remove the lab directory. Confirm each kill landed before moving on.</p></div>
+              <div class="prose"><p>Identify the wrapper by the decoder's shape, confirm it from its own command line, and kill that pid, not the pattern. Then kill the sleeper by the name the decoded command gave you. Confirm each kill landed before moving on.</p></div>
               <div class="codeblock codeblock-scrollhint">
-                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="pkill -f 'base64 -d'; sleep 0.5; pgrep -af base64 || echo &quot;wrapper gone&quot;&#10;pkill -f '[s]leep 900'; sleep 0.5; pgrep -af 'sleep 900' || echo &quot;sleeper gone&quot;&#10;rm -rf /tmp/gh011; ls /tmp/gh011 2&gt;/dev/null || echo &quot;lab directory gone&quot;"><span data-label>COPY</span></button></div>
-                <pre>$ pkill -f 'base64 -d'; sleep 0.5; pgrep -af base64 || echo "wrapper gone"
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="WPID=$(pgrep -f 'base64 -d' | head -1); echo &quot;wrapper pid=$WPID&quot;&#10;tr '\0' ' ' &lt; /proc/$WPID/cmdline; echo&#10;kill &quot;$WPID&quot;; sleep 0.5; kill -0 &quot;$WPID&quot; 2&gt;/dev/null || echo &quot;wrapper gone&quot;&#10;pkill -f '[s]leep 900'; sleep 0.5; pgrep -af 'sleep 900' || echo &quot;sleeper gone&quot;"><span data-label>COPY</span></button></div>
+                <pre>$ WPID=$(pgrep -f 'base64 -d' | head -1); echo "wrapper pid=$WPID"
+wrapper pid=4
+$ tr '\0' ' ' &lt; /proc/$WPID/cmdline; echo
+sh -c echo dG91Y2ggL3RtcC9naDAxMS8ubWFya2VyOyBzbGVlcCA5MDA= | base64 -d | sh 
+$ kill "$WPID"; sleep 0.5; kill -0 "$WPID" 2&gt;/dev/null || echo "wrapper gone"
 wrapper gone
-$ pkill -f '[s]leep 900'; sleep 0.5; pgrep -af 'sleep 900' || echo "sleeper gone"
 Terminated
-sleeper gone
-$ rm -rf /tmp/gh011; ls /tmp/gh011 2&gt;/dev/null || echo "lab directory gone"
+$ pkill -f '[s]leep 900'; sleep 0.5; pgrep -af 'sleep 900' || echo "sleeper gone"
+sleeper gone</pre>
+              </div>
+              <div class="prose"><p>Decode first, aim at pids, never at the decoder's name. The old pattern kill, <strong>pkill -f 'base64 -d'</strong>, is gone from this page because testing showed it kills innocent long-lived decoders: the pattern matches the decoder's command line, not malice. The innocent decoder from that test survived this pid-scoped procedure. The <strong>[s]leep</strong> bracket guard stays.</p></div>
+              <div class="prose"><p>Before the files go, scope the incident: persistence, timeline, ownership.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="ls -la /tmp/gh011/&#10;stat -c '%y %U %n' /tmp/gh011/.marker&#10;crontab -l 2&gt;/dev/null; systemctl --user list-timers --all 2&gt;/dev/null | head&#10;grep -rl 'gh011' ~/.bashrc ~/.profile /etc/cron* 2&gt;/dev/null"><span data-label>COPY</span></button></div>
+                <pre>$ ls -la /tmp/gh011/                                   # the decoded command named this dir; list all of it, dots included
+$ stat -c '%y %U %n' /tmp/gh011/.marker                # when it arrived, who owns it
+$ crontab -l 2&gt;/dev/null; systemctl --user list-timers --all 2&gt;/dev/null | head  # persistence
+$ grep -rl 'gh011' ~/.bashrc ~/.profile /etc/cron* 2&gt;/dev/null                  # launch hooks</pre>
+              </div>
+              <div class="prose"><p>In this lab the order was only a pipeline, and pipelines die when their processes do. On a real box, the sweep above decides whether it was only a pipeline: the decoded command tells you what it did, not what else is scheduled.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="rm -rf /tmp/gh011; ls /tmp/gh011 2&gt;/dev/null || echo &quot;lab directory gone&quot;"><span data-label>COPY</span></button></div>
+                <pre>$ rm -rf /tmp/gh011; ls /tmp/gh011 2&gt;/dev/null || echo "lab directory gone"
 lab directory gone</pre>
               </div>
-              <div class="prose"><p>Nothing persists: no scheduled task, no service, no file outside the lab directory. The sealed order was a pipeline, and pipelines die when their processes do.</p></div>
               <div class="verdict green">
                 <span class="mlabel">Detection verified</span>
                 <p>One grep on the decoder's shape found the sealed order; one decode read it. The defender never needed to recognize the payload's word, because the payload's word never appeared. Read the decoded form, not the typed form, and the envelope opens every time.</p>
@@ -337,16 +354,18 @@ lab directory gone</pre>
           <div class="step">
             <div class="step-num">1</div>
             <div>
-              <h3>Mitigate: decode, then kill by pattern</h3>
-              <div class="prose"><p>Decode first, so you know what you are killing; then kill the wrapper and the payload by their patterns and remove the lab. It is an ordinary unprivileged pipeline. Nothing here needs root to remove.</p></div>
+              <h3>Mitigate: decode, then kill by PID</h3>
+              <div class="prose"><p>Decode first, so you know what you are killing; then kill the wrapper by its pid and the payload by the name the decoded command gave you, and remove the lab. The pattern kill is gone from this page because testing showed pkill -f 'base64 -d' kills innocent long-lived decoders: the pattern matches the decoder's command line, not malice. It is an ordinary unprivileged pipeline. Nothing here needs root to remove.</p></div>
               <div class="codeblock codeblock-scrollhint">
-                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo 'dG91Y2ggL3RtcC9naDAxMS8ubWFya2VyOyBzbGVlcCA5MDA=' | base64 -d&#10;pkill -f 'base64 -d'; sleep 0.5; pgrep -af base64 || echo &quot;wrapper gone&quot;&#10;pkill -f '[s]leep 900'; sleep 0.5; pgrep -af 'sleep 900' || echo &quot;sleeper gone&quot;&#10;rm -rf /tmp/gh011; ls /tmp/gh011 2&gt;/dev/null || echo &quot;lab directory gone&quot;"><span data-label>COPY</span></button></div>
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo 'dG91Y2ggL3RtcC9naDAxMS8ubWFya2VyOyBzbGVlcCA5MDA=' | base64 -d&#10;WPID=$(pgrep -f 'base64 -d' | head -1); echo &quot;wrapper pid=$WPID&quot;&#10;kill &quot;$WPID&quot;; sleep 0.5; kill -0 &quot;$WPID&quot; 2&gt;/dev/null || echo &quot;wrapper gone&quot;&#10;pkill -f '[s]leep 900'; sleep 0.5; pgrep -af 'sleep 900' || echo &quot;sleeper gone&quot;&#10;rm -rf /tmp/gh011; ls /tmp/gh011 2&gt;/dev/null || echo &quot;lab directory gone&quot;"><span data-label>COPY</span></button></div>
                 <pre>$ echo 'dG91Y2ggL3RtcC9naDAxMS8ubWFya2VyOyBzbGVlcCA5MDA=' | base64 -d
 touch /tmp/gh011/.marker; sleep 900
-$ pkill -f 'base64 -d'; sleep 0.5; pgrep -af base64 || echo "wrapper gone"
+$ WPID=$(pgrep -f 'base64 -d' | head -1); echo "wrapper pid=$WPID"
+wrapper pid=4
+$ kill "$WPID"; sleep 0.5; kill -0 "$WPID" 2&gt;/dev/null || echo "wrapper gone"
 wrapper gone
-$ pkill -f '[s]leep 900'; sleep 0.5; pgrep -af 'sleep 900' || echo "sleeper gone"
 Terminated
+$ pkill -f '[s]leep 900'; sleep 0.5; pgrep -af 'sleep 900' || echo "sleeper gone"
 sleeper gone
 $ rm -rf /tmp/gh011; ls /tmp/gh011 2&gt;/dev/null || echo "lab directory gone"
 lab directory gone</pre>
@@ -365,7 +384,18 @@ lab directory gone</pre>
             <div class="step-num">3</div>
             <div>
               <h3>Prevent: narrow what a shell may launch</h3>
-              <div class="prose"><p>Execution policy and interpreter allowlisting decide which binaries may run at all. The forgery needs a decoder; take the decoders off the menu and the sealed order has no envelope to arrive in.</p></div>
+              <div class="prose"><p>Execution policy and interpreter allowlisting decide which binaries may run at all. Prevention does not remove decoding; it narrows what may execute the decoded output. Server builds drop interpreters they do not need. Verified on this platform: blocking base64 changes nothing while python3 and openssl ship, so the control is "few interpreters, all logged", never "no decoders".</p></div>
+              <div class="prose"><p>The executable part: know your interpreters, log their launches.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="for b in python3 perl openssl base64; do command -v $b; done&#10;auditctl -a exit,always -F arch=b64 -S execve -F path=/usr/bin/base64 -k decoder-exec"><span data-label>COPY</span></button></div>
+                <pre>$ for b in python3 perl openssl base64; do command -v $b; done   # inventory what can decode here
+/usr/bin/python3
+/usr/bin/perl
+/usr/bin/openssl
+/usr/bin/base64
+$ auditctl -a exit,always -F arch=b64 -S execve -F path=/usr/bin/base64 -k decoder-exec</pre>
+              </div>
+              <div class="prose"><p>Pair with decode-at-collection: the SIEM decodes base64-looking argv at ingest, so the analyst searches the decoded tree instead of opening envelopes by hand.</p></div>
               <div class="callout"><p><strong>Honest limit.</strong> Allowlisting carries a usability cost: every unlisted script, installer, and admin one-liner needs an exception. It does not stop an attacker who is already allowed to run a shell; it only narrows what the shell may launch. Blocking base64 does not block the idea: tr, xxd, and python -c all decode. The first principle outlives every control: read the decoded form, not the typed form.</p></div>
               <div class="verdict green">
                 <span class="mlabel">Countermeasures verified</span>
