@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>GH-011 The Sealed Order (T1027.010): GHOSTLIGHT</title>
+<meta name="description" content="T1027.010 Command Obfuscation, reproduced on Ubuntu 24.04: the same payload runs readable and as an unreadable base64 blob. Grep finds nothing to grep, because the typed form holds no suspicious word. The defender decodes the envelope instead.">
+<link rel="canonical" href="https://dillingerstaffing.github.io/ghostlight/ops/011-sealed-order/">
+<meta property="og:title" content="GH-011 The Sealed Order (T1027.010): GHOSTLIGHT">
+<meta property="og:description" content="T1027.010 Command Obfuscation, reproduced on Ubuntu 24.04: the same payload runs readable and as an unreadable base64 blob. Grep finds nothing to grep, because the typed form holds no suspicious word. The defender decodes the envelope instead.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dillingerstaffing.github.io/ghostlight/ops/011-sealed-order/">
+<meta property="og:site_name" content="GHOSTLIGHT">
+<meta property="og:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="GH-011 The Sealed Order (T1027.010): GHOSTLIGHT">
+<meta name="twitter:description" content="T1027.010 Command Obfuscation, reproduced on Ubuntu 24.04: the same payload runs readable and as an unreadable base64 blob. Grep finds nothing to grep, because the typed form holds no suspicious word. The defender decodes the envelope instead.">
+<meta name="twitter:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23ece6d5'/%3E%3Ccircle cx='256' cy='196' r='104' fill='none' stroke='%23241f17' stroke-width='20'/%3E%3Cline x1='256' y1='152' x2='256' y2='240' stroke='%238c3f22' stroke-width='16'/%3E%3Cline x1='256' y1='300' x2='256' y2='424' stroke='%23241f17' stroke-width='14'/%3E%3Cline x1='200' y1='424' x2='312' y2='424' stroke='%23241f17' stroke-width='18'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+<link rel="manifest" href="../../assets/manifest.webmanifest">
+<meta name="theme-color" content="#0a0c0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GHOSTLIGHT">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<script>
+(function () {
+  // Theme: notebook is the default; a stored visitor choice wins.
+  // Runs before the stylesheet is parsed so the first paint is already
+  // the right theme (no flash of the wrong one).
+  try {
+    var t = localStorage.getItem('emi-site-theme');
+    var theme = t === 'classic' ? 'classic' : 'notebook';
+    document.documentElement.dataset.theme = theme;
+    var m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute('content', theme === 'classic' ? '#0a0c0f' : '#ece6d5');
+  } catch (e) {
+    document.documentElement.dataset.theme = 'notebook';
+  }
+})();
+</script>
+<link rel="stylesheet" href="../../assets/site.css?v=31c4e11f">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"GH-011 The Sealed Order (T1027.010): GHOSTLIGHT",
+"url":"https://dillingerstaffing.github.io/ghostlight/ops/011-sealed-order/","description":"T1027.010 Command Obfuscation, reproduced on Ubuntu 24.04: the same payload runs readable and as an unreadable base64 blob. Grep finds nothing to grep, because the typed form holds no suspicious word. The defender decodes the envelope instead.",
+"author":{"@type":"Person","name":"Chris Dillinger","url":"https://www.linkedin.com/in/christopherdillinger/"},
+"inLanguage":"en"}
+</script>
+</head>
+<body>
+
+<header class="site-header">
+  <a class="brand" href="../../index.html" aria-label="GHOSTLIGHT home">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+    <span class="brand-name">GHOSTLIGHT</span>
+  </a>
+  <nav class="site-nav">
+    <a href="../../method.html">METHOD</a>
+    <a href="../../index.html">FILES</a>
+    <button class="theme-toggle" type="button" aria-label="Switch to dark field dossier theme" title="Switch theme">
+      <span class="theme-toggle-mark" aria-hidden="true"><i></i><i></i></span>
+    </button>
+  </nav>
+</header>
+
+<div class="onboard" data-onboard hidden>
+  <span><strong>How to read a file:</strong> every file follows the six-phase structure below. <span class="k-green">Green</span> is verified, <span class="k-red">red</span> is hostile.</span>
+  <button aria-label="Dismiss">GOT IT</button>
+</div>
+
+<div class="page" data-op="011">
+  <div class="wrap">
+    <section class="op-hero">
+      <div class="op-kicker">
+        <span class="case-no">GH-011</span>
+        <a class="tech-id" href="https://attack.mitre.org/techniques/T1027/010/" rel="noopener">T1027.010</a>
+        <span class="phase-tag red">PHASE RED INSIDE</span>
+      </div>
+      <h1>The Sealed Order</h1>
+      <p class="lede">This command touches a marker file and sleeps: touch /tmp/gh011/.marker; sleep 900. This one does exactly the same: dG91Y2ggL3RtcC9naDAxMS8ubWFya2VyOyBzbGVlcCA5MDA=. Same bytes, same effect, unreadable text. The process list shows both honestly; a defender grepping for the wrong word sees only one of them. This file runs both, then opens the envelope.</p>
+      <div class="op-meta-grid">
+        <div class="op-meta"><span class="mlabel">Technique</span><span class="mvalue">Command Obfuscation (T1027.010)</span></div>
+        <div class="op-meta"><span class="mlabel">Target OS</span><span class="mvalue">Ubuntu 24.04.5 LTS</span></div>
+        <div class="op-meta"><span class="mlabel">Toolchain</span><span class="mvalue">bash, coreutils</span></div>
+        <div class="op-meta"><span class="mlabel">Level</span><span class="mvalue">Beginner</span></div>
+        <div class="op-meta"><span class="mlabel">Time</span><span class="mvalue">20 min</span></div>
+      </div>
+      <div class="objectives">
+        <h2>OBJECTIVES</h2>
+        <ol>
+          <li data-phase="phase-red"><span class="box"></span>Run the same payload twice, once readable and once base64-sealed, and watch the marker prove both ran</li>
+          <li data-phase="phase-blue"><span class="box"></span>Spot the decoder-shaped process line and decode the blob yourself</li>
+          <li data-phase="countermeasures"><span class="box"></span>Log full command lines and narrow which decoders may run</li>
+          <li data-phase="debrief"><span class="box"></span>Take the IOC checklist and the one-sentence lesson</li>
+        </ol>
+      </div>
+    </section>
+
+    <div class="op-layout">
+      <nav class="rail" aria-label="Phases">
+        <span class="mlabel">Phases</span>
+        <ol>
+          <li><a href="#intel-brief"><span class="pnum">01</span>INTEL BRIEF<span class="tick"></span></a></li>
+          <li><a href="#target-environment"><span class="pnum">02</span>TARGET ENV<span class="tick"></span></a></li>
+          <li><a href="#phase-red"><span class="pnum">03</span>PHASE RED<span class="tick"></span></a></li>
+          <li><a href="#phase-blue"><span class="pnum">04</span>PHASE BLUE<span class="tick"></span></a></li>
+          <li><a href="#countermeasures"><span class="pnum">05</span>COUNTERMEASURES<span class="tick"></span></a></li>
+          <li><a href="#debrief"><span class="pnum">06</span>DEBRIEF<span class="tick"></span></a></li>
+        </ol>
+      </nav>
+
+      <div class="op-content">
+        <section class="phase" id="intel-brief">
+          <div class="phase-head"><span class="phase-num">01</span><h2>Intel Brief</h2><span class="phase-tag neutral">CONTEXT</span></div>
+          <p class="lede">MITRE ATT&amp;CK <a href="https://attack.mitre.org/techniques/T1027/010/" rel="noopener">T1027.010</a>: adversaries rewrite commands so a human reader cannot tell what they do, while the machine still can. This file runs the same payload twice, once readable and once sealed, and shows why the defender must read the decoded form, not the typed form.</p>
+          <div class="prose">
+            <p><strong>Why this technique.</strong> The defender's fastest tools are string tools: grep across the process table, SIEM rules matching suspicious words, an eyeball scan of command lines. All of them read the typed form of the command, the exact characters the attacker chose to type. Obfuscation rewrites the command so those characters say nothing. The command still runs, because the machine does not read the typed form; it decodes first, then runs. The technique attacks the reader, not the machine.</p>
+            <p><strong>Why not just grep for the bad word.</strong> That is the obvious defensive move, and this file runs it against the real thing: <strong>ps -ef | grep '[m]arker'</strong> returns nothing. The marker file is sitting in /tmp/gh011, the payload ran, and grep reports an empty result with a straight face. The typed form contains no suspicious string at all, so string-matching has nothing to match. A control that checks the typed form cannot beat a technique that rewrites the typed form.</p>
+            <p><strong>Why not the attacker's simpler moves.</strong> A forged name or a hidden directory hides WHERE the thing is; sealing the order hides WHAT the command says. A defender who finds the hidden directory still reads the payload; a defender who reads the sealed command line reads nothing. The two hide different things, so they need different observers.</p>
+            <p><strong>The mechanism, in one line.</strong> <strong>Obfuscation</strong> is rewriting a command so a human reader cannot tell what it does, while the machine still can. <strong>Base64</strong> is an encoding that turns any bytes into plain letters and digits, so the command survives being pasted into text; <strong>base64 -d</strong> turns it back. The sealed order runs <strong>echo &lt;blob&gt; | base64 -d | sh</strong>: the shell decodes the blob, then executes the result. Nothing secret is happening; the decoding is the plainest operation in the pipeline, which is exactly why it works. Note the boundary: this is encoding, not encryption. Anyone holding the blob can decode it. That is the attacker's tradeoff and the defender's opening.</p>
+            <p><strong>The concrete case, before the abstraction.</strong> The payload is <strong>touch /tmp/gh011/.marker; sleep 900</strong>. Its base64 form is one line of unreadable text:</p>
+            <div class="codeblock codeblock-scrollhint">
+              <div class="codeblock-bar"><span class="mlabel">blob</span><button class="copy-btn" data-copy="dG91Y2ggL3RtcC9naDAxMS8ubWFya2VyOyBzbGVlcCA5MDA="><span data-label>COPY</span></button></div>
+              <pre>dG91Y2ggL3RtcC9naDAxMS8ubWFya2VyOyBzbGVlcCA5MDA=</pre>
+            </div>
+            <p>Check the translation by hand: decoding the blob prints the original command.</p>
+            <div class="codeblock codeblock-scrollhint">
+              <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo 'dG91Y2ggL3RtcC9naDAxMS8ubWFya2VyOyBzbGVlcCA5MDA=' | base64 -d"><span data-label>COPY</span></button></div>
+              <pre>$ echo 'dG91Y2ggL3RtcC9naDAxMS8ubWFya2VyOyBzbGVlcCA5MDA=' | base64 -d
+touch /tmp/gh011/.marker; sleep 900</pre>
+            </div>
+            <p>The blob is 44 characters for a 33-character command, about a third longer, roughly one line of this text. That length is the only price the attacker pays.</p>
+          </div>
+          <div class="callout"><p><strong>Scope.</strong> T1027 covers obfuscated files and information broadly: encoded payloads, encrypted blobs, stacked encodings. This file works the command-obfuscation case end to end: the sealed command line, and the decoder's-eye view that opens it.</p></div>
+        </section>
+
+        <section class="phase" id="target-environment">
+          <div class="phase-head"><span class="phase-num">02</span><h2>Target Environment</h2><span class="phase-tag neutral">LOADOUT</span></div>
+          <p class="lede">Ubuntu 24.04.5 LTS, x86-64, in a disposable VM used only for this lab. The attack needs no privilege at all: any user can pipe base64 into sh. Run it on a throwaway box anyway, because you are about to practice lying to your own tools.</p>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Build the lab</h3>
+              <div class="prose"><p>One disposable directory. Everything the payload touches lives inside it, so cleanup is a single rm.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="rm -rf /tmp/gh011; mkdir -p /tmp/gh011 &amp;&amp; cd /tmp/gh011 &amp;&amp; pwd"><span data-label>COPY</span></button></div>
+                <pre>$ rm -rf /tmp/gh011; mkdir -p /tmp/gh011 &amp;&amp; cd /tmp/gh011 &amp;&amp; pwd
+/tmp/gh011</pre>
+              </div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>The payload: one line</h3>
+              <div class="prose"><p>Two statements. <strong>touch /tmp/gh011/.marker</strong> creates the marker file, the proof the payload ran: inert, one file, inside its own lab directory. The semicolon separates commands. <strong>sleep 900</strong> sleeps fifteen minutes, so the process stays visible on the table long enough to inspect, then dies on its own. Nine hundred seconds is about a quarter hour, long enough for the whole lab, short enough to need no cleanup if you forget.</p></div>
+<div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">sh: payload</span><button class="copy-btn" data-copy="touch /tmp/gh011/.marker; sleep 900"><span data-label>COPY</span></button></div>
+                <pre>touch /tmp/gh011/.marker; sleep 900
+</pre>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="phase-red">
+          <div class="phase-head"><span class="phase-num">03</span><h2>Phase Red: seal the order</h2><span class="phase-tag red">ATTACK</span></div>
+          <p class="lede">The same payload, twice: first in the open, then sealed. The marker file is the witness each time. Watch what the process table tells a defender who greps for the payload's name.</p>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">68.8s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/sealed-red.jpg" aria-label="Screen recording: SEALED RED, operator@lab">
+              <source src="../../assets/vid/sealed-red.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> The payload runs in plain text, then as a base64 blob. Grep for the suspicious word finds nothing; the marker file says otherwise. Every command below is copy-pasteable.</figcaption>
+          </figure>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>The plain order</h3>
+              <div class="prose"><p>Baseline first: the readable command, so the reader knows what the hidden version is hiding. Every part of this is inspectable by a tired operator.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="touch /tmp/gh011/.marker; sleep 900 &amp;&#10;sleep 1; test -e /tmp/gh011/.marker &amp;&amp; echo &quot;payload ran: marker created&quot;"><span data-label>COPY</span></button></div>
+                <pre>$ touch /tmp/gh011/.marker; sleep 900 &amp;
+[1] 7
+$ sleep 1; test -e /tmp/gh011/.marker &amp;&amp; echo "payload ran: marker created"
+payload ran: marker created</pre>
+              </div>
+              <div class="prose"><p>The marker appeared, which proves the payload ran. The command line says exactly what it did: touch a file, sleep. This is the reference the sealed version will be measured against.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>Clean the slate</h3>
+              <div class="prose"><p>Kill the plain run and remove its marker, so the next run has to prove itself instead of riding on the old evidence.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="pkill -f '[s]leep 900'; sleep 0.5; rm -f /tmp/gh011/.marker; echo &quot;slate clean&quot;"><span data-label>COPY</span></button></div>
+                <pre>$ pkill -f '[s]leep 900'; sleep 0.5; rm -f /tmp/gh011/.marker; echo "slate clean"
+slate clean</pre>
+              </div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>The sealed order</h3>
+              <div class="prose"><p>Encode the exact same command, then run the blob through the decoder. The <strong>-n</strong> keeps echo from adding a newline, so the blob encodes the command and nothing else.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo -n 'touch /tmp/gh011/.marker; sleep 900' | base64&#10;sh -c 'echo dG91Y2ggL3RtcC9naDAxMS8ubWFya2VyOyBzbGVlcCA5MDA= | base64 -d | sh' &amp;&#10;sleep 1; test -e /tmp/gh011/.marker &amp;&amp; echo &quot;same effect: marker created&quot;"><span data-label>COPY</span></button></div>
+                <pre>$ echo -n 'touch /tmp/gh011/.marker; sleep 900' | base64
+dG91Y2ggL3RtcC9naDAxMS8ubWFya2VyOyBzbGVlcCA5MDA=
+$ sh -c 'echo dG91Y2ggL3RtcC9naDAxMS8ubWFya2VyOyBzbGVlcCA5MDA= | base64 -d | sh' &amp;
+[1] 14
+$ sleep 1; test -e /tmp/gh011/.marker &amp;&amp; echo "same effect: marker created"
+same effect: marker created</pre>
+              </div>
+              <div class="prose"><p>Identical effect, unreadable command line. The blob says nothing about markers, touching, or sleeping, and no human could tell you what it does by looking at it. The shell decoded it before running it; that decoding is the whole attack, and it is also the whole detection.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div>
+              <h3>The greppable lie</h3>
+              <div class="prose"><p>Now the defender's obvious move: grep the process table for the suspicious word. The bracket trick in <strong>'[m]arker'</strong> keeps grep from matching its own process line, so the empty result is honest, not an artifact.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="ps -ef | grep '[m]arker' || echo &quot;grep found nothing&quot;&#10;ps -ef | grep '[b]ase64'"><span data-label>COPY</span></button></div>
+                <pre>$ ps -ef | grep '[m]arker' || echo "grep found nothing"
+grep found nothing
+$ ps -ef | grep '[b]ase64'
+root          14       1  0 12:14 ?        00:00:00 sh -c echo dG91Y2ggL3RtcC9naDAxMS8ubWFya2VyOyBzbGVlcCA5MDA= | base64 -d | sh</pre>
+              </div>
+              <div class="prose"><p>The suspicious word appears nowhere in the typed form, so the grep finds nothing, while the marker file proves the payload ran. The second grep shows what string-matching CAN see: the gibberish line itself, a <strong>sh -c</strong> wrapping <strong>base64 -d</strong>. Nobody hand-types that shape. The tell is the decoder in the pipeline, not any word inside the blob.</p></div>
+              <div class="verdict red">
+                <span class="mlabel">Stealth confirmed</span>
+                <p>The same payload ran twice, and the marker file witnessed both runs. The plain command greps cleanly; the sealed command cannot be grepped for at all, because the typed form contains no word worth grepping. String-matching the command line reads what the attacker typed, and the attacker chose to type nothing readable. The machine still decoded and ran it; the defender did not.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="phase-blue">
+          <div class="phase-head"><span class="phase-num">04</span><h2>Phase Blue: open the envelope</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">The shell had to decode the blob to run it. The defender runs the same operation in reverse: copy the blob, decode it, read the real command. The envelope was never sealed against the defender, only against the reader.</p>
+          <div class="prose">
+            <p>Here is the trap: staring at the gibberish line, declaring it suspicious, and moving on without reading it. Suspicious is not a finding. The command the blob decodes to is the finding, and it costs one pipeline to read.</p>
+          </div>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot blue" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">53.9s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/sealed-blue.jpg" aria-label="Screen recording: SEALED BLUE, operator@lab">
+              <source src="../../assets/vid/sealed-blue.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> The gibberish process line is found, the blob is decoded by hand, and the real command reads in plain text. Every command below is copy-pasteable.</figcaption>
+          </figure>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>The tell</h3>
+              <div class="prose"><p>Watch for the shape, not the words: a process line that decodes its own command. Legitimate software does not hand-type <strong>sh -c 'echo &lt;blob&gt; | base64 -d | sh'</strong>; an attacker sealing an order does.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="ps -ef | grep '[b]ase64'"><span data-label>COPY</span></button></div>
+                <pre>$ ps -ef | grep '[b]ase64'
+root          14       1  0 12:14 ?        00:00:00 sh -c echo dG91Y2ggL3RtcC9naDAxMS8ubWFya2VyOyBzbGVlcCA5MDA= | base64 -d | sh</pre>
+              </div>
+              <div class="prose"><p>There it is: the wrapper, with the full blob in its command line. The detection keyed on <strong>base64 -d</strong> inside a <strong>sh -c</strong>, not on any property of the blob. The blob is evidence to be opened, not a string to be matched.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>Open the envelope</h3>
+              <div class="prose"><p>Copy the blob out of the command line and run it through the same decoder the shell used. The shell decoded it to run it; the defender decodes it to read it. Same operation, both directions.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo 'dG91Y2ggL3RtcC9naDAxMS8ubWFya2VyOyBzbGVlcCA5MDA=' | base64 -d"><span data-label>COPY</span></button></div>
+                <pre>$ echo 'dG91Y2ggL3RtcC9naDAxMS8ubWFya2VyOyBzbGVlcCA5MDA=' | base64 -d
+touch /tmp/gh011/.marker; sleep 900</pre>
+              </div>
+              <div class="prose"><p>The real command prints in plain text: touch a marker, sleep. The envelope opened because it was never locked, only folded. Encoding hides the command from readers; it cannot hide it from anyone willing to decode.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>Confirm the effect</h3>
+              <div class="prose"><p>The decoded command predicts two effects. Check both against the system, not just against the blob.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="test -e /tmp/gh011/.marker &amp;&amp; echo &quot;marker exists: the sealed order ran&quot;&#10;ps -ef | grep '[s]leep 900'"><span data-label>COPY</span></button></div>
+                <pre>$ test -e /tmp/gh011/.marker &amp;&amp; echo "marker exists: the sealed order ran"
+marker exists: the sealed order ran
+$ ps -ef | grep '[s]leep 900'
+root          20      18  0 12:14 ?        00:00:00 sleep 900</pre>
+              </div>
+              <div class="prose"><p>The marker file exists and a <strong>sleep 900</strong> process is on the table. The reading is confirmed: the decoded command matches the running reality.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div>
+              <h3>Break it down</h3>
+              <div class="prose"><p>Kill the wrapper by its decoder pattern, kill the sleeper, remove the lab directory. Confirm each kill landed before moving on.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="pkill -f 'base64 -d'; sleep 0.5; pgrep -af base64 || echo &quot;wrapper gone&quot;&#10;pkill -f '[s]leep 900'; sleep 0.5; pgrep -af 'sleep 900' || echo &quot;sleeper gone&quot;&#10;rm -rf /tmp/gh011; ls /tmp/gh011 2&gt;/dev/null || echo &quot;lab directory gone&quot;"><span data-label>COPY</span></button></div>
+                <pre>$ pkill -f 'base64 -d'; sleep 0.5; pgrep -af base64 || echo "wrapper gone"
+wrapper gone
+$ pkill -f '[s]leep 900'; sleep 0.5; pgrep -af 'sleep 900' || echo "sleeper gone"
+Terminated
+sleeper gone
+$ rm -rf /tmp/gh011; ls /tmp/gh011 2&gt;/dev/null || echo "lab directory gone"
+lab directory gone</pre>
+              </div>
+              <div class="prose"><p>Nothing persists: no scheduled task, no service, no file outside the lab directory. The sealed order was a pipeline, and pipelines die when their processes do.</p></div>
+              <div class="verdict green">
+                <span class="mlabel">Detection verified</span>
+                <p>One grep on the decoder's shape found the sealed order; one decode read it. The defender never needed to recognize the payload's word, because the payload's word never appeared. Read the decoded form, not the typed form, and the envelope opens every time.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="countermeasures">
+          <div class="phase-head"><span class="phase-num">05</span><h2>Countermeasures</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">Three moves, in order: take it down, watch for its shape, narrow the stage. Each is one way, not the way.</p>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Mitigate: decode, then kill by pattern</h3>
+              <div class="prose"><p>Decode first, so you know what you are killing; then kill the wrapper and the payload by their patterns and remove the lab. It is an ordinary unprivileged pipeline. Nothing here needs root to remove.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo 'dG91Y2ggL3RtcC9naDAxMS8ubWFya2VyOyBzbGVlcCA5MDA=' | base64 -d&#10;pkill -f 'base64 -d'; sleep 0.5; pgrep -af base64 || echo &quot;wrapper gone&quot;&#10;pkill -f '[s]leep 900'; sleep 0.5; pgrep -af 'sleep 900' || echo &quot;sleeper gone&quot;&#10;rm -rf /tmp/gh011; ls /tmp/gh011 2&gt;/dev/null || echo &quot;lab directory gone&quot;"><span data-label>COPY</span></button></div>
+                <pre>$ echo 'dG91Y2ggL3RtcC9naDAxMS8ubWFya2VyOyBzbGVlcCA5MDA=' | base64 -d
+touch /tmp/gh011/.marker; sleep 900
+$ pkill -f 'base64 -d'; sleep 0.5; pgrep -af base64 || echo "wrapper gone"
+wrapper gone
+$ pkill -f '[s]leep 900'; sleep 0.5; pgrep -af 'sleep 900' || echo "sleeper gone"
+Terminated
+sleeper gone
+$ rm -rf /tmp/gh011; ls /tmp/gh011 2&gt;/dev/null || echo "lab directory gone"
+lab directory gone</pre>
+              </div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>Monitor: log the process creations</h3>
+              <div class="prose"><p>Process-creation logging with full command lines (auditd execve rules) catches the sealed order at birth: the wrapper's command line, blob included, is on record before it can run. D3FEND names the heavier forms <a href="https://d3fend.mitre.org/technique/d3f:ScriptExecutionAnalysis/" rel="noopener">Script Execution Analysis (D3-SEA)</a> and <a href="https://d3fend.mitre.org/technique/d3f:ExecutableAllowlisting/" rel="noopener">Executable Allowlisting (D3-EAL)</a>: analyze what the script does as it runs, and authenticate files before opening them. The mapping is honest about its edges: the D3FEND 1.6.0 release carries no defender specific to the .010 sub-technique, so these two are the grounded best-practice pair for this shape, not claimed .010 defenders.</p></div>
+              <div class="callout"><p><strong>Honest limit.</strong> Command-line logging captures the typed form, so the sealed order lands in the log as gibberish. Without decode-at-collection or an EDR that resolves the decoded tree, the log becomes a haystack of blobs and the reading cost falls on the human. An attacker can also stack encodings, base64 inside base64, or tr and xxd instead of base64. Each layer costs the defender one decode, and the layers never stop decoding; they only multiply the work.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>Prevent: narrow what a shell may launch</h3>
+              <div class="prose"><p>Execution policy and interpreter allowlisting decide which binaries may run at all. The forgery needs a decoder; take the decoders off the menu and the sealed order has no envelope to arrive in.</p></div>
+              <div class="callout"><p><strong>Honest limit.</strong> Allowlisting carries a usability cost: every unlisted script, installer, and admin one-liner needs an exception. It does not stop an attacker who is already allowed to run a shell; it only narrows what the shell may launch. Blocking base64 does not block the idea: tr, xxd, and python -c all decode. The first principle outlives every control: read the decoded form, not the typed form.</p></div>
+              <div class="verdict green">
+                <span class="mlabel">Countermeasures verified</span>
+                <p>The sealed order is an ordinary pipeline, so killing it is trivial. Full command-line logging catches the decoder's shape at birth, and interpreter allowlisting narrows the stage it runs on. None of them reads the blob; the defender still opens every envelope by hand. That is the honest division of labor: automation finds the shape, the human decodes it.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="debrief">
+          <div class="phase-head"><span class="phase-num">06</span><h2>Debrief</h2><span class="phase-tag neutral">TAKEAWAY</span></div>
+          <p class="takeaway">An obfuscated command still has to be decoded before it runs, so the defender never reads the typed form; the defender reads the decoded form.</p>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">IOC checklist: signs this technique was used</span></p></div>
+          <ul class="checklist">
+            <li><span>Process lines containing <strong>base64 -d</strong>, <strong>xxd -r</strong>, <strong>tr</strong>, or <strong>eval</strong> chained into a shell</span></li>
+            <li><span>Long base64-looking blobs inside <strong>sh -c</strong> command lines</span></li>
+            <li><span>A long-lived process like <strong>sleep</strong> whose command line is a single unreadable blob</span></li>
+            <li><span>Process-creation logs where the typed form is encoded but the decoded tree was never resolved</span></li>
+            <li><span>Marker-style artifacts, files touched in <strong>/tmp</strong>, paired with unreadable command lines</span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Reproducibility checklist</span></p></div>
+          <ul class="checklist">
+            <li><span>Verified on <strong>Ubuntu 24.04.5 LTS</strong>, x86-64, on 2026-09-19</span></li>
+            <li><span>Both recordings are real executions on that platform, not simulations</span></li>
+            <li><span>The attack runs fully unprivileged: any user can pipe base64 into sh</span></li>
+            <li><span>Cleanup: pkill -f 'base64 -d'; pkill -f 'sleep 900'; rm -rf /tmp/gh011</span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Sources</span></p></div>
+          <div class="prose"><p><a href="https://attack.mitre.org/techniques/T1027/010/" rel="noopener">MITRE ATT&amp;CK T1027.010: Command Obfuscation</a><br>
+          <a href="https://man7.org/linux/man-pages/man1/base64.1.html" rel="noopener">base64(1)</a> (the encoding and its -d flag)<br>
+          <a href="https://man7.org/linux/man-pages/man1/ps.1.html" rel="noopener">ps(1)</a> (the process table the demo greps)<br>
+          <a href="https://d3fend.mitre.org/" rel="noopener">MITRE D3FEND</a>: <a href="https://d3fend.mitre.org/technique/d3f:ScriptExecutionAnalysis/" rel="noopener">D3-SEA</a>, <a href="https://d3fend.mitre.org/technique/d3f:ExecutableAllowlisting/" rel="noopener">D3-EAL</a> (the mapping carries no .010-specific defender; these are the grounded pair)</p></div>
+        </section>
+
+        <a class="next-file" href="../012-match-legitimate-resource/index.html">
+          <span class="mlabel">Next file</span>
+          <h3>GH-012 Match Legitimate Resource Name or Location</h3>
+          <p>A hostile file can wear a legitimate name in a legitimate place. The next file runs that case, and shows where the trust stops.</p>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <div>
+      <div class="footer-brand">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+        <span class="brand-name" style="font-size:17px">GHOSTLIGHT</span>
+      </div>
+      <p class="footer-note">An independent adversary-stealth research publication. Every command verified on the named OS before publishing. No trackers, no frameworks, no autoplay.</p>
+    </div>
+    <nav class="footer-links">
+      <a href="../../method.html">METHOD</a>
+      <a href="../../index.html">FILES</a>
+      <a href="https://attack.mitre.org/tactics/TA0005/" rel="noopener">MITRE TA0005</a>
+    </nav>
+    <div class="footer-elsewhere">
+      <span class="mlabel">Elsewhere</span><a href="https://dillingerstaffing.github.io/portfolio/" target="_blank" rel="noopener">Portfolio</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/proving-ground/" target="_blank" rel="noopener">Proving Ground</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/tapeout/" target="_blank" rel="noopener">Tapeout</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/old-iron/" target="_blank" rel="noopener">Old Iron</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/unstuck/" target="_blank" rel="noopener">Unstuck</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../../assets/site.js?v=512f8825"></script>
+</body>
+</html>

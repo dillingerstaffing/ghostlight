@@ -46,7 +46,7 @@
   }
 })();
 </script>
-<link rel="stylesheet" href="../../assets/site.css?v=31c4e11f">
+<link rel="stylesheet" href="../../assets/site.css?v=36a0084f">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"TechArticle","headline":"GH-010 The Layered Guest (T1622): GHOSTLIGHT",
 "url":"https://dillingerstaffing.github.io/ghostlight/ops/010-layered-guest/","description":"T1622 Debugger Evasion, reproduced on Ubuntu 24.04: a payload stacks four stealth layers, a tracer gate, a hidden directory, a borrowed name, and a sleeper, then the defender peels each layer with a different observer. Every command verified.",
@@ -492,10 +492,10 @@ syslog-helper ./.sys-cache/sync.sh
           D3FEND 1.6.0 models no defender for T1622, so the wired defenders cover the stacked layers: <a href="https://d3fend.mitre.org/technique/d3f:FileIntegrityMonitoring/" rel="noopener">D3-FIM: File Integrity Monitoring</a>, <a href="https://d3fend.mitre.org/technique/d3f:SoftwareInventory/" rel="noopener">D3-SWI: Software Inventory</a> for the hidden-directory layer, the two that add real coverage there</p></div>
         </section>
 
-        <a class="next-file" href="../011-command-obfuscation/index.html">
+        <a class="next-file" href="../011-sealed-order/index.html">
           <span class="mlabel">Next file</span>
-          <h3>GH-011 Command Obfuscation</h3>
-          <p>Commands can be written so the reader cannot tell what they do. The next file works that case end to end: the obfuscation, and the observer that reads past it.</p>
+          <h3>GH-011 The Sealed Order</h3>
+          <p>The command line lies by omission. The next file seals the order shut, and shows how the defender opens it.</p>
         </a>
       </div>
     </div>
