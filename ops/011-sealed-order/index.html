@@ -46,7 +46,7 @@
   }
 })();
 </script>
-<link rel="stylesheet" href="../../assets/site.css?v=31c4e11f">
+<link rel="stylesheet" href="../../assets/site.css?v=36a0084f">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"TechArticle","headline":"GH-011 The Sealed Order (T1027.010): GHOSTLIGHT",
 "url":"https://dillingerstaffing.github.io/ghostlight/ops/011-sealed-order/","description":"T1027.010 Command Obfuscation, reproduced on Ubuntu 24.04: the same payload runs readable and as an unreadable base64 blob. Grep finds nothing to grep, because the typed form holds no suspicious word. The defender decodes the envelope instead.",
@@ -136,7 +136,7 @@
               <pre>$ echo 'dG91Y2ggL3RtcC9naDAxMS8ubWFya2VyOyBzbGVlcCA5MDA=' | base64 -d
 touch /tmp/gh011/.marker; sleep 900</pre>
             </div>
-            <p>The blob is 44 characters for a 33-character command, about a third longer, roughly one line of this text. That length is the only price the attacker pays.</p>
+            <p>The blob is 48 characters for a 35-character command, about a third longer, roughly one line of this text. That length is the only price the attacker pays.</p>
           </div>
           <div class="callout"><p><strong>Scope.</strong> T1027 covers obfuscated files and information broadly: encoded payloads, encrypted blobs, stacked encodings. This file works the command-obfuscation case end to end: the sealed command line, and the decoder's-eye view that opens it.</p></div>
         </section>

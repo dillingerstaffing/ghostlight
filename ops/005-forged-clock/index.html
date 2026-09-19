@@ -127,7 +127,7 @@
             <p><strong>The concrete case, before the abstraction.</strong> <strong>touch -d '2019-06-11 03:14:00' .systemd-cache</strong> backdates a file created today. <strong>ls -l</strong> reports 2019. <strong>stat</strong> reports Modify: 2019, Change: today. Same file, two stories; only the second one was written by the kernel.</p>
             <p><strong>Terms, earned.</strong> <strong>mtime</strong> is the modification timestamp, the one ls shows, settable by the file's owner. <strong>ctime</strong> is the change timestamp, set by the kernel whenever the file's metadata changes, not settable to an arbitrary value. <strong>btime</strong> is the birth timestamp, the file's creation time. <strong>Timestomp</strong> is T1070.006: rewriting timestamps to mislead forensic timelines.</p>
           </div>
-          <div class="callout"><p><strong>Scope.</strong> T1070, Indicator Removal, has ten sub-techniques, from clearing logs to deleting files. This file works the timestamp one end to end: the forgery every responder's first sort is vulnerable to, and the receipt that survives it.</p></div>
+          <div class="callout"><p><strong>Scope.</strong> T1070, Indicator Removal, has eight sub-techniques, from clearing logs to deleting files. This file works the timestamp one end to end: the forgery every responder's first sort is vulnerable to, and the receipt that survives it.</p></div>
         </section>
 
         <section class="phase" id="target-environment">

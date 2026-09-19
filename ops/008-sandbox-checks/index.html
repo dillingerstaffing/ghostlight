@@ -173,7 +173,7 @@ $ chmod +x /tmp/gh008/sandbox-check.sh</pre>
             <div class="step-num">2</div>
             <div>
               <h3>The payload: the interrogation script</h3>
-              <div class="prose"><p>Twenty lines. Every line glossed, because the whole technique lives in this file.</p></div>
+              <div class="prose"><p>Twenty-three lines. Every line glossed, because the whole technique lives in this file.</p></div>
 <div class="codeblock codeblock-scrollhint">
                 <div class="codeblock-bar"><span class="mlabel">sh: /tmp/gh008/sandbox-check.sh</span><button class="copy-btn" data-copy="#!/bin/sh&#10;# GH-008 lab: the interrogation. A payload's pre-execution check.&#10;# Reads only public system facts. Nothing is planted, nothing hidden,&#10;# nothing persists, no privilege needed.&#10;vendor=$(cat /sys/class/dmi/id/sys_vendor)&#10;product=$(cat /sys/class/dmi/id/product_name)&#10;cpuflag=$(grep -m1 -o 'hypervisor' /proc/cpuinfo || echo absent)&#10;virt=$(systemd-detect-virt)&#10;echo &quot;sys_vendor:    $vendor&quot;&#10;echo &quot;product_name:  $product&quot;&#10;echo &quot;cpu flag:      $cpuflag&quot;&#10;echo &quot;detect-virt:   $virt&quot;&#10;blob=&quot;$vendor $product $virt $cpuflag&quot;&#10;case $blob in&#10;  *[Qq][Ee][Mm][Uu]*|*[Kk][Vv][Mm]*|*VMware*|*VirtualBox*|*Xen*|*[Hh]ypervisor*|*nspawn*)&#10;    echo &quot;verdict: VM/sandbox indicators present&quot; ;;&#10;  *)&#10;    if [ &quot;$virt&quot; != &quot;none&quot; ]; then&#10;      echo &quot;verdict: VM/sandbox indicators present&quot;&#10;    else&#10;      echo &quot;verdict: no VM indicators found&quot;&#10;    fi ;;&#10;esac&#10;"><span data-label>COPY</span></button></div>
                 <pre>#!/bin/sh

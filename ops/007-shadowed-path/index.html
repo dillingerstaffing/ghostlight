@@ -127,7 +127,7 @@
             <p><strong>The concrete case, before the abstraction.</strong> <strong>export PATH=/tmp/gh007/bin:$PATH</strong> puts an attacker directory at the front of the search. The bare name <strong>ls</strong> now runs /tmp/gh007/bin/ls, a script that touches a hidden marker and hands off to the real /bin/ls. The output looks exactly like ls. The marker file proves the shadow ran. <strong>type -a ls</strong> lists every directory that would answer, in order: the shadow first, the real ones after.</p>
             <p><strong>Terms, earned.</strong> <strong>PATH</strong> is the colon-separated list of directories the shell searches for a bare command name. <strong>Resolution order</strong> is the left-to-right checking of those directories; first match wins. <strong>Shadowing</strong> is an early directory answering a name that a later directory also holds. <strong>type -a</strong> is the bash builtin that lists every file that would answer a name, in resolution order.</p>
           </div>
-          <div class="callout"><p><strong>Scope.</strong> T1574 Hijack Execution Flow covers fourteen sub-techniques, from DLL search-order hijacking to service binary replacement. This file works the PATH environment variable case end to end: the search order every interactive shell performs, and the one builtin that reveals who answered.</p></div>
+          <div class="callout"><p><strong>Scope.</strong> T1574 Hijack Execution Flow covers twelve sub-techniques, from DLL search-order hijacking to service binary replacement. This file works the PATH environment variable case end to end: the search order every interactive shell performs, and the one builtin that reveals who answered.</p></div>
         </section>
 
         <section class="phase" id="target-environment">
@@ -157,7 +157,7 @@ $ chmod 777 /tmp/gh007/bin</pre>
             <div class="step-num">2</div>
             <div>
               <h3>The payload: the shadow script</h3>
-              <div class="prose"><p>Six lines. Every line glossed, because the whole attack lives in this file.</p></div>
+              <div class="prose"><p>Five lines. Every line glossed, because the whole attack lives in this file.</p></div>
 <div class="codeblock codeblock-scrollhint">
                 <div class="codeblock-bar"><span class="mlabel">sh: /tmp/gh007/bin/ls</span><button class="copy-btn" data-copy="#!/bin/sh&#10;# GH-007 lab shadow: answers the bare name &quot;ls&quot; from an early PATH dir.&#10;# It leaves a hidden marker so you can prove it ran, then hands off to the real ls.&#10;touch /tmp/gh007/.pwned&#10;exec /bin/ls &quot;$@&quot;&#10;"><span data-label>COPY</span></button></div>
                 <pre>#!/bin/sh

@@ -148,7 +148,7 @@
             <div class="step-num">2</div>
             <div>
               <h3>The payload: sleeper.c</h3>
-              <div class="prose"><p>Twelve lines. It sleeps forever, so it stays on the process list long enough to be inspected. Everything interesting about this file happens to its filename, not its code.</p></div>
+              <div class="prose"><p>Nine lines. It sleeps forever, so it stays on the process list long enough to be inspected. Everything interesting about this file happens to its filename, not its code.</p></div>
 <div class="codeblock codeblock-scrollhint">
                 <div class="codeblock-bar"><span class="mlabel">c: sleeper.c</span><button class="copy-btn" data-copy="/* sleeper.c - GH-004 lab payload: sleeps forever.&#10; * Its behavior is irrelevant; only its name matters.&#10; * The red phase copies it to ./cron and runs it. */&#10;#include &lt;unistd.h&gt;&#10;&#10;int main(void) {&#10;    for (;;) pause();&#10;    return 0;&#10;}&#10;"><span data-label>COPY</span></button></div>
                 <pre>/* sleeper.c - GH-004 lab payload: sleeps forever.
