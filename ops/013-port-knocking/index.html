@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>GH-013 The Secret Knock (T1205.001): GHOSTLIGHT</title>
-<meta name="description" content="T1205.001 Port Knocking, reproduced on Ubuntu 24.04: a daemon holds three knock ports that accept and instantly close every connection, and keeps its real service port dark until it hears the right connect sequence inside ten seconds. The scanner finds nothing to attack; the defender inventories the listeners.">
+<meta name="description" content="T1205.001 Port Knocking, reproduced on Ubuntu 24.04: an attacker's daemon holds three knock ports that accept and instantly close every connection, and keeps its real service port dark until the right connect sequence lands inside ten seconds. The defender's scanner finds nothing to attack; the defender inventories the listeners.">
 <link rel="canonical" href="https://dillingerstaffing.github.io/ghostlight/ops/013-port-knocking/">
 <meta property="og:title" content="GH-013 The Secret Knock (T1205.001): GHOSTLIGHT">
-<meta property="og:description" content="T1205.001 Port Knocking, reproduced on Ubuntu 24.04: a daemon holds three knock ports that accept and instantly close every connection, and keeps its real service port dark until it hears the right connect sequence inside ten seconds. The scanner finds nothing to attack; the defender inventories the listeners.">
+<meta property="og:description" content="T1205.001 Port Knocking, reproduced on Ubuntu 24.04: an attacker's daemon holds three knock ports that accept and instantly close every connection, and keeps its real service port dark until the right connect sequence lands inside ten seconds. The defender's scanner finds nothing to attack; the defender inventories the listeners.">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://dillingerstaffing.github.io/ghostlight/ops/013-port-knocking/">
 <meta property="og:site_name" content="GHOSTLIGHT">
@@ -16,7 +16,7 @@
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="GH-013 The Secret Knock (T1205.001): GHOSTLIGHT">
-<meta name="twitter:description" content="T1205.001 Port Knocking, reproduced on Ubuntu 24.04: a daemon holds three knock ports that accept and instantly close every connection, and keeps its real service port dark until it hears the right connect sequence inside ten seconds. The scanner finds nothing to attack; the defender inventories the listeners.">
+<meta name="twitter:description" content="T1205.001 Port Knocking, reproduced on Ubuntu 24.04: an attacker's daemon holds three knock ports that accept and instantly close every connection, and keeps its real service port dark until the right connect sequence lands inside ten seconds. The defender's scanner finds nothing to attack; the defender inventories the listeners.">
 <meta name="twitter:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23ece6d5'/%3E%3Ccircle cx='256' cy='196' r='104' fill='none' stroke='%23241f17' stroke-width='20'/%3E%3Cline x1='256' y1='152' x2='256' y2='240' stroke='%238c3f22' stroke-width='16'/%3E%3Cline x1='256' y1='300' x2='256' y2='424' stroke='%23241f17' stroke-width='14'/%3E%3Cline x1='200' y1='424' x2='312' y2='424' stroke='%23241f17' stroke-width='18'/%3E%3C/svg%3E">
 
@@ -49,7 +49,7 @@
 <link rel="stylesheet" href="../../assets/site.css?v=36a0084f">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"TechArticle","headline":"GH-013 The Secret Knock (T1205.001): GHOSTLIGHT",
-"url":"https://dillingerstaffing.github.io/ghostlight/ops/013-port-knocking/","description":"T1205.001 Port Knocking, reproduced on Ubuntu 24.04: a daemon holds three knock ports that accept and instantly close every connection, and keeps its real service port dark until it hears the right connect sequence inside ten seconds. The scanner finds nothing to attack; the defender inventories the listeners.",
+"url":"https://dillingerstaffing.github.io/ghostlight/ops/013-port-knocking/","description":"T1205.001 Port Knocking, reproduced on Ubuntu 24.04: an attacker's daemon holds three knock ports that accept and instantly close every connection, and keeps its real service port dark until the right connect sequence lands inside ten seconds. The defender's scanner finds nothing to attack; the defender inventories the listeners.",
 "author":{"@type":"Person","name":"Chris Dillinger","url":"https://www.linkedin.com/in/christopherdillinger/"},
 "inLanguage":"en"}
 </script>
@@ -84,7 +84,7 @@
         <span class="phase-tag red">PHASE RED INSIDE</span>
       </div>
       <h1>The Secret Knock</h1>
-      <p class="lede">A daemon sits on this box holding three ports that answer every connection and instantly hang up, and a fourth port that does not exist until it hears the right three knocks in the right order. This file knocks wrong, knocks right, and watches the door appear, then inventories the listeners the scanner never saw.</p>
+      <p class="lede">The attacker's daemon sits on this box holding three ports that answer every connection and instantly hang up, and a fourth port that does not exist until it hears the right three knocks in the right order. This file knocks wrong, knocks right, and watches the door appear, then inventories the listeners the defender's scanner never saw.</p>
       <div class="op-meta-grid">
         <div class="op-meta"><span class="mlabel">Technique</span><span class="mvalue">Traffic Signaling: Port Knocking (T1205.001)</span></div>
         <div class="op-meta"><span class="mlabel">Target OS</span><span class="mvalue">Ubuntu 24.04.5 LTS</span></div>
@@ -119,13 +119,13 @@
       <div class="op-content">
         <section class="phase" id="intel-brief">
           <div class="phase-head"><span class="phase-num">01</span><h2>Intel Brief</h2><span class="phase-tag neutral">CONTEXT</span></div>
-          <p class="lede">MITRE ATT&amp;CK <a href="https://attack.mitre.org/techniques/T1205/001/" rel="noopener">T1205.001</a>: adversaries use port knocking, a connect sequence that signals a hidden service to open, so the service port stays closed to everyone else. This file runs the knock wrong, runs it right, and shows the one inventory that sees through it.</p>
+          <p class="lede">MITRE ATT&amp;CK <a href="https://attack.mitre.org/techniques/T1205/001/" rel="noopener">T1205.001</a>: adversaries use port knocking, a connect sequence that signals a hidden service to open, so the service port stays closed to everyone else. The actors, named once: the attacker planted the knock daemon on this box during the initial breach and knows the sequence; the defender owns the box, does not know the daemon is there, and runs the scans. This file runs the knock wrong, runs it right, and shows the one inventory that sees through it.</p>
           <div class="prose">
-            <p><strong>Why this technique.</strong> An open port is an advertisement. Every scanner on the network sees it, fingerprints the banner, and hammers the login. The port is the problem before the password is: the scan finds the door, and after that the only question is how long the lock holds. Port knocking deletes the advertisement. The service port stays closed, so the scan finds nothing to attack. There is no door to fingerprint until the daemon hears the right sequence, and the sequence is just three connects to three ports that each accept and instantly close.</p>
-            <p><strong>Why not leave the port open and protect it with a password.</strong> That is the obvious defense, and this file breaks it on the concrete input: the scanner sees an open 4000 before any password is ever typed. The banner gives away the service, the open port gives away the address, and the password only changes what happens after the knock on the door is already heard. A password protects the login; it does not hide the door.</p>
-            <p><strong>Why not scan for the door.</strong> The scanner sweeps 3999 to 4004 and finds three ports that accept and close with nothing behind them, and no 4000 at all. The scanner did not miss the door; the door was never there. Scanning answers the question "what is open"; port knocking makes the answer "nothing worth attacking".</p>
+            <p><strong>Why this technique.</strong> An open port is an advertisement. Every scan on the network sees it, fingerprints the banner, and hammers the login. The port is the problem before the password is: the defender's scan finds the door, and after that the only question is how long the lock holds. Port knocking deletes the advertisement. The service port stays closed, so the defender's scan finds nothing to attack. There is no door to fingerprint until the daemon hears the right sequence, and the sequence is just three connects to three ports that each accept and instantly close.</p>
+            <p><strong>Why not leave the port open and protect it with a password.</strong> That is the obvious defense, and this file breaks it on the concrete input: the defender's scanner sees an open 4000 before any password is ever typed. The banner gives away the service, the open port gives away the address, and the password only changes what happens after the knock on the door is already heard. A password protects the login; it does not hide the door.</p>
+            <p><strong>Why not scan for the door.</strong> The defender's scanner sweeps 3999 to 4004 and finds three ports that accept and close with nothing behind them, and no 4000 at all. It did not miss the door; the door was never there. Scanning answers the question "what is open"; port knocking makes the answer "nothing worth attacking".</p>
             <p><strong>The mechanism, in one line.</strong> <strong>Port knocking</strong> is traffic signaling with connects: a <strong>knock sequence</strong> is an ordered list of connection attempts to specific ports inside a time window. A <strong>listener</strong> is a process holding a port open. The daemon watches its knock ports, and when the last three knocks match the sequence inside ten seconds, it binds the door port. The <strong>baseline</strong> is the known-good list of listeners; the <strong>allowlist</strong> is the set of ports permitted inbound. Terms earned, no borrowing.</p>
-            <p><strong>The concrete case, before the abstraction.</strong> The daemon holds 4001, 4002, 4003. Connect 4003, 4002, 4001 and nothing happens. Connect 4001, 4002, 4003 inside ten seconds and port 4000 answers with one banner. One python process, four ports, ten seconds.</p>
+            <p><strong>The concrete case, before the abstraction.</strong> The attacker's daemon holds 4001, 4002, 4003. Knock 4003, 4002, 4001 and nothing happens. Knock 4001, 4002, 4003 inside ten seconds and port 4000 answers with one banner. One python process, four ports, ten seconds.</p>
           </div>
           <div class="callout"><p><strong>Scope.</strong> T1205 covers traffic signaling broadly: port knocking, and the port-sequence variant where the signal is a specific order of connects. This file works the connect-sequence case end to end: the knock, the door, and the listener inventory that catches it.</p></div>
         </section>
@@ -231,7 +231,7 @@ LISTEN 0      0          127.0.0.1:4001      0.0.0.0:*    users:(("python3",pid=
 
         <section class="phase" id="phase-red">
           <div class="phase-head"><span class="phase-num">03</span><h2>Phase Red: knock, and the door appears</h2><span class="phase-tag red">ATTACK</span></div>
-          <p class="lede">First the scanner's view, before any knock. Then the wrong knock, which the daemon ignores. Then the right knock, which builds the door. Watch what the scan sees, and what it never sees.</p>
+          <p class="lede">First, the defender's scanner's view before any knock: you are the attacker, you know the sequence, so you never scan; this is the view your technique defeats. Then the wrong knock, which the daemon ignores. Then the right knock, which builds the door. Watch what the defender's scan sees, and what it never sees.</p>
           <figure class="recording reveal">
             <div class="recording-bar">
               <span class="rec-dot" aria-hidden="true"></span>
@@ -241,13 +241,13 @@ LISTEN 0      0          127.0.0.1:4001      0.0.0.0:*    users:(("python3",pid=
             <video controls playsinline preload="metadata" poster="../../assets/vid/knock-red.jpg" aria-label="Screen recording: KNOCK RED, operator@lab">
               <source src="../../assets/vid/knock-red.mp4" type="video/mp4">
             </video>
-            <figcaption class="recording-cap"><strong>What you are watching:</strong> A scanner sweeps six ports and finds nothing to attack. The wrong sequence is ignored. The right sequence opens the door, and the banner answers. Every command below is copy-pasteable.</figcaption>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> The defender's scanner sweeps six ports and finds nothing to attack. The wrong sequence is ignored. The right sequence opens the door, and the banner answers. Every command below is copy-pasteable.</figcaption>
           </figure>
           <div class="step">
             <div class="step-num">1</div>
             <div>
-              <h3>The scanner's outside view</h3>
-              <div class="prose"><p>The sweep covers 3999 to 4004, before any knock, and it hits the ports out of order on purpose: sweeping 4001, 4002, 4003 in order would itself be the knock. 4001, 4002, and 4003 accept and close instantly: nothing to attack. 4000, the service port, is closed. To a scanner the box offers three dead ports and no service. The scan is honest; the door simply is not there yet.</p></div>
+              <h3>The defender's scanner, before the knock</h3>
+              <div class="prose"><p>You are the attacker. You know the knock sequence, so you never scan this box; the scan below is the defender's, the view this technique defeats. The sweep covers 3999 to 4004, before any knock, and it hits the ports out of order on purpose: sweeping 4001, 4002, 4003 in order would itself be the knock. 4001, 4002, and 4003 accept and close instantly: nothing to attack. 4000, the service port, is closed. To the defender's scanner the box offers three dead ports and no service. The scan is honest; the door simply is not there yet.</p></div>
               <div class="codeblock codeblock-scrollhint">
 <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="for p in 3999 4004 4000 4002 4001 4003; do printf '%s ' $p; nc -z -w1 127.0.0.1 $p &gt;/dev/null 2&gt;&amp;1 &amp;&amp; echo open || echo closed; done"><span data-label>COPY</span></button></div>
 <pre>$ for p in 3999 4004 4000 4002 4001 4003; do printf '%s ' $p; nc -z -w1 127.0.0.1 $p &gt;/dev/null 2&gt;&amp;1 &amp;&amp; echo open || echo closed; done
@@ -264,7 +264,7 @@ LISTEN 0      0          127.0.0.1:4001      0.0.0.0:*    users:(("python3",pid=
             <div class="step-num">2</div>
             <div>
               <h3>The wrong knock</h3>
-              <div class="prose"><p>Connect 4003, 4002, 4001. The daemon logs all three, checks the last three against the sequence, and ignores them: the order is wrong. <strong>nc -z 127.0.0.1 4000</strong> still fails. The wrong sequence is not a failed login; it is silence.</p></div>
+              <div class="prose"><p>You knock: connect 4003, 4002, 4001. The daemon logs all three, checks the last three against the sequence, and ignores them: the order is wrong. <strong>nc -z 127.0.0.1 4000</strong> still fails. The wrong sequence is not a failed login; it is silence.</p></div>
               <div class="codeblock codeblock-scrollhint">
 <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="for p in 4003 4002 4001; do nc -z 127.0.0.1 $p &gt;/dev/null 2&gt;&amp;1; done; echo &quot;wrong sequence knocked (4003 4002 4001)&quot;; nc -z 127.0.0.1 4000 &amp;&amp; echo OPEN || echo 'door stays shut: connection refused'"><span data-label>COPY</span></button></div>
 <pre>$ for p in 4003 4002 4001; do nc -z 127.0.0.1 $p &gt;/dev/null 2&gt;&amp;1; done; echo "wrong sequence knocked (4003 4002 4001)"; nc -z 127.0.0.1 4000 &amp;&amp; echo OPEN || echo 'door stays shut: connection refused'
@@ -277,7 +277,7 @@ door stays shut: connection refused</pre>
             <div class="step-num">3</div>
             <div>
               <h3>The right knock</h3>
-              <div class="prose"><p>Connect 4001, 4002, 4003 inside the ten-second window. The daemon sees the match, spawns the door, and <strong>nc 127.0.0.1 4000</strong> answers with the banner. The service did not start at boot; it started at the knock.</p></div>
+              <div class="prose"><p>You knock again: connect 4001, 4002, 4003 inside the ten-second window. The daemon sees the match, spawns the door, and <strong>nc 127.0.0.1 4000</strong> answers with the banner. The service did not start at boot; it started at the knock.</p></div>
               <div class="codeblock codeblock-scrollhint">
 <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="for p in 4001 4002 4003; do nc -z 127.0.0.1 $p &gt;/dev/null 2&gt;&amp;1; done; echo &quot;right sequence knocked (4001 4002 4003, inside 10s)&quot;; sleep 1&#10;timeout 3 nc 127.0.0.1 4000 &lt;/dev/null"><span data-label>COPY</span></button></div>
 <pre>$ for p in 4001 4002 4003; do nc -z 127.0.0.1 $p &gt;/dev/null 2&gt;&amp;1; done; echo "right sequence knocked (4001 4002 4003, inside 10s)"; sleep 1
@@ -290,20 +290,11 @@ GH-013 door open</pre>
           <div class="step">
             <div class="step-num">4</div>
             <div>
-              <h3>The defender's view</h3>
-              <div class="prose"><p>The scanner asked "what is open". The defender asks "who is listening". <strong>ss -tlnp</strong> now shows all four ports, and one python process holds every one of them. The door is open, and the inventory names its keeper.</p></div>
-              <div class="codeblock codeblock-scrollhint">
-<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- the defender inventories the listeners, not the ports ---&quot;; ss -tlnp | grep -E &quot;400[0-3]&quot;"><span data-label>COPY</span></button></div>
-<pre>$ echo "--- the defender inventories the listeners, not the ports ---"; ss -tlnp | grep -E "400[0-3]"
---- the defender inventories the listeners, not the ports ---
-LISTEN 0      0          127.0.0.1:4002      0.0.0.0:*    users:(("python3",pid=10,fd=5))
-LISTEN 0      0          127.0.0.1:4003      0.0.0.0:*    users:(("python3",pid=10,fd=7))
-LISTEN 0      0          127.0.0.1:4000      0.0.0.0:*    users:(("python3",pid=10,fd=9))
-LISTEN 0      0          127.0.0.1:4001      0.0.0.0:*    users:(("python3",pid=10,fd=3))</pre>
-</div>
+              <h3>The door is open</h3>
+              <div class="prose"><p>The banner answered. The attacker's work is done: the door exists, the knock is known, and the service is reachable to anyone who knocks. What the defender sees in this box, the scan that misses and the inventory that catches, is the next phase's business.</p></div>
               <div class="verdict red">
                 <span class="mlabel">Stealth confirmed</span>
-                <p>The scan found nothing to attack: three ports that accept and close, no service port. The wrong sequence earned silence. The right sequence built the door out of nothing. A scanner that never knocks will never find 4000, because until the knock it does not exist.</p>
+                <p>The defender's scan found nothing to attack: three ports that accept and close, no service port. The wrong sequence earned silence. The right sequence built the door out of nothing. A defender's scanner that never knocks will never find 4000, because until the knock it does not exist.</p>
               </div>
             </div>
           </div>
@@ -456,7 +447,7 @@ the scheduled check runs: diff listeners.baseline &lt;(ss -tlnp)</pre>
 </div>
               <div class="verdict green">
                 <span class="mlabel">Detection verified</span>
-                <p>One ss named the anomaly: a single python pid on four ports. The pid led to the binary and the window. The kill was confirmed, the ports were dropped, the window was scoped, persistence was swept, and the re-knock proved the door is gone. The scanner never had a chance; the inventory had everything.</p>
+                <p>One ss named the anomaly: a single python pid on four ports. The pid led to the binary and the window. The kill was confirmed, the ports were dropped, the window was scoped, persistence was swept, and the re-knock proved the door is gone. The defender's scanner never had a chance; the inventory had everything.</p>
               </div>
             </div>
           </div>
@@ -584,7 +575,7 @@ the scheduled check runs: diff listeners.baseline &lt;(ss -tlnp)</pre>
           <ul class="checklist">
             <li><span>Verified on <strong>Ubuntu 24.04.5 LTS</strong>, x86-64, on 2026-09-20</span></li>
             <li><span>Both recordings are real executions on that platform, not simulations</span></li>
-            <li><span>The knock demo runs as the current user (the assumed breach: something on the box runs the daemon); the firewall demo needs root</span></li>
+            <li><span>The knock demo runs as the current user (the assumed breach: the attacker's implant runs the daemon on the box); the firewall demo needs root</span></li>
             <li><span>Cleanup: kill the daemon pid, <strong>iptables-restore</strong> the saved host rules, <strong>rm -rf /tmp/gh013</strong>; verify with <strong>ss -tln</strong></span></li>
           </ul>
           <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Sources</span></p></div>
