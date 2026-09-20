@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>GH-013 The Secret Knock (T1205.001): GHOSTLIGHT</title>
+<meta name="description" content="T1205.001 Port Knocking, reproduced on Ubuntu 24.04: a daemon holds three knock ports that accept and instantly close every connection, and keeps its real service port dark until it hears the right connect sequence inside ten seconds. The scanner finds nothing to attack; the defender inventories the listeners.">
+<link rel="canonical" href="https://dillingerstaffing.github.io/ghostlight/ops/013-port-knocking/">
+<meta property="og:title" content="GH-013 The Secret Knock (T1205.001): GHOSTLIGHT">
+<meta property="og:description" content="T1205.001 Port Knocking, reproduced on Ubuntu 24.04: a daemon holds three knock ports that accept and instantly close every connection, and keeps its real service port dark until it hears the right connect sequence inside ten seconds. The scanner finds nothing to attack; the defender inventories the listeners.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dillingerstaffing.github.io/ghostlight/ops/013-port-knocking/">
+<meta property="og:site_name" content="GHOSTLIGHT">
+<meta property="og:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="GH-013 The Secret Knock (T1205.001): GHOSTLIGHT">
+<meta name="twitter:description" content="T1205.001 Port Knocking, reproduced on Ubuntu 24.04: a daemon holds three knock ports that accept and instantly close every connection, and keeps its real service port dark until it hears the right connect sequence inside ten seconds. The scanner finds nothing to attack; the defender inventories the listeners.">
+<meta name="twitter:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23ece6d5'/%3E%3Ccircle cx='256' cy='196' r='104' fill='none' stroke='%23241f17' stroke-width='20'/%3E%3Cline x1='256' y1='152' x2='256' y2='240' stroke='%238c3f22' stroke-width='16'/%3E%3Cline x1='256' y1='300' x2='256' y2='424' stroke='%23241f17' stroke-width='14'/%3E%3Cline x1='200' y1='424' x2='312' y2='424' stroke='%23241f17' stroke-width='18'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+<link rel="manifest" href="../../assets/manifest.webmanifest">
+<meta name="theme-color" content="#0a0c0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GHOSTLIGHT">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<script>
+(function () {
+  // Theme: notebook is the default; a stored visitor choice wins.
+  // Runs before the stylesheet is parsed so the first paint is already
+  // the right theme (no flash of the wrong one).
+  try {
+    var t = localStorage.getItem('emi-site-theme');
+    var theme = t === 'classic' ? 'classic' : 'notebook';
+    document.documentElement.dataset.theme = theme;
+    var m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute('content', theme === 'classic' ? '#0a0c0f' : '#ece6d5');
+  } catch (e) {
+    document.documentElement.dataset.theme = 'notebook';
+  }
+})();
+</script>
+<link rel="stylesheet" href="../../assets/site.css?v=36a0084f">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"GH-013 The Secret Knock (T1205.001): GHOSTLIGHT",
+"url":"https://dillingerstaffing.github.io/ghostlight/ops/013-port-knocking/","description":"T1205.001 Port Knocking, reproduced on Ubuntu 24.04: a daemon holds three knock ports that accept and instantly close every connection, and keeps its real service port dark until it hears the right connect sequence inside ten seconds. The scanner finds nothing to attack; the defender inventories the listeners.",
+"author":{"@type":"Person","name":"Chris Dillinger","url":"https://www.linkedin.com/in/christopherdillinger/"},
+"inLanguage":"en"}
+</script>
+</head>
+<body>
+
+<header class="site-header">
+  <a class="brand" href="../../index.html" aria-label="GHOSTLIGHT home">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+    <span class="brand-name">GHOSTLIGHT</span>
+  </a>
+  <nav class="site-nav">
+    <a href="../../method.html">METHOD</a>
+    <a href="../../index.html">FILES</a>
+    <button class="theme-toggle" type="button" aria-label="Switch to dark field dossier theme" title="Switch theme">
+      <span class="theme-toggle-mark" aria-hidden="true"><i></i><i></i></span>
+    </button>
+  </nav>
+</header>
+
+<div class="onboard" data-onboard hidden>
+  <span><strong>How to read a file:</strong> every file follows the six-phase structure below. <span class="k-green">Green</span> is verified, <span class="k-red">red</span> is hostile.</span>
+  <button aria-label="Dismiss">GOT IT</button>
+</div>
+
+<div class="page" data-op="013">
+  <div class="wrap">
+    <section class="op-hero">
+      <div class="op-kicker">
+        <span class="case-no">GH-013</span>
+        <a class="tech-id" href="https://attack.mitre.org/techniques/T1205/001/" rel="noopener">T1205.001</a>
+        <span class="phase-tag red">PHASE RED INSIDE</span>
+      </div>
+      <h1>The Secret Knock</h1>
+      <p class="lede">A daemon sits on this box holding three ports that answer every connection and instantly hang up, and a fourth port that does not exist until it hears the right three knocks in the right order. This file knocks wrong, knocks right, and watches the door appear, then inventories the listeners the scanner never saw.</p>
+      <div class="op-meta-grid">
+        <div class="op-meta"><span class="mlabel">Technique</span><span class="mvalue">Traffic Signaling: Port Knocking (T1205.001)</span></div>
+        <div class="op-meta"><span class="mlabel">Target OS</span><span class="mvalue">Ubuntu 24.04.5 LTS</span></div>
+        <div class="op-meta"><span class="mlabel">Toolchain</span><span class="mvalue">python3, bash, coreutils, iptables</span></div>
+        <div class="op-meta"><span class="mlabel">Level</span><span class="mvalue">Intermediate</span></div>
+        <div class="op-meta"><span class="mlabel">Time</span><span class="mvalue">25 min</span></div>
+      </div>
+      <div class="objectives">
+        <h2>OBJECTIVES</h2>
+        <ol>
+          <li data-phase="phase-red"><span class="box"></span>Knock a three-port sequence and watch a dark service port open for one banner</li>
+          <li data-phase="phase-blue"><span class="box"></span>Inventory the listeners and correlate the single python process behind four ports</li>
+          <li data-phase="countermeasures"><span class="box"></span>Kill the daemon, drop the ports at the firewall, baseline the listeners on a schedule</li>
+          <li data-phase="debrief"><span class="box"></span>Take the IOC checklist and the one-sentence lesson</li>
+        </ol>
+      </div>
+    </section>
+
+    <div class="op-layout">
+      <nav class="rail" aria-label="Phases">
+        <span class="mlabel">Phases</span>
+        <ol>
+          <li><a href="#intel-brief"><span class="pnum">01</span>INTEL BRIEF<span class="tick"></span></a></li>
+          <li><a href="#target-environment"><span class="pnum">02</span>TARGET ENV<span class="tick"></span></a></li>
+          <li><a href="#phase-red"><span class="pnum">03</span>PHASE RED<span class="tick"></span></a></li>
+          <li><a href="#phase-blue"><span class="pnum">04</span>PHASE BLUE<span class="tick"></span></a></li>
+          <li><a href="#countermeasures"><span class="pnum">05</span>COUNTERMEASURES<span class="tick"></span></a></li>
+          <li><a href="#debrief"><span class="pnum">06</span>DEBRIEF<span class="tick"></span></a></li>
+        </ol>
+      </nav>
+
+      <div class="op-content">
+        <section class="phase" id="intel-brief">
+          <div class="phase-head"><span class="phase-num">01</span><h2>Intel Brief</h2><span class="phase-tag neutral">CONTEXT</span></div>
+          <p class="lede">MITRE ATT&amp;CK <a href="https://attack.mitre.org/techniques/T1205/001/" rel="noopener">T1205.001</a>: adversaries use port knocking, a connect sequence that signals a hidden service to open, so the service port stays closed to everyone else. This file runs the knock wrong, runs it right, and shows the one inventory that sees through it.</p>
+          <div class="prose">
+            <p><strong>Why this technique.</strong> An open port is an advertisement. Every scanner on the network sees it, fingerprints the banner, and hammers the login. The port is the problem before the password is: the scan finds the door, and after that the only question is how long the lock holds. Port knocking deletes the advertisement. The service port stays closed, so the scan finds nothing to attack. There is no door to fingerprint until the daemon hears the right sequence, and the sequence is just three connects to three ports that each accept and instantly close.</p>
+            <p><strong>Why not leave the port open and protect it with a password.</strong> That is the obvious defense, and this file breaks it on the concrete input: the scanner sees an open 4000 before any password is ever typed. The banner gives away the service, the open port gives away the address, and the password only changes what happens after the knock on the door is already heard. A password protects the login; it does not hide the door.</p>
+            <p><strong>Why not scan for the door.</strong> The scanner sweeps 3999 to 4004 and finds three ports that accept and close with nothing behind them, and no 4000 at all. The scanner did not miss the door; the door was never there. Scanning answers the question "what is open"; port knocking makes the answer "nothing worth attacking".</p>
+            <p><strong>The mechanism, in one line.</strong> <strong>Port knocking</strong> is traffic signaling with connects: a <strong>knock sequence</strong> is an ordered list of connection attempts to specific ports inside a time window. A <strong>listener</strong> is a process holding a port open. The daemon watches its knock ports, and when the last three knocks match the sequence inside ten seconds, it binds the door port. The <strong>baseline</strong> is the known-good list of listeners; the <strong>allowlist</strong> is the set of ports permitted inbound. Terms earned, no borrowing.</p>
+            <p><strong>The concrete case, before the abstraction.</strong> The daemon holds 4001, 4002, 4003. Connect 4003, 4002, 4001 and nothing happens. Connect 4001, 4002, 4003 inside ten seconds and port 4000 answers with one banner. One python process, four ports, ten seconds.</p>
+          </div>
+          <div class="callout"><p><strong>Scope.</strong> T1205 covers traffic signaling broadly: port knocking, and the port-sequence variant where the signal is a specific order of connects. This file works the connect-sequence case end to end: the knock, the door, and the listener inventory that catches it.</p></div>
+        </section>
+
+        <section class="phase" id="target-environment">
+          <div class="phase-head"><span class="phase-num">02</span><h2>Target Environment</h2><span class="phase-tag neutral">LOADOUT</span></div>
+          <p class="lede">Ubuntu 24.04.5 LTS, x86-64, in a disposable namespace used only for this lab. The knock demo runs as the current user; the firewall demo needs root. The lab is lab-local: 127.0.0.1 only, nothing leaves the box.</p>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Build the lab</h3>
+              <div class="prose"><p>One disposable directory. Everything the lab touches lives inside it, so cleanup is a single rm.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="rm -rf /tmp/gh013 &amp;&amp; mkdir -p /tmp/gh013 &amp;&amp; echo &quot;lab built: /tmp/gh013&quot;"><span data-label>COPY</span></button></div>
+<pre>$ rm -rf /tmp/gh013 &amp;&amp; mkdir -p /tmp/gh013 &amp;&amp; echo "lab built: /tmp/gh013"
+lab built: /tmp/gh013</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>The daemon: 51 lines</h3>
+              <div class="prose"><p>Line by line. <strong>#!/usr/bin/env python3</strong> runs the file under python3. The three imports: <strong>socket</strong> for the listeners, <strong>threading</strong> so the three knock ports listen at once, <strong>time</strong> for the knock window. <strong>HOST = '127.0.0.1'</strong> keeps the lab local, nothing leaves the box. <strong>DOOR = 4000</strong> is the service port, dark until the right knock. <strong>KNOCK_PORTS = [4001, 4002, 4003]</strong> is the knock sequence, in order. <strong>WINDOW = 10.0</strong> means the full sequence must land inside ten seconds. <strong>BANNER</strong> is the one line the door serves. <strong>state</strong> holds the knock log and the door flag; <strong>lock</strong> guards them because three listener threads write the log at once.</p>
+              <p><strong>serve_door()</strong> is the service: it builds a socket, sets <strong>SO_REUSEADDR</strong> so a restart rebinds cleanly, binds <strong>(HOST, DOOR)</strong>, listens, then loops forever: accept a connect, <strong>sendall(BANNER)</strong>, close. Every connect gets the banner, and once this function starts the door stays up. <strong>listen_on(port)</strong> holds one knock port the same way, and its loop is the whole technique: accept each connect and close it immediately, so the knock leaves no service to attack, then under the lock append <strong>(port, time.monotonic())</strong> to the knock log. <strong>last3</strong> is the last three knocks. The if checks four things: three knocks exist, the door is not already up, the three ports are <strong>[4001, 4002, 4003]</strong> in order, and the third knock landed within ten seconds of the first. All four true, and the daemon spawns <strong>serve_door</strong> in a background thread. The bottom three lines start one <strong>listen_on</strong> thread per knock port, then <strong>threading.Event().wait()</strong> sleeps forever; killing the process stops the daemon.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">python: daemon</span><button class="copy-btn" data-copy="cat &gt; /tmp/gh013/knockd.py &lt;&lt;'EOF'&#10;#!/usr/bin/env python3&#10;&quot;&quot;&quot;GH-013 lab: the knock daemon. A door that opens only for the right knock.&quot;&quot;&quot;&#10;import socket&#10;import threading&#10;import time&#10;&#10;HOST = '127.0.0.1'               # lab-local; nothing leaves this box&#10;DOOR = 4000                      # the service port, dark until the right knock&#10;KNOCK_PORTS = [4001, 4002, 4003]  # the knock sequence, in order&#10;WINDOW = 10.0                    # the full sequence must land inside 10 seconds&#10;BANNER = b'GH-013 door open\r\n'&#10;&#10;state = {'knocks': [], 'door_up': False}&#10;lock = threading.Lock()&#10;&#10;&#10;def serve_door():&#10;    &quot;&quot;&quot;Serve the door: every connect gets the banner, then the door stays up.&quot;&quot;&quot;&#10;    srv = socket.socket()&#10;    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)&#10;    srv.bind((HOST, DOOR))&#10;    srv.listen(5)&#10;    while True:&#10;        conn, _ = srv.accept()&#10;        conn.sendall(BANNER)&#10;        conn.close()&#10;&#10;&#10;def listen_on(port):&#10;    &quot;&quot;&quot;Hold one knock port: accept each connect, close it, log the knock.&quot;&quot;&quot;&#10;    srv = socket.socket()&#10;    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)&#10;    srv.bind((HOST, port))&#10;    srv.listen(5)&#10;    while True:&#10;        conn, _ = srv.accept()&#10;        conn.close()&#10;        with lock:&#10;            state['knocks'].append((port, time.monotonic()))&#10;            last3 = state['knocks'][-3:]&#10;            if (len(last3) == 3 and not state['door_up']&#10;                    and [p for p, _ in last3] == KNOCK_PORTS&#10;                    and last3[-1][1] - last3[0][1] &lt;= WINDOW):&#10;                state['door_up'] = True&#10;                threading.Thread(target=serve_door, daemon=True).start()&#10;&#10;&#10;for port in KNOCK_PORTS:&#10;    threading.Thread(target=listen_on, args=(port,), daemon=True).start()&#10;&#10;threading.Event().wait()  # sleep forever; kill stops the daemon&#10;EOF&#10;chmod +x /tmp/gh013/knockd.py &amp;&amp; echo &quot;daemon written: $(wc -l &lt; /tmp/gh013/knockd.py) lines&quot;"><span data-label>COPY</span></button></div>
+<pre>$ cat &gt; /tmp/gh013/knockd.py &lt;&lt;'EOF'
+#!/usr/bin/env python3
+"""GH-013 lab: the knock daemon. A door that opens only for the right knock."""
+import socket
+import threading
+import time
+
+HOST = '127.0.0.1'               # lab-local; nothing leaves this box
+DOOR = 4000                      # the service port, dark until the right knock
+KNOCK_PORTS = [4001, 4002, 4003]  # the knock sequence, in order
+WINDOW = 10.0                    # the full sequence must land inside 10 seconds
+BANNER = b'GH-013 door open\r\n'
+
+state = {'knocks': [], 'door_up': False}
+lock = threading.Lock()
+
+
+def serve_door():
+    """Serve the door: every connect gets the banner, then the door stays up."""
+    srv = socket.socket()
+    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    srv.bind((HOST, DOOR))
+    srv.listen(5)
+    while True:
+        conn, _ = srv.accept()
+        conn.sendall(BANNER)
+        conn.close()
+
+
+def listen_on(port):
+    """Hold one knock port: accept each connect, close it, log the knock."""
+    srv = socket.socket()
+    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    srv.bind((HOST, port))
+    srv.listen(5)
+    while True:
+        conn, _ = srv.accept()
+        conn.close()
+        with lock:
+            state['knocks'].append((port, time.monotonic()))
+            last3 = state['knocks'][-3:]
+            if (len(last3) == 3 and not state['door_up']
+                    and [p for p, _ in last3] == KNOCK_PORTS
+                    and last3[-1][1] - last3[0][1] &lt;= WINDOW):
+                state['door_up'] = True
+                threading.Thread(target=serve_door, daemon=True).start()
+
+
+for port in KNOCK_PORTS:
+    threading.Thread(target=listen_on, args=(port,), daemon=True).start()
+
+threading.Event().wait()  # sleep forever; kill stops the daemon
+EOF
+chmod +x /tmp/gh013/knockd.py &amp;&amp; echo "daemon written: $(wc -l &lt; /tmp/gh013/knockd.py) lines"
+daemon written: 51 lines</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>Start the daemon</h3>
+              <div class="prose"><p><strong>python3 /tmp/gh013/knockd.py &amp;</strong> starts the daemon in the background; <strong>$!</strong> is its pid, kept in <strong>KNOCKD</strong> so the blue phase kills exactly this process later. <strong>ss -tlnp</strong> lists the listening TCP sockets with the owning process: one python process, the same pid as KNOCKD, holds 4001, 4002, and 4003. The door port 4000 is not listed. It does not exist yet.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="python3 /tmp/gh013/knockd.py &amp; KNOCKD=$!; sleep 1; echo &quot;daemon pid=$KNOCKD&quot;; ss -tlnp | grep -E &quot;400[0-3]&quot;"><span data-label>COPY</span></button></div>
+<pre>$ python3 /tmp/gh013/knockd.py &amp; KNOCKD=$!; sleep 1; echo "daemon pid=$KNOCKD"; ss -tlnp | grep -E "400[0-3]"
+[1] 10
+daemon pid=10
+LISTEN 0      0          127.0.0.1:4002      0.0.0.0:*    users:(("python3",pid=10,fd=5))
+LISTEN 0      0          127.0.0.1:4003      0.0.0.0:*    users:(("python3",pid=10,fd=7))
+LISTEN 0      0          127.0.0.1:4001      0.0.0.0:*    users:(("python3",pid=10,fd=3))</pre>
+</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="phase-red">
+          <div class="phase-head"><span class="phase-num">03</span><h2>Phase Red: knock, and the door appears</h2><span class="phase-tag red">ATTACK</span></div>
+          <p class="lede">First the scanner's view, before any knock. Then the wrong knock, which the daemon ignores. Then the right knock, which builds the door. Watch what the scan sees, and what it never sees.</p>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">246.8s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/knock-red.jpg" aria-label="Screen recording: KNOCK RED, operator@lab">
+              <source src="../../assets/vid/knock-red.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> A scanner sweeps six ports and finds nothing to attack. The wrong sequence is ignored. The right sequence opens the door, and the banner answers. Every command below is copy-pasteable.</figcaption>
+          </figure>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>The scanner's outside view</h3>
+              <div class="prose"><p>The sweep covers 3999 to 4004, before any knock, and it hits the ports out of order on purpose: sweeping 4001, 4002, 4003 in order would itself be the knock. 4001, 4002, and 4003 accept and close instantly: nothing to attack. 4000, the service port, is closed. To a scanner the box offers three dead ports and no service. The scan is honest; the door simply is not there yet.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="for p in 3999 4004 4000 4002 4001 4003; do printf '%s ' $p; nc -z -w1 127.0.0.1 $p &gt;/dev/null 2&gt;&amp;1 &amp;&amp; echo open || echo closed; done"><span data-label>COPY</span></button></div>
+<pre>$ for p in 3999 4004 4000 4002 4001 4003; do printf '%s ' $p; nc -z -w1 127.0.0.1 $p &gt;/dev/null 2&gt;&amp;1 &amp;&amp; echo open || echo closed; done
+3999 closed
+4004 closed
+4000 closed
+4002 open
+4001 open
+4003 open</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>The wrong knock</h3>
+              <div class="prose"><p>Connect 4003, 4002, 4001. The daemon logs all three, checks the last three against the sequence, and ignores them: the order is wrong. <strong>nc -z 127.0.0.1 4000</strong> still fails. The wrong sequence is not a failed login; it is silence.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="for p in 4003 4002 4001; do nc -z 127.0.0.1 $p &gt;/dev/null 2&gt;&amp;1; done; echo &quot;wrong sequence knocked (4003 4002 4001)&quot;; nc -z 127.0.0.1 4000 &amp;&amp; echo OPEN || echo 'door stays shut: connection refused'"><span data-label>COPY</span></button></div>
+<pre>$ for p in 4003 4002 4001; do nc -z 127.0.0.1 $p &gt;/dev/null 2&gt;&amp;1; done; echo "wrong sequence knocked (4003 4002 4001)"; nc -z 127.0.0.1 4000 &amp;&amp; echo OPEN || echo 'door stays shut: connection refused'
+wrong sequence knocked (4003 4002 4001)
+door stays shut: connection refused</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>The right knock</h3>
+              <div class="prose"><p>Connect 4001, 4002, 4003 inside the ten-second window. The daemon sees the match, spawns the door, and <strong>nc 127.0.0.1 4000</strong> answers with the banner. The service did not start at boot; it started at the knock.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="for p in 4001 4002 4003; do nc -z 127.0.0.1 $p &gt;/dev/null 2&gt;&amp;1; done; echo &quot;right sequence knocked (4001 4002 4003, inside 10s)&quot;; sleep 1&#10;timeout 3 nc 127.0.0.1 4000 &lt;/dev/null"><span data-label>COPY</span></button></div>
+<pre>$ for p in 4001 4002 4003; do nc -z 127.0.0.1 $p &gt;/dev/null 2&gt;&amp;1; done; echo "right sequence knocked (4001 4002 4003, inside 10s)"; sleep 1
+right sequence knocked (4001 4002 4003, inside 10s)
+$ timeout 3 nc 127.0.0.1 4000 &lt;/dev/null
+GH-013 door open</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div>
+              <h3>The defender's view</h3>
+              <div class="prose"><p>The scanner asked "what is open". The defender asks "who is listening". <strong>ss -tlnp</strong> now shows all four ports, and one python process holds every one of them. The door is open, and the inventory names its keeper.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- the defender inventories the listeners, not the ports ---&quot;; ss -tlnp | grep -E &quot;400[0-3]&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- the defender inventories the listeners, not the ports ---"; ss -tlnp | grep -E "400[0-3]"
+--- the defender inventories the listeners, not the ports ---
+LISTEN 0      0          127.0.0.1:4002      0.0.0.0:*    users:(("python3",pid=10,fd=5))
+LISTEN 0      0          127.0.0.1:4003      0.0.0.0:*    users:(("python3",pid=10,fd=7))
+LISTEN 0      0          127.0.0.1:4000      0.0.0.0:*    users:(("python3",pid=10,fd=9))
+LISTEN 0      0          127.0.0.1:4001      0.0.0.0:*    users:(("python3",pid=10,fd=3))</pre>
+</div>
+              <div class="verdict red">
+                <span class="mlabel">Stealth confirmed</span>
+                <p>The scan found nothing to attack: three ports that accept and close, no service port. The wrong sequence earned silence. The right sequence built the door out of nothing. A scanner that never knocks will never find 4000, because until the knock it does not exist.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="phase-blue">
+          <div class="phase-head"><span class="phase-num">04</span><h2>Phase Blue: inventory the listeners</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">The defender does not scan for the service; the defender inventories the listeners. One ss, one pid, one binary, one window, then the kill.</p>
+          <div class="prose">
+            <p>Here is the trap: sweeping the ports again after the knock and calling the open 4000 the finding. The open door is the one thing the technique shows only to someone who already knows the knock. The detection is the listener inventory: one python process squatting on a run of adjacent ports that serve nothing.</p>
+          </div>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot blue" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">214.6s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/knock-blue.jpg" aria-label="Screen recording: KNOCK BLUE, operator@lab">
+              <source src="../../assets/vid/knock-blue.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> The listener baseline names one python process on four ports. The pid leads to the binary and the incident window. The knock burst leaves completed connects in ss. The daemon is killed by pid, its ports dropped at the firewall, and the door stays shut on the re-knock. Every command below is copy-pasteable.</figcaption>
+          </figure>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>The baseline</h3>
+              <div class="prose"><p><strong>ss -tlnp</strong> shows one python process holding THREE knock ports plus the door port. That is the anomaly: a single pid on multiple closed-looking ports. Good versus bad, concrete: good is one daemon per listening port with a known name (sshd on 22, a database on its port); bad is one python pid squatting on a run of adjacent ports that accept and close and serve nothing.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- listener baseline: who holds what ---&quot;; ss -tlnp | grep -E &quot;400[0-3]&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- listener baseline: who holds what ---"; ss -tlnp | grep -E "400[0-3]"
+--- listener baseline: who holds what ---
+LISTEN 0      0          127.0.0.1:4002      0.0.0.0:*    users:(("python3",pid=10,fd=5))
+LISTEN 0      0          127.0.0.1:4003      0.0.0.0:*    users:(("python3",pid=10,fd=7))
+LISTEN 0      0          127.0.0.1:4000      0.0.0.0:*    users:(("python3",pid=10,fd=9))
+LISTEN 0      0          127.0.0.1:4001      0.0.0.0:*    users:(("python3",pid=10,fd=3))</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>Correlate the pid</h3>
+              <div class="prose"><p>The pid comes out of the ss line. <strong>/proc/&lt;pid&gt;/cmdline</strong> names the binary: knockd.py, no disguise. <strong>/proc/&lt;pid&gt;/exe</strong> points at the python interpreter, which says how it runs. <strong>ps -o lstart</strong> gives the process start time: that is the start of the incident window, everything before it is clean.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="KP=$(ss -tlnp | grep &quot;127.0.0.1:4001&quot; | grep -oP &quot;pid=\K[0-9]+&quot; | head -1); echo &quot;daemon pid=$KP&quot;; tr &quot;\0&quot; &quot; &quot; &lt; /proc/$KP/cmdline; echo; ls -l /proc/$KP/exe; ps -o lstart= -p $KP"><span data-label>COPY</span></button></div>
+<pre>$ KP=$(ss -tlnp | grep "127.0.0.1:4001" | grep -oP "pid=\K[0-9]+" | head -1); echo "daemon pid=$KP"; tr "\0" " " &lt; /proc/$KP/cmdline; echo; ls -l /proc/$KP/exe; ps -o lstart= -p $KP
+daemon pid=10
+python3 /tmp/gh013/knockd.py
+lrwxrwxrwx 1 root root 0 Sep 20 13:28 /proc/10/exe -&gt; /usr/bin/python3.12
+Sun Sep 20 13:28:31 2026</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>The knock burst, in ss</h3>
+              <div class="prose"><p>Knock the three ports, then <strong>ss -tn state time-wait</strong> shows the recent completed connections to the knock ports, sitting in TIME_WAIT. The burst is the tell: three connects to three adjacent ports inside seconds, from one source, to ports that serve nothing. The honest limit, stated plainly: this demo daemon accepts full TCP connects, so the tell is completed connections. Classic single-packet knocking would show as failed SYNs instead, which is the D3-CAA failed-connection tell. Know which knock you are hunting.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="for p in 4001 4002 4003; do nc -z 127.0.0.1 $p &gt;/dev/null 2&gt;&amp;1; done; sleep 1; echo &quot;--- completed connects to the knock ports (the knock burst) ---&quot;; ss -tn state time-wait | grep -E ':400[123]'"><span data-label>COPY</span></button></div>
+<pre>$ for p in 4001 4002 4003; do nc -z 127.0.0.1 $p &gt;/dev/null 2&gt;&amp;1; done; sleep 1; echo "--- completed connects to the knock ports (the knock burst) ---"; ss -tn state time-wait | grep -E ':400[123]'
+--- completed connects to the knock ports (the knock burst) ---
+0      0          127.0.0.1:59368    127.0.0.1:4002
+0      0          127.0.0.1:59408    127.0.0.1:4002
+0      0          127.0.0.1:4003     127.0.0.1:56306
+0      0          127.0.0.1:4002     127.0.0.1:59368
+0      0          127.0.0.1:4003     127.0.0.1:56304
+0      0          127.0.0.1:4001     127.0.0.1:46158
+0      0          127.0.0.1:4001     127.0.0.1:46162
+0      0          127.0.0.1:4002     127.0.0.1:59400
+0      0          127.0.0.1:4003     127.0.0.1:56324
+0      0          127.0.0.1:4002     127.0.0.1:59384
+0      0          127.0.0.1:4001     127.0.0.1:46144
+0      0          127.0.0.1:4003     127.0.0.1:56310
+0      0          127.0.0.1:4001     127.0.0.1:46150</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div>
+              <h3>Stop and drop</h3>
+              <div class="prose"><p><strong>iptables-save</strong> first: never touch the firewall without a way back. The DROP goes in while the daemon is still alive, so the control is proven, not assumed: <strong>iptables -A INPUT -p tcp --dport 4000:4003 -j DROP</strong>, and the next knock to 4001 dies in the firewall while the packet counter on the rule climbs. (iptables prints a warning about the tcp extension revision; the blocked knock and the counter prove the rule is working.) Then <strong>kill $KNOCKD</strong> stops the daemon by pid, <strong>ps</strong> confirms it is dead, and <strong>ss -tln</strong> confirms all four listeners are gone. Stopping the process is not the whole mitigation; the drop is the part that survives a respawn.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="iptables-save &gt; /tmp/gh013/iptables.bak &amp;&amp; echo 'host rules saved to iptables.bak'; iptables -A INPUT -p tcp --dport 4000:4003 -j DROP &amp;&amp; echo &quot;--- drop in place: the knocker is cut off ---&quot;; nc -z -w2 127.0.0.1 4001 &gt;/dev/null 2&gt;&amp;1 &amp;&amp; echo REACHABLE || echo 'knock blocked by the drop rule'; iptables -L INPUT -v -n | grep 4000; kill $KNOCKD; sleep 1; ps -p $KNOCKD &gt;/dev/null 2&gt;&amp;1 &amp;&amp; echo &quot;STILL ALIVE&quot; || echo &quot;daemon dead&quot;; ss -tln | grep -E &quot;:(4000|4001|4002|4003) &quot; || echo &quot;all four listeners gone&quot;"><span data-label>COPY</span></button></div>
+<pre>$ iptables-save &gt; /tmp/gh013/iptables.bak &amp;&amp; echo 'host rules saved to iptables.bak'; iptables -A INPUT -p tcp --dport 4000:4003 -j DROP &amp;&amp; echo "--- drop in place: the knocker is cut off ---"; nc -z -w2 127.0.0.1 4001 &gt;/dev/null 2&gt;&amp;1 &amp;&amp; echo REACHABLE || echo 'knock blocked by the drop rule'; iptables -L INPUT -v -n | grep 4000; kill $KNOCKD; sleep 1; ps -p $KNOCKD &gt;/dev/null 2&gt;&amp;1 &amp;&amp; echo "STILL ALIVE" || echo "daemon dead"; ss -tln | grep -E ":(4000|4001|4002|4003) " || echo "all four listeners gone"
+host rules saved to iptables.bak
+Warning: Extension tcp revision 0 not supported, missing kernel module?
+--- drop in place: the knocker is cut off ---
+knock blocked by the drop rule
+Warning: Extension tcp revision 0 not supported, missing kernel module?
+    2   120 DROP       6    --  *      *       0.0.0.0/0            0.0.0.0/0            tcp dpts:4000:4003
+daemon dead
+all four listeners gone</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">5</div>
+            <div>
+              <h3>Scope the window and sweep persistence</h3>
+              <div class="prose"><p>The window runs from the daemon start (step 2) to the kill: that is when the door could open. The persistence sweep checks the three places a respawn hides: <strong>crontab -l</strong> (not installed on this lab box, so there is nothing to check there), the systemd units, and stray files in /tmp. Then the firewall goes back to normal: remove the DROP rules and <strong>iptables-restore</strong> the saved host rules, and confirm no knock rules remain. The drops were scaffolding; the restore is the proof the box is back to its own policy.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- persistence sweep ---&quot;; crontab -l 2&gt;&amp;1 | head -2; ls /etc/systemd/system/ 2&gt;/dev/null | grep -iE 'knock|gh013' || echo 'no knock systemd units'; ls -la /tmp/gh013; echo &quot;--- remove the drops, restore the saved host rules ---&quot;; iptables -D INPUT -p tcp --dport 4000:4003 -j DROP; iptables-restore &lt; /tmp/gh013/iptables.bak &amp;&amp; echo 'host rules restored'; iptables -S INPUT | grep 4000 || echo 'no knock rules remain'"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- persistence sweep ---"; crontab -l 2&gt;&amp;1 | head -2; ls /etc/systemd/system/ 2&gt;/dev/null | grep -iE 'knock|gh013' || echo 'no knock systemd units'; ls -la /tmp/gh013; echo "--- remove the drops, restore the saved host rules ---"; iptables -D INPUT -p tcp --dport 4000:4003 -j DROP; iptables-restore &lt; /tmp/gh013/iptables.bak &amp;&amp; echo 'host rules restored'; iptables -S INPUT | grep 4000 || echo 'no knock rules remain'
+--- persistence sweep ---
+bash: crontab: command not found
+no knock systemd units
+total 8
+drwxrwx--- 2 root root   80 Sep 20 13:28 .
+drwxrwxrwt 3 root root   60 Sep 20 13:28 ..
+-rw-rw---- 1 root root  207 Sep 20 13:28 iptables.bak
+-rwxrwx--- 1 root root 1756 Sep 20 13:28 knockd.py
+--- remove the drops, restore the saved host rules ---
+Warning: Extension tcp revision 0 not supported, missing kernel module?
+host rules restored
+no knock rules remain</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">6</div>
+            <div>
+              <h3>Re-knock: the door stays shut</h3>
+              <div class="prose"><p>Run the right sequence again: 4001, 4002, 4003. The door stays shut, connection refused. There is no daemon, so there is no door; the sequence is meaningless without the listener that was waiting for it.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="for p in 4001 4002 4003; do nc -z 127.0.0.1 $p &gt;/dev/null 2&gt;&amp;1; done; echo &quot;right sequence knocked again, daemon dead&quot;; nc -z 127.0.0.1 4000 &amp;&amp; echo OPEN || echo 'door stays shut: connection refused'"><span data-label>COPY</span></button></div>
+<pre>$ for p in 4001 4002 4003; do nc -z 127.0.0.1 $p &gt;/dev/null 2&gt;&amp;1; done; echo "right sequence knocked again, daemon dead"; nc -z 127.0.0.1 4000 &amp;&amp; echo OPEN || echo 'door stays shut: connection refused'
+right sequence knocked again, daemon dead
+door stays shut: connection refused</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">7</div>
+            <div>
+              <h3>Prevention, demonstrated</h3>
+              <div class="prose"><p>The durable form is default-deny inbound with an explicit allowlist: nothing reaches the box unless it is named. The targeted DROP is demonstrated again, then removed, because a targeted drop is not the durable form. The honest limit: targeted drops do not stop a daemon that rebinds to an allowed port, so the allowlist must be small and the listener baseline runs regardless; and none of this stops a local process from binding 127.0.0.1, which is why the allowlist plus the baseline travel together. The known-good baseline snapshot is saved, and the scheduled check is one diff: <strong>diff listeners.baseline &lt;(ss -tlnp)</strong>.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- prevention: targeted drop, demonstrated then removed ---&quot;; iptables -A INPUT -p tcp --dport 4000:4003 -j DROP; iptables -S INPUT | grep 4000; iptables -D INPUT -p tcp --dport 4000:4003 -j DROP; echo &quot;targeted drop removed (the durable form is default-deny plus a listener baseline)&quot;; ss -tlnp &gt; /tmp/gh013/listeners.baseline &amp;&amp; echo &quot;known-good baseline snapshot saved: $(wc -l &lt; /tmp/gh013/listeners.baseline) lines&quot;; echo &quot;the scheduled check runs: diff listeners.baseline &lt;(ss -tlnp)&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- prevention: targeted drop, demonstrated then removed ---"; iptables -A INPUT -p tcp --dport 4000:4003 -j DROP; iptables -S INPUT | grep 4000; iptables -D INPUT -p tcp --dport 4000:4003 -j DROP; echo "targeted drop removed (the durable form is default-deny plus a listener baseline)"; ss -tlnp &gt; /tmp/gh013/listeners.baseline &amp;&amp; echo "known-good baseline snapshot saved: $(wc -l &lt; /tmp/gh013/listeners.baseline) lines"; echo "the scheduled check runs: diff listeners.baseline &lt;(ss -tlnp)"
+--- prevention: targeted drop, demonstrated then removed ---
+Warning: Extension tcp revision 0 not supported, missing kernel module?
+Warning: Extension tcp revision 0 not supported, missing kernel module?
+-A INPUT -p tcp -m tcp --dport 4000:4003 -j DROP
+Warning: Extension tcp revision 0 not supported, missing kernel module?
+targeted drop removed (the durable form is default-deny plus a listener baseline)
+known-good baseline snapshot saved: 2 lines
+the scheduled check runs: diff listeners.baseline &lt;(ss -tlnp)</pre>
+</div>
+              <div class="verdict green">
+                <span class="mlabel">Detection verified</span>
+                <p>One ss named the anomaly: a single python pid on four ports. The pid led to the binary and the window. The kill was confirmed, the ports were dropped, the window was scoped, persistence was swept, and the re-knock proved the door is gone. The scanner never had a chance; the inventory had everything.</p>
+              </div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">8</div>
+            <div>
+              <h3>Cleanup</h3>
+              <div class="prose"><p>Kill any stray daemon, remove the lab, confirm it is gone: no directory, no knock listeners on the box. The namespace dies with the session regardless; the cleanup keeps the record honest.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="pkill -f knockd.py 2&gt;/dev/null; rm -rf /tmp/gh013; ls /tmp | grep gh013 || echo &quot;lab gone&quot;; ss -tln | grep -E &quot;:(4000|4001|4002|4003) &quot; || echo &quot;no knock listeners on the box&quot;"><span data-label>COPY</span></button></div>
+<pre>$ pkill -f knockd.py 2&gt;/dev/null; rm -rf /tmp/gh013; ls /tmp | grep gh013 || echo "lab gone"; ss -tln | grep -E ":(4000|4001|4002|4003) " || echo "no knock listeners on the box"
+lab gone
+no knock listeners on the box</pre>
+</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="countermeasures">
+          <div class="phase-head"><span class="phase-num">05</span><h2>Countermeasures</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">Three moves, in order: stop the daemon and drop its ports, watch the listeners on a schedule, deny by default. Each is one way, not the way.</p>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Mitigate: stop, drop, scope</h3>
+              <div class="prose"><p>Proven first against the live daemon: the DROP goes in, the next knock dies in the firewall, the counter climbs. Then stop the daemon by pid, and confirm the listeners are gone before touching anything else; never kill without confirming, or you will not know whether it respawned. Scope the window from the daemon start to the kill, sweep persistence (crontab, systemd units, /tmp strays), then remove the DROP rules and restore the saved host rules. D3FEND names the filtering <a href="https://d3fend.mitre.org/technique/d3f:InboundTrafficFiltering/" rel="noopener">Inbound Traffic Filtering (D3-ITF)</a>: restricting network traffic from untrusted networks toward a private host.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="iptables-save &gt; /tmp/gh013/iptables.bak &amp;&amp; echo 'host rules saved to iptables.bak'; iptables -A INPUT -p tcp --dport 4000:4003 -j DROP &amp;&amp; echo &quot;--- drop in place: the knocker is cut off ---&quot;; nc -z -w2 127.0.0.1 4001 &gt;/dev/null 2&gt;&amp;1 &amp;&amp; echo REACHABLE || echo 'knock blocked by the drop rule'; iptables -L INPUT -v -n | grep 4000; kill $KNOCKD; sleep 1; ps -p $KNOCKD &gt;/dev/null 2&gt;&amp;1 &amp;&amp; echo &quot;STILL ALIVE&quot; || echo &quot;daemon dead&quot;; ss -tln | grep -E &quot;:(4000|4001|4002|4003) &quot; || echo &quot;all four listeners gone&quot;&#10;echo &quot;--- persistence sweep ---&quot;; crontab -l 2&gt;&amp;1 | head -2; ls /etc/systemd/system/ 2&gt;/dev/null | grep -iE 'knock|gh013' || echo 'no knock systemd units'; ls -la /tmp/gh013; echo &quot;--- remove the drops, restore the saved host rules ---&quot;; iptables -D INPUT -p tcp --dport 4000:4003 -j DROP; iptables-restore &lt; /tmp/gh013/iptables.bak &amp;&amp; echo 'host rules restored'; iptables -S INPUT | grep 4000 || echo 'no knock rules remain'"><span data-label>COPY</span></button></div>
+<pre>$ iptables-save &gt; /tmp/gh013/iptables.bak &amp;&amp; echo 'host rules saved to iptables.bak'; iptables -A INPUT -p tcp --dport 4000:4003 -j DROP &amp;&amp; echo "--- drop in place: the knocker is cut off ---"; nc -z -w2 127.0.0.1 4001 &gt;/dev/null 2&gt;&amp;1 &amp;&amp; echo REACHABLE || echo 'knock blocked by the drop rule'; iptables -L INPUT -v -n | grep 4000; kill $KNOCKD; sleep 1; ps -p $KNOCKD &gt;/dev/null 2&gt;&amp;1 &amp;&amp; echo "STILL ALIVE" || echo "daemon dead"; ss -tln | grep -E ":(4000|4001|4002|4003) " || echo "all four listeners gone"
+host rules saved to iptables.bak
+Warning: Extension tcp revision 0 not supported, missing kernel module?
+--- drop in place: the knocker is cut off ---
+knock blocked by the drop rule
+Warning: Extension tcp revision 0 not supported, missing kernel module?
+    2   120 DROP       6    --  *      *       0.0.0.0/0            0.0.0.0/0            tcp dpts:4000:4003
+daemon dead
+all four listeners gone
+$ echo "--- persistence sweep ---"; crontab -l 2&gt;&amp;1 | head -2; ls /etc/systemd/system/ 2&gt;/dev/null | grep -iE 'knock|gh013' || echo 'no knock systemd units'; ls -la /tmp/gh013; echo "--- remove the drops, restore the saved host rules ---"; iptables -D INPUT -p tcp --dport 4000:4003 -j DROP; iptables-restore &lt; /tmp/gh013/iptables.bak &amp;&amp; echo 'host rules restored'; iptables -S INPUT | grep 4000 || echo 'no knock rules remain'
+--- persistence sweep ---
+bash: crontab: command not found
+no knock systemd units
+total 8
+drwxrwx--- 2 root root   80 Sep 20 13:28 .
+drwxrwxrwt 3 root root   60 Sep 20 13:28 ..
+-rw-rw---- 1 root root  207 Sep 20 13:28 iptables.bak
+-rwxrwx--- 1 root root 1756 Sep 20 13:28 knockd.py
+--- remove the drops, restore the saved host rules ---
+Warning: Extension tcp revision 0 not supported, missing kernel module?
+host rules restored
+no knock rules remain</pre>
+</div>
+              <div class="callout"><p><strong>Honest limit.</strong> iptables rules on the box only stop network reachability. A local attacker with a shell can still reach 127.0.0.1 only if the rules do not cover lo (ours do: INPUT covers loopback), and the rules do not remove the binary or undo what the service did while it was reachable. The drop buys time and blocks the remote knocker; it does not clean the box.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>Monitor: baseline the listeners on a schedule</h3>
+              <div class="prose"><p>The scheduled form of the phase-blue baseline: snapshot <strong>ss -tlnp</strong> known-good, and diff it on a timer. One new listener on an unexpected port pages someone. D3FEND's grounded set for this technique: <a href="https://d3fend.mitre.org/technique/d3f:ConnectionAttemptAnalysis/" rel="noopener">Connection Attempt Analysis (D3-CAA)</a>, completed and failed connection attempts as the tell; <a href="https://d3fend.mitre.org/technique/d3f:InboundSessionVolumeAnalysis/" rel="noopener">Inbound Session Volume Analysis (D3-ISVA)</a>, bursts of inbound sessions to adjacent ports, the knock burst exactly.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- listener baseline: who holds what ---&quot;; ss -tlnp | grep -E &quot;400[0-3]&quot;&#10;for p in 4001 4002 4003; do nc -z 127.0.0.1 $p &gt;/dev/null 2&gt;&amp;1; done; sleep 1; echo &quot;--- completed connects to the knock ports (the knock burst) ---&quot;; ss -tn state time-wait | grep -E ':400[123]'"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- listener baseline: who holds what ---"; ss -tlnp | grep -E "400[0-3]"
+--- listener baseline: who holds what ---
+LISTEN 0      0          127.0.0.1:4002      0.0.0.0:*    users:(("python3",pid=10,fd=5))
+LISTEN 0      0          127.0.0.1:4003      0.0.0.0:*    users:(("python3",pid=10,fd=7))
+LISTEN 0      0          127.0.0.1:4000      0.0.0.0:*    users:(("python3",pid=10,fd=9))
+LISTEN 0      0          127.0.0.1:4001      0.0.0.0:*    users:(("python3",pid=10,fd=3))
+$ for p in 4001 4002 4003; do nc -z 127.0.0.1 $p &gt;/dev/null 2&gt;&amp;1; done; sleep 1; echo "--- completed connects to the knock ports (the knock burst) ---"; ss -tn state time-wait | grep -E ':400[123]'
+--- completed connects to the knock ports (the knock burst) ---
+0      0          127.0.0.1:59368    127.0.0.1:4002
+0      0          127.0.0.1:59408    127.0.0.1:4002
+0      0          127.0.0.1:4003     127.0.0.1:56306
+0      0          127.0.0.1:4002     127.0.0.1:59368
+0      0          127.0.0.1:4003     127.0.0.1:56304
+0      0          127.0.0.1:4001     127.0.0.1:46158
+0      0          127.0.0.1:4001     127.0.0.1:46162
+0      0          127.0.0.1:4002     127.0.0.1:59400
+0      0          127.0.0.1:4003     127.0.0.1:56324
+0      0          127.0.0.1:4002     127.0.0.1:59384
+0      0          127.0.0.1:4001     127.0.0.1:46144
+0      0          127.0.0.1:4003     127.0.0.1:56310
+0      0          127.0.0.1:4001     127.0.0.1:46150</pre>
+</div>
+              <div class="callout"><p><strong>Honest limit.</strong> ss shows the current truth only. A daemon that binds, serves, and exits between polls is missed, so the poll interval sets the detection floor. Host firewall logs of dropped knocks are the backstop: the knocker still has to touch the ports, and the log keeps what ss forgot.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>Prevent: default-deny with an explicit allowlist</h3>
+              <div class="prose"><p>The durable form: INPUT defaults to DROP, and only named ports are permitted. A knock daemon cannot be reached on ports the firewall never allows, and the listener baseline still runs, because prevention and detection are not substitutes. Demonstrated above in targeted form, then removed; the production form is the default-deny policy.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- prevention: targeted drop, demonstrated then removed ---&quot;; iptables -A INPUT -p tcp --dport 4000:4003 -j DROP; iptables -S INPUT | grep 4000; iptables -D INPUT -p tcp --dport 4000:4003 -j DROP; echo &quot;targeted drop removed (the durable form is default-deny plus a listener baseline)&quot;; ss -tlnp &gt; /tmp/gh013/listeners.baseline &amp;&amp; echo &quot;known-good baseline snapshot saved: $(wc -l &lt; /tmp/gh013/listeners.baseline) lines&quot;; echo &quot;the scheduled check runs: diff listeners.baseline &lt;(ss -tlnp)&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- prevention: targeted drop, demonstrated then removed ---"; iptables -A INPUT -p tcp --dport 4000:4003 -j DROP; iptables -S INPUT | grep 4000; iptables -D INPUT -p tcp --dport 4000:4003 -j DROP; echo "targeted drop removed (the durable form is default-deny plus a listener baseline)"; ss -tlnp &gt; /tmp/gh013/listeners.baseline &amp;&amp; echo "known-good baseline snapshot saved: $(wc -l &lt; /tmp/gh013/listeners.baseline) lines"; echo "the scheduled check runs: diff listeners.baseline &lt;(ss -tlnp)"
+--- prevention: targeted drop, demonstrated then removed ---
+Warning: Extension tcp revision 0 not supported, missing kernel module?
+Warning: Extension tcp revision 0 not supported, missing kernel module?
+-A INPUT -p tcp -m tcp --dport 4000:4003 -j DROP
+Warning: Extension tcp revision 0 not supported, missing kernel module?
+targeted drop removed (the durable form is default-deny plus a listener baseline)
+known-good baseline snapshot saved: 2 lines
+the scheduled check runs: diff listeners.baseline &lt;(ss -tlnp)</pre>
+</div>
+              <div class="callout"><p><strong>Honest limit.</strong> Targeted drops do not stop a daemon that rebinds to an allowed port, so the allowlist must be small and the baseline runs regardless. And none of this stops a local process from binding 127.0.0.1, which is why the allowlist plus the baseline travel together. A firewall filters the network; the inventory watches the box.</p></div>
+              <div class="verdict green">
+                <span class="mlabel">Countermeasures verified</span>
+                <p>The daemon was stopped by pid with its listeners confirmed gone, its ports dropped and the drops removed, the window scoped and persistence swept. The listeners are baselined on a schedule, and the durable posture is default-deny with an allowlist. The knock still works against a box nobody watches; against a watched box it is just noise in the log.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="debrief">
+          <div class="phase-head"><span class="phase-num">06</span><h2>Debrief</h2><span class="phase-tag neutral">TAKEAWAY</span></div>
+          <p class="takeaway">A closed port is not an absent service: inventory the listeners, not the scan.</p>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">IOC checklist: signs this technique was used</span></p></div>
+          <ul class="checklist">
+            <li><span>One python process holding several adjacent ports that accept and close with no service behind them</span></li>
+            <li><span>Bursts of completed connections (TIME_WAIT) to adjacent ports on a box with no known service there</span></li>
+            <li><span>A daemon binary in <strong>/tmp</strong> whose loop accepts and immediately closes connects</span></li>
+            <li><span>A listener that appears only after a burst of connects to neighboring ports</span></li>
+            <li><span>Firewall logs showing dropped or completed connects to a tight run of ports</span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Reproducibility checklist</span></p></div>
+          <ul class="checklist">
+            <li><span>Verified on <strong>Ubuntu 24.04.5 LTS</strong>, x86-64, on 2026-09-20</span></li>
+            <li><span>Both recordings are real executions on that platform, not simulations</span></li>
+            <li><span>The knock demo runs as the current user (the assumed breach: something on the box runs the daemon); the firewall demo needs root</span></li>
+            <li><span>Cleanup: kill the daemon pid, <strong>iptables-restore</strong> the saved host rules, <strong>rm -rf /tmp/gh013</strong>; verify with <strong>ss -tln</strong></span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Sources</span></p></div>
+          <div class="prose"><p><a href="https://attack.mitre.org/techniques/T1205/001/" rel="noopener">MITRE ATT&amp;CK T1205.001: Port Knocking</a><br>
+          <a href="https://man7.org/linux/man-pages/man8/ss.8.html" rel="noopener">ss(8)</a> (the listener inventory)<br>
+          <a href="https://man7.org/linux/man-pages/man1/nc.1.html" rel="noopener">nc(1)</a> (the knocks)<br>
+          <a href="https://man7.org/linux/man-pages/man8/iptables.8.html" rel="noopener">iptables(8)</a> (the drops)<br>
+          <a href="https://d3fend.mitre.org/" rel="noopener">MITRE D3FEND</a>: <a href="https://d3fend.mitre.org/technique/d3f:ConnectionAttemptAnalysis/" rel="noopener">D3-CAA</a>, <a href="https://d3fend.mitre.org/technique/d3f:InboundSessionVolumeAnalysis/" rel="noopener">D3-ISVA</a>, <a href="https://d3fend.mitre.org/technique/d3f:InboundTrafficFiltering/" rel="noopener">D3-ITF</a> (each modeled against T1205.001 in the technique mapping)</p></div>
+        </section>
+
+        <a class="next-file" href="../014-delay-execution/index.html">
+          <span class="mlabel">Next file</span>
+          <h3>GH-014 Delay Execution</h3>
+          <p>A payload that waits out the sandbox clock. The next file times the wait.</p>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <div>
+      <div class="footer-brand">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+        <span class="brand-name" style="font-size:17px">GHOSTLIGHT</span>
+      </div>
+      <p class="footer-note">An independent adversary-stealth research publication. Every command verified on the named OS before publishing. No trackers, no frameworks, no autoplay.</p>
+    </div>
+    <nav class="footer-links">
+      <a href="../../method.html">METHOD</a>
+      <a href="../../index.html">FILES</a>
+      <a href="https://attack.mitre.org/tactics/TA0005/" rel="noopener">MITRE TA0005</a>
+    </nav>
+    <div class="footer-elsewhere">
+      <span class="mlabel">Elsewhere</span><a href="https://dillingerstaffing.github.io/portfolio/" target="_blank" rel="noopener">Portfolio</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/proving-ground/" target="_blank" rel="noopener">Proving Ground</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/tapeout/" target="_blank" rel="noopener">Tapeout</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/old-iron/" target="_blank" rel="noopener">Old Iron</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/unstuck/" target="_blank" rel="noopener">Unstuck</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../../assets/site.js?v=512f8825"></script>
+</body>
+</html>
