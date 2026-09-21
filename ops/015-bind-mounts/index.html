@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>GH-015 The False Floor (T1564.013): GHOSTLIGHT</title>
+<meta name="description" content="T1564.013 Bind Mounts, reproduced on Ubuntu 24.04: an attacker lays an empty directory over the stash, and every path-based tool reports the cover. The defender reads the mount table, lifts the cover, and seizes what was underneath.">
+<link rel="canonical" href="https://dillingerstaffing.github.io/ghostlight/ops/015-bind-mounts/">
+<meta property="og:title" content="GH-015 The False Floor (T1564.013): GHOSTLIGHT">
+<meta property="og:description" content="T1564.013 Bind Mounts, reproduced on Ubuntu 24.04: an attacker lays an empty directory over the stash, and every path-based tool reports the cover. The defender reads the mount table, lifts the cover, and seizes what was underneath.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dillingerstaffing.github.io/ghostlight/ops/015-bind-mounts/">
+<meta property="og:site_name" content="GHOSTLIGHT">
+<meta property="og:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="GH-015 The False Floor (T1564.013): GHOSTLIGHT">
+<meta name="twitter:description" content="T1564.013 Bind Mounts, reproduced on Ubuntu 24.04: an attacker lays an empty directory over the stash, and every path-based tool reports the cover. The defender reads the mount table, lifts the cover, and seizes what was underneath.">
+<meta name="twitter:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23ece6d5'/%3E%3Ccircle cx='256' cy='196' r='104' fill='none' stroke='%23241f17' stroke-width='20'/%3E%3Cline x1='256' y1='152' x2='256' y2='240' stroke='%238c3f22' stroke-width='16'/%3E%3Cline x1='256' y1='300' x2='256' y2='424' stroke='%23241f17' stroke-width='14'/%3E%3Cline x1='200' y1='424' x2='312' y2='424' stroke='%23241f17' stroke-width='18'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+<link rel="manifest" href="../../assets/manifest.webmanifest">
+<meta name="theme-color" content="#0a0c0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GHOSTLIGHT">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<script>
+(function () {
+  // Theme: notebook is the default; a stored visitor choice wins.
+  // Runs before the stylesheet is parsed so the first paint is already
+  // the right theme (no flash of the wrong one).
+  try {
+    var t = localStorage.getItem('emi-site-theme');
+    var theme = t === 'classic' ? 'classic' : 'notebook';
+    document.documentElement.dataset.theme = theme;
+    var m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute('content', theme === 'classic' ? '#0a0c0f' : '#ece6d5');
+  } catch (e) {
+    document.documentElement.dataset.theme = 'notebook';
+  }
+})();
+</script>
+<link rel="stylesheet" href="../../assets/site.css?v=36a0084f">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"GH-015 The False Floor (T1564.013): GHOSTLIGHT",
+"url":"https://dillingerstaffing.github.io/ghostlight/ops/015-bind-mounts/","description":"T1564.013 Bind Mounts, reproduced on Ubuntu 24.04: an attacker lays an empty directory over the stash, and every path-based tool reports the cover. The defender reads the mount table, lifts the cover, and seizes what was underneath.",
+"author":{"@type":"Person","name":"Chris Dillinger","url":"https://www.linkedin.com/in/christopherdillinger/"},
+"inLanguage":"en"}
+</script>
+</head>
+<body>
+
+<header class="site-header">
+  <a class="brand" href="../../index.html" aria-label="GHOSTLIGHT home">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+    <span class="brand-name">GHOSTLIGHT</span>
+  </a>
+  <nav class="site-nav">
+    <a href="../../method.html">METHOD</a>
+    <a href="../../index.html">FILES</a>
+    <button class="theme-toggle" type="button" aria-label="Switch to dark field dossier theme" title="Switch theme">
+      <span class="theme-toggle-mark" aria-hidden="true"><i></i><i></i></span>
+    </button>
+  </nav>
+</header>
+
+<div class="onboard" data-onboard hidden>
+  <span><strong>How to read a file:</strong> every file follows the six-phase structure below. <span class="k-green">Green</span> is verified, <span class="k-red">red</span> is hostile.</span>
+  <button aria-label="Dismiss">GOT IT</button>
+</div>
+
+<div class="page" data-op="015">
+  <div class="wrap">
+    <section class="op-hero">
+      <div class="op-kicker">
+        <span class="case-no">GH-015</span>
+        <a class="tech-id" href="https://attack.mitre.org/techniques/T1564/013/" rel="noopener">T1564.013</a>
+        <span class="phase-tag red">PHASE RED INSIDE</span>
+      </div>
+      <h1>The False Floor</h1>
+      <p class="lede">A stash sits on this box with two files the attacker needs to keep: a payload stand-in and a staging manifest. One bind mount lays an empty directory over the stash, and every path-based tool reports the cover. This file runs that cover, then reads the mount table the attacker hoped nobody would read, lifts the cover, and seizes what was underneath.</p>
+      <div class="op-meta-grid">
+        <div class="op-meta"><span class="mlabel">Technique</span><span class="mvalue">Bind Mounts (T1564.013)</span></div>
+        <div class="op-meta"><span class="mlabel">Target OS</span><span class="mvalue">Ubuntu 24.04.5 LTS</span></div>
+        <div class="op-meta"><span class="mlabel">Toolchain</span><span class="mvalue">bash, coreutils, util-linux, libcap2-bin</span></div>
+        <div class="op-meta"><span class="mlabel">Level</span><span class="mvalue">Intermediate</span></div>
+        <div class="op-meta"><span class="mlabel">Time</span><span class="mvalue">25 min</span></div>
+      </div>
+      <div class="objectives">
+        <h2>OBJECTIVES</h2>
+        <ol>
+          <li data-phase="phase-red"><span class="box"></span>Lay an empty bind-mount cover over a populated directory and watch ls, find, and du report nothing</li>
+          <li data-phase="phase-blue"><span class="box"></span>Detect the cover from the mount table, record it, lift it, and quarantine what was underneath</li>
+          <li data-phase="countermeasures"><span class="box"></span>Gate bind mounts behind CAP_SYS_ADMIN, inventory the mount table on a schedule, sweep persistence</li>
+          <li data-phase="debrief"><span class="box"></span>Take the IOC checklist and the one-sentence lesson</li>
+        </ol>
+      </div>
+    </section>
+
+    <div class="op-layout">
+      <nav class="rail" aria-label="Phases">
+        <span class="mlabel">Phases</span>
+        <ol>
+          <li><a href="#intel-brief"><span class="pnum">01</span>INTEL BRIEF<span class="tick"></span></a></li>
+          <li><a href="#target-environment"><span class="pnum">02</span>TARGET ENV<span class="tick"></span></a></li>
+          <li><a href="#phase-red"><span class="pnum">03</span>PHASE RED<span class="tick"></span></a></li>
+          <li><a href="#phase-blue"><span class="pnum">04</span>PHASE BLUE<span class="tick"></span></a></li>
+          <li><a href="#countermeasures"><span class="pnum">05</span>COUNTERMEASURES<span class="tick"></span></a></li>
+          <li><a href="#debrief"><span class="pnum">06</span>DEBRIEF<span class="tick"></span></a></li>
+        </ol>
+      </nav>
+
+      <div class="op-content">
+        <section class="phase" id="intel-brief">
+          <div class="phase-head"><span class="phase-num">01</span><h2>Intel Brief</h2><span class="phase-tag neutral">CONTEXT</span></div>
+          <p class="lede">MITRE ATT&amp;CK <a href="https://attack.mitre.org/techniques/T1564/013/" rel="noopener">T1564.013</a>: adversaries mount an existing directory over a populated path, so path-based tools see the cover while the files sit untouched on disk. This file runs that cover end to end, then shows the table read that sees through it. Two actors: the attacker, who owns the lab directory, the stash files, and the cover mount; and the defender, who owns the mount table reads, the unmount, and every inventory in the blue phase.</p>
+          <div class="prose">
+            <p><strong>Why this technique.</strong> The attacker has two needs that fight each other. The files must stay on disk: notes.txt is the staging manifest, and the payload has to remain deployable. And no directory listing may show them: any inventory that lists them burns the stash. Deletion satisfies the second need and fails the first. A bind mount satisfies both. The files are untouched on disk, and the path no longer resolves to them. The cover reverses with one umount, which is the operational point: nothing is destroyed, so nothing is lost if the attacker needs the stash back.</p>
+            <p><strong>Why not delete the evidence.</strong> The obvious alternative is rm: delete it. Break it on the concrete input: the attacker still needs notes.txt. Deletion is one-way, and unlinked inodes are forensically recoverable anyway (the GH-006 ground: deletion leaves the bytes on disk until they are overwritten). The bind mount keeps everything intact and reverses with one umount.</p>
+            <p><strong>Why not hide in the listing.</strong> The other obvious alternative is hiding inside the listing: dotfiles, deep paths, the T1564.001 ground from GH-009. Break it: find still enumerates them. Any recursive inventory lists them, because the files are still reachable through the path. The bind mount removes the files from directory listings at the VFS layer: no enumeration can find what the path no longer resolves to.</p>
+            <p><strong>Why not hook readdir.</strong> The third alternative is a readdir hook through LD_PRELOAD, the GH-002 ground. Break it: the hook only affects dynamically linked binaries that honor the variable. A static ls, a Go find, the kernel itself, all see through it. The bind mount is enforced by kernel path resolution for every process and every tool, because the mount table is consulted while the path is resolved.</p>
+            <p><strong>The mechanism, in one line.</strong> A <strong>bind mount</strong> is mounting an existing directory tree at a second path, so both paths show the same contents: here the empty decoy is mounted at the stash's path, so the stash's path shows the decoy's contents (nothing). The <strong>mount table</strong>, readable at /proc/mounts and /proc/self/mountinfo, is the kernel's list of what is mounted where: the independent observation path, because listings consult the table during resolution and the table itself cannot be covered by a mount. A <strong>mount namespace</strong> is each process's own view of the table: mounts made in one namespace are invisible in another, which is why the blue phase enumerates namespaces. <strong>VFS path resolution</strong> is the kernel step that turns a path into a file; the mount table is consulted during resolution, which is why the cover works against every tool that opens a path. Terms earned, no borrowing.</p>
+            <p><strong>The concrete case, before the abstraction.</strong> mount --bind /tmp/gh015/decoy /tmp/gh015/stash. Before: ls -A shows implant.sh notes.txt, and find agrees. After: ls -A shows nothing, find shows nothing, du reports 0. The attacker's own confirmation comes from the table: findmnt -T shows the stash's SOURCE is tmpfs[/gh015/decoy], the giveaway in plain sight. One mount, total cover, one table read to see through it.</p>
+          </div>
+          <div class="callout"><p><strong>Scope.</strong> T1564.013 covers bind mounts broadly: hiding files, redirecting paths, and container breakouts lean on the same primitive. This file works the concealment case end to end: the cover, the table read, the lift, the capability gate, and the inventory. The lab runs as root in a disposable mount namespace because the mount syscall requires CAP_SYS_ADMIN; the prevention step shows the gate refusing the same call without the capability, which is the whole point.</p></div>
+        </section>
+
+        <section class="phase" id="target-environment">
+          <div class="phase-head"><span class="phase-num">02</span><h2>Target Environment</h2><span class="phase-tag neutral">LOADOUT</span></div>
+          <p class="lede">Ubuntu 24.04.5 LTS, x86-64, in a disposable mount namespace used only for this lab. Runs as root: the mount syscall needs CAP_SYS_ADMIN, and the capability gate in the blue phase is demonstrated, not described. Everything the lab touches lives inside /tmp/gh015, so cleanup is a single rm.</p>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Build the lab</h3>
+              <div class="prose"><p>One disposable directory, built from scratch. <strong>rm -rf /tmp/gh015</strong> clears any earlier take; <strong>mkdir -p</strong> makes the stash and the empty decoy. The two stash files go in through heredocs. <strong>implant.sh</strong> is the stand-in for the payload the attacker needs on disk: kept, never run. One umount brings it back into view; that is the point. <strong>notes.txt</strong> is the staging manifest: what the payload is, when the drop window opens, who carries it. The final <strong>ls -A</strong> proves the lab built: implant.sh, notes.txt.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="rm -rf /tmp/gh015 &amp;&amp; mkdir -p /tmp/gh015/stash /tmp/gh015/decoy &amp;&amp; cat &gt; /tmp/gh015/stash/implant.sh &lt;&lt;'EOF'&#10;#!/bin/sh&#10;# Stand-in for the payload the attacker needs on disk: kept, never run.&#10;# One umount brings it back into view; that is the point.&#10;echo &quot;this file is never executed&quot;&#10;exit 0&#10;EOF&#10;cat &gt; /tmp/gh015/stash/notes.txt &lt;&lt;'EOF'&#10;staging manifest&#10;- implant.sh : payload stand-in (kept on disk, never executed)&#10;- drop window: after the next reboot&#10;- carrier: whoever reads this path first&#10;EOF&#10;echo &quot;lab built: /tmp/gh015&quot;; ls -A /tmp/gh015/stash"><span data-label>COPY</span></button></div>
+<pre>$ rm -rf /tmp/gh015 &amp;&amp; mkdir -p /tmp/gh015/stash /tmp/gh015/decoy &amp;&amp; cat &gt; /tmp/gh015/stash/implant.sh &lt;&lt;'EOF'
+#!/bin/sh
+# Stand-in for the payload the attacker needs on disk: kept, never run.
+# One umount brings it back into view; that is the point.
+echo "this file is never executed"
+exit 0
+EOF
+cat &gt; /tmp/gh015/stash/notes.txt &lt;&lt;'EOF'
+staging manifest
+- implant.sh : payload stand-in (kept on disk, never executed)
+- drop window: after the next reboot
+- carrier: whoever reads this path first
+EOF
+echo "lab built: /tmp/gh015"; ls -A /tmp/gh015/stash
+lab built: /tmp/gh015
+implant.sh  notes.txt</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>The before view</h3>
+              <div class="prose"><p>This is what normal looks like, recorded before the cover goes down. <strong>ls -A</strong> shows both files; <strong>find -mindepth 1</strong> lists both full paths. Both tools agree, because nothing is hidden yet. The blue phase will compare this against the after view.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- the before view: what normal looks like ---&quot;; ls -A /tmp/gh015/stash; echo; find /tmp/gh015/stash -mindepth 1"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- the before view: what normal looks like ---"; ls -A /tmp/gh015/stash; echo; find /tmp/gh015/stash -mindepth 1
+--- the before view: what normal looks like ---
+implant.sh  notes.txt
+
+/tmp/gh015/stash/notes.txt
+/tmp/gh015/stash/implant.sh</pre>
+</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="phase-red">
+          <div class="phase-head"><span class="phase-num">03</span><h2>Phase Red: lay the false floor</h2><span class="phase-tag red">ATTACK</span></div>
+          <p class="lede">First the before view, then the cover goes down, then the attacker's own confirmation from the mount table.</p>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">123.3s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/floor-red.jpg" aria-label="Screen recording: FLOOR RED, operator@lab">
+              <source src="../../assets/vid/floor-red.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> An empty directory is bind-mounted over a populated stash. ls, find, and du report the cover; the mount table tells the truth. Every command below is copy-pasteable.</figcaption>
+          </figure>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>The attack</h3>
+              <div class="prose"><p><strong>mount --bind /tmp/gh015/decoy /tmp/gh015/stash</strong> lays the empty cover over the stash. The command is silent on success: the evidence is what the listings say after. <strong>ls -A</strong> shows nothing, with the (ls: empty) marker. <strong>find -mindepth 1</strong> shows nothing. <strong>du -sh</strong> reports 0 for the path. Three path-based tools, three empty answers, and the files are untouched on disk.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- the attack: lay the empty cover over the stash ---&quot;; mount --bind /tmp/gh015/decoy /tmp/gh015/stash; echo &quot;--- the after view ---&quot;; ls -A /tmp/gh015/stash; echo '(ls: empty)'; find /tmp/gh015/stash -mindepth 1; echo '(find: nothing)'; du -sh /tmp/gh015/stash"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- the attack: lay the empty cover over the stash ---"; mount --bind /tmp/gh015/decoy /tmp/gh015/stash; echo "--- the after view ---"; ls -A /tmp/gh015/stash; echo '(ls: empty)'; find /tmp/gh015/stash -mindepth 1; echo '(find: nothing)'; du -sh /tmp/gh015/stash
+--- the attack: lay the empty cover over the stash ---
+--- the after view ---
+(ls: empty)
+(find: nothing)
+0	/tmp/gh015/stash</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>The attacker's confirmation</h3>
+              <div class="prose"><p>The attacker reads the same table the defender will read, to confirm the cover holds. <strong>findmnt -T /tmp/gh015/stash</strong> shows TARGET /tmp/gh015/stash with SOURCE tmpfs[/gh015/decoy]: the path is a mountpoint whose source is the decoy. <strong>grep gh015 /proc/mounts</strong> shows the table entry: tmpfs on /tmp/gh015/stash. The giveaway is in the table the whole time; the attack works because almost nobody reads it.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- the attacker confirms the cover holds ---&quot;; findmnt -T /tmp/gh015/stash; echo; grep gh015 /proc/mounts"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- the attacker confirms the cover holds ---"; findmnt -T /tmp/gh015/stash; echo; grep gh015 /proc/mounts
+--- the attacker confirms the cover holds ---
+TARGET          SOURCE             FSTYPE OPTIONS
+/tmp/gh015/stash
+                tmpfs[/gh015/decoy]
+                                   tmpfs  rw,relatime,uid=131072,gid=131072,inod
+
+tmpfs /tmp/gh015/stash tmpfs rw,relatime,uid=131072,gid=131072,inode64 0 0</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>Stealth confirmed</h3>
+              <div class="prose"><p>Three echo lines, the attacker's summary: ls, find, du all report the cover; the files are untouched on disk; the path now resolves to the empty decoy. Only the mount table tells the truth, and the attacker is counting on nobody reading it.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;stealth confirmed: ls, find, du all report the cover&quot;; echo &quot;the files are untouched on disk; the path now resolves to the empty decoy&quot;; echo &quot;only the mount table tells the truth, and the attacker is counting on nobody reading it&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "stealth confirmed: ls, find, du all report the cover"; echo "the files are untouched on disk; the path now resolves to the empty decoy"; echo "only the mount table tells the truth, and the attacker is counting on nobody reading it"
+stealth confirmed: ls, find, du all report the cover
+the files are untouched on disk; the path now resolves to the empty decoy
+only the mount table tells the truth, and the attacker is counting on nobody reading it</pre>
+</div>
+              <div class="verdict red">
+                <span class="mlabel">Stealth confirmed</span>
+                <p>The empty decoy went over the stash with one mount, and every path-based tool reported the cover: empty listings, zero bytes. The files sat untouched on disk the whole time. The mount table named the cover from the first second, and the attack bet that nobody would read it.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="phase-blue">
+          <div class="phase-head"><span class="phase-num">04</span><h2>Phase Blue: read the table</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">The defender does not trust the listing. The defender reads the table: detect from the independent path, record before touching, lift the cover, quarantine what was underneath, then gate the capability and inventory the table.</p>
+          <div class="prose">
+            <p>Here is the trap: running ls, seeing nothing, and calling the directory clean. That is trusting the same path resolution the attacker just subverted. The detection is the table read: a mountpoint check and a source column, while the cover is still live.</p>
+          </div>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot blue" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">238.2s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/floor-blue.jpg" aria-label="Screen recording: FLOOR BLUE, operator@lab">
+              <source src="../../assets/vid/floor-blue.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> The defender finds the cover from the mount table, records the table, lifts the cover, and quarantines what was underneath, then demonstrates the capability gate and the table inventory. Every command below is copy-pasteable.</figcaption>
+          </figure>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>DETECTION: the naive view, then the independent path</h3>
+              <div class="prose"><p><strong>ls -A</strong> shows nothing: the naive view says clean. Then the independent path. <strong>mountpoint -q /tmp/gh015/stash</strong> exits true: stash IS a mountpoint, and a plain directory is not. <strong>findmnt -T</strong> shows SOURCE tmpfs[/gh015/decoy]: the path resolves to the decoy. <strong>grep gh015 /proc/mounts</strong> shows the table entry. <strong>lsns -t mnt</strong> enumerates the mount namespaces: one here, with the lab's bash in it. On a real host, read every namespace's table, because a mount made in another namespace is invisible in this one. Good versus bad, concrete: good is a documented mount with an owner; bad is an undocumented bind of an empty directory over a populated path.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- DETECTION: the naive view first ---&quot;; ls -A /tmp/gh015/stash; echo '(looks clean)'; echo &quot;--- the independent path: the mount table ---&quot;; mountpoint -q /tmp/gh015/stash &amp;&amp; echo &quot;stash IS a mountpoint (a plain directory is not)&quot;; findmnt -T /tmp/gh015/stash; grep gh015 /proc/mounts; echo &quot;--- every mount namespace keeps its own table ---&quot;; lsns -t mnt; echo &quot;good: a documented mount with an owner&quot;; echo &quot;bad: an undocumented bind of an empty directory over a populated path&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- DETECTION: the naive view first ---"; ls -A /tmp/gh015/stash; echo '(looks clean)'; echo "--- the independent path: the mount table ---"; mountpoint -q /tmp/gh015/stash &amp;&amp; echo "stash IS a mountpoint (a plain directory is not)"; findmnt -T /tmp/gh015/stash; grep gh015 /proc/mounts; echo "--- every mount namespace keeps its own table ---"; lsns -t mnt; echo "good: a documented mount with an owner"; echo "bad: an undocumented bind of an empty directory over a populated path"
+--- DETECTION: the naive view first ---
+(looks clean)
+--- the independent path: the mount table ---
+stash IS a mountpoint (a plain directory is not)
+TARGET          SOURCE             FSTYPE OPTIONS
+/tmp/gh015/stash
+                tmpfs[/gh015/decoy]
+                                   tmpfs  rw,relatime,uid=131072,gid=131072,inod
+tmpfs /tmp/gh015/stash tmpfs rw,relatime,uid=131072,gid=131072,inode64 0 0
+--- every mount namespace keeps its own table ---
+        NS TYPE NPROCS PID USER COMMAND
+4026532390 mnt       2   1 root bash --norc --noprofile
+good: a documented mount with an owner
+bad: an undocumented bind of an empty directory over a populated path</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>Record, then lift</h3>
+              <div class="prose"><p><strong>grep gh015 /proc/mounts</strong> goes into mount-evidence.txt BEFORE anything is touched: unmounting disturbs the scene, so the table is recorded first. Then <strong>umount /tmp/gh015/stash</strong> lifts the cover, and <strong>ls -A</strong> shows implant.sh notes.txt back. The mount was the only thing hiding them.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- record the table BEFORE touching anything ---&quot;; grep gh015 /proc/mounts &gt; /tmp/gh015/mount-evidence.txt &amp;&amp; cat /tmp/gh015/mount-evidence.txt; echo &quot;--- lift the cover ---&quot;; umount /tmp/gh015/stash; ls -A /tmp/gh015/stash; echo &quot;the mount was the only thing hiding them&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- record the table BEFORE touching anything ---"; grep gh015 /proc/mounts &gt; /tmp/gh015/mount-evidence.txt &amp;&amp; cat /tmp/gh015/mount-evidence.txt; echo "--- lift the cover ---"; umount /tmp/gh015/stash; ls -A /tmp/gh015/stash; echo "the mount was the only thing hiding them"
+--- record the table BEFORE touching anything ---
+tmpfs /tmp/gh015/stash tmpfs rw,relatime,uid=131072,gid=131072,inode64 0 0
+--- lift the cover ---
+implant.sh  notes.txt
+the mount was the only thing hiding them</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>MITIGATION: hash and quarantine</h3>
+              <div class="prose"><p><strong>sha256sum</strong> hashes the revealed files: evidence hashes, taken before the files move. <strong>mkdir quarantine</strong>, <strong>mv</strong> both files in: seized, not deleted. Then the persistence sweep, the three places a remount hides: <strong>grep gh015 /etc/fstab</strong> (no entry), the systemd units (none), <strong>crontab</strong> (none). The honest scope note: the table says WHAT was hidden, not WHEN it was mounted. The mount time is not in the table.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- MITIGATION: hash and quarantine what was underneath ---&quot;; sha256sum /tmp/gh015/stash/implant.sh /tmp/gh015/stash/notes.txt; mkdir -p /tmp/gh015/quarantine &amp;&amp; mv /tmp/gh015/stash/implant.sh /tmp/gh015/stash/notes.txt /tmp/gh015/quarantine/ &amp;&amp; ls -A /tmp/gh015/quarantine; echo &quot;--- persistence sweep ---&quot;; grep gh015 /etc/fstab 2&gt;/dev/null || echo 'no gh015 entry in /etc/fstab'; ls /etc/systemd/system/ 2&gt;/dev/null | grep -i gh015 || echo 'no gh015 systemd units'; crontab -l 2&gt;/dev/null | grep -i gh015 || echo 'no gh015 crontab entries'; echo &quot;honest scope note: the table says WHAT was hidden, not WHEN it was mounted&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- MITIGATION: hash and quarantine what was underneath ---"; sha256sum /tmp/gh015/stash/implant.sh /tmp/gh015/stash/notes.txt; mkdir -p /tmp/gh015/quarantine &amp;&amp; mv /tmp/gh015/stash/implant.sh /tmp/gh015/stash/notes.txt /tmp/gh015/quarantine/ &amp;&amp; ls -A /tmp/gh015/quarantine; echo "--- persistence sweep ---"; grep gh015 /etc/fstab 2&gt;/dev/null || echo 'no gh015 entry in /etc/fstab'; ls /etc/systemd/system/ 2&gt;/dev/null | grep -i gh015 || echo 'no gh015 systemd units'; crontab -l 2&gt;/dev/null | grep -i gh015 || echo 'no gh015 crontab entries'; echo "honest scope note: the table says WHAT was hidden, not WHEN it was mounted"
+--- MITIGATION: hash and quarantine what was underneath ---
+f67666cc128f2471db26fe6626b4464efeb081c96eadede8453f9b5c851bd602  /tmp/gh015/stash/implant.sh
+4b550b1f2a285164dbb7e0d0552b70c78b0a1c26a897e256c51ed6755debacf3  /tmp/gh015/stash/notes.txt
+implant.sh  notes.txt
+--- persistence sweep ---
+no gh015 entry in /etc/fstab
+no gh015 systemd units
+no gh015 crontab entries
+honest scope note: the table says WHAT was hidden, not WHEN it was mounted</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div>
+              <h3>Confirm the cover is gone</h3>
+              <div class="prose"><p><strong>mountpoint -q</strong> now says stash is NOT a mountpoint. <strong>findmnt</strong> lists no gh015 binds left. <strong>ls quarantine</strong> shows the seized files. Three independent confirmations: the path is a plain directory again, the table is clean, the files are in custody.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- confirm the cover is gone ---&quot;; mountpoint -q /tmp/gh015/stash &amp;&amp; echo &quot;STILL A MOUNTPOINT (bad)&quot; || echo &quot;stash is NOT a mountpoint&quot;; findmnt -rn -o TARGET | grep gh015 || echo &quot;no gh015 binds left in the table&quot;; ls -A /tmp/gh015/quarantine"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- confirm the cover is gone ---"; mountpoint -q /tmp/gh015/stash &amp;&amp; echo "STILL A MOUNTPOINT (bad)" || echo "stash is NOT a mountpoint"; findmnt -rn -o TARGET | grep gh015 || echo "no gh015 binds left in the table"; ls -A /tmp/gh015/quarantine
+--- confirm the cover is gone ---
+stash is NOT a mountpoint
+no gh015 binds left in the table
+implant.sh  notes.txt</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">5</div>
+            <div>
+              <h3>PREVENTION: the capability gate</h3>
+              <div class="prose"><p><strong>capsh --drop=cap_sys_admin</strong> runs the same mount --bind without the capability, and the kernel refuses it: mount: /tmp/gh015/demo: permission denied. Bind mounts need CAP_SYS_ADMIN; without it the mount syscall is refused at the gate. This is the durable control: the technique's prerequisite is a capability, and capabilities can be taken away. D3FEND <a href="https://d3fend.mitre.org/technique/d3f:SystemConfigurationPermissions/" rel="noopener">D3-SCP: System Configuration Permissions</a> names exactly this shape: restricting system configuration changes to the principals that need them.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- PREVENTION: the capability gate ---&quot;; mkdir -p /tmp/gh015/demo &amp;&amp; capsh --drop=cap_sys_admin -- -c 'mount --bind /tmp/gh015/decoy /tmp/gh015/demo' 2&gt;&amp;1; echo &quot;(mount refused: bind mounts need CAP_SYS_ADMIN)&quot;; rmdir /tmp/gh015/demo"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- PREVENTION: the capability gate ---"; mkdir -p /tmp/gh015/demo &amp;&amp; capsh --drop=cap_sys_admin -- -c 'mount --bind /tmp/gh015/decoy /tmp/gh015/demo' 2&gt;&amp;1; echo "(mount refused: bind mounts need CAP_SYS_ADMIN)"; rmdir /tmp/gh015/demo
+--- PREVENTION: the capability gate ---
+mount: /tmp/gh015/demo: permission denied.
+       dmesg(1) may have more information after failed mount system call.
+(mount refused: bind mounts need CAP_SYS_ADMIN)</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">6</div>
+            <div>
+              <h3>PREVENTION: the mount-table inventory</h3>
+              <div class="prose"><p><strong>findmnt -rn -o TARGET,SOURCE</strong> snapshots the table into mounts.baseline: 72 lines on this box. The scheduled check is one diff against a fresh read: clean means no drift. The tell is an undocumented bind, especially an empty directory over a populated path. D3FEND <a href="https://d3fend.mitre.org/technique/d3f:ConfigurationInventory/" rel="noopener">D3-CI: Configuration Inventory</a> is the inventory discipline behind the check.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- PREVENTION: the mount-table inventory ---&quot;; findmnt -rn -o TARGET,SOURCE &gt; /tmp/gh015/mounts.baseline &amp;&amp; echo &quot;baseline saved: $(wc -l &lt; /tmp/gh015/mounts.baseline) lines&quot;; echo &quot;the scheduled check runs: diff mounts.baseline &lt;(findmnt -rn -o TARGET,SOURCE)&quot;; diff /tmp/gh015/mounts.baseline &lt;(findmnt -rn -o TARGET,SOURCE) &amp;&amp; echo 'clean: no drift'"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- PREVENTION: the mount-table inventory ---"; findmnt -rn -o TARGET,SOURCE &gt; /tmp/gh015/mounts.baseline &amp;&amp; echo "baseline saved: $(wc -l &lt; /tmp/gh015/mounts.baseline) lines"; echo "the scheduled check runs: diff mounts.baseline &lt;(findmnt -rn -o TARGET,SOURCE)"; diff /tmp/gh015/mounts.baseline &lt;(findmnt -rn -o TARGET,SOURCE) &amp;&amp; echo 'clean: no drift'
+--- PREVENTION: the mount-table inventory ---
+baseline saved: 72 lines
+the scheduled check runs: diff mounts.baseline &lt;(findmnt -rn -o TARGET,SOURCE)
+clean: no drift</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">7</div>
+            <div>
+              <h3>Verdict</h3>
+              <div class="prose"><p>The summary, in the defender's own words: the naive view said clean, the table said mountpoint. The cover was recorded, lifted, and what was underneath was hashed and quarantined.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;detection verified: the naive view said clean, the table said mountpoint&quot;; echo &quot;the cover was recorded, lifted, and what was underneath was hashed and quarantined&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "detection verified: the naive view said clean, the table said mountpoint"; echo "the cover was recorded, lifted, and what was underneath was hashed and quarantined"
+detection verified: the naive view said clean, the table said mountpoint
+the cover was recorded, lifted, and what was underneath was hashed and quarantined</pre>
+</div>
+              <div class="verdict green">
+                <span class="mlabel">Detection verified</span>
+                <p>The listing said clean and the table said mountpoint, and the table was right. The cover was recorded before it was touched, lifted with one umount, and the files underneath were hashed and quarantined. The capability gate refused the same mount without CAP_SYS_ADMIN, and the table inventory diffs clean.</p>
+              </div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">8</div>
+            <div>
+              <h3>Cleanup</h3>
+              <div class="prose"><p><strong>rm -rf /tmp/gh015</strong> removes the lab; <strong>ls</strong> confirms the directory is gone; <strong>grep gh015 /proc/mounts</strong> confirms no mounts remain. The namespace dies with the session regardless; the cleanup keeps the record honest.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="rm -rf /tmp/gh015; ls /tmp | grep gh015 || echo &quot;lab gone&quot;; grep gh015 /proc/mounts || echo &quot;no gh015 mounts in the table&quot;"><span data-label>COPY</span></button></div>
+<pre>$ rm -rf /tmp/gh015; ls /tmp | grep gh015 || echo "lab gone"; grep gh015 /proc/mounts || echo "no gh015 mounts in the table"
+lab gone
+no gh015 mounts in the table</pre>
+</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="countermeasures">
+          <div class="phase-head"><span class="phase-num">05</span><h2>Countermeasures</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">Three moves, in order: record and lift the cover, inventory the table on a schedule, gate the capability. Each is one way, not the way.</p>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Mitigate: record, lift, hash, quarantine</h3>
+              <div class="prose"><p>Proven first against the live cover: record the mount table before touching anything, unmount the cover, hash the revealed files, move them to quarantine, sweep persistence: fstab, systemd mount units, cron. D3FEND <a href="https://d3fend.mitre.org/technique/d3f:SystemInitConfigAnalysis/" rel="noopener">D3-SICA: System Init Config Analysis</a> is the discipline behind the fstab and systemd sweep.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- record the table BEFORE touching anything ---&quot;; grep gh015 /proc/mounts &gt; /tmp/gh015/mount-evidence.txt &amp;&amp; cat /tmp/gh015/mount-evidence.txt; echo &quot;--- lift the cover ---&quot;; umount /tmp/gh015/stash; ls -A /tmp/gh015/stash; echo &quot;the mount was the only thing hiding them&quot;&#10;echo &quot;--- MITIGATION: hash and quarantine what was underneath ---&quot;; sha256sum /tmp/gh015/stash/implant.sh /tmp/gh015/stash/notes.txt; mkdir -p /tmp/gh015/quarantine &amp;&amp; mv /tmp/gh015/stash/implant.sh /tmp/gh015/stash/notes.txt /tmp/gh015/quarantine/ &amp;&amp; ls -A /tmp/gh015/quarantine; echo &quot;--- persistence sweep ---&quot;; grep gh015 /etc/fstab 2&gt;/dev/null || echo 'no gh015 entry in /etc/fstab'; ls /etc/systemd/system/ 2&gt;/dev/null | grep -i gh015 || echo 'no gh015 systemd units'; crontab -l 2&gt;/dev/null | grep -i gh015 || echo 'no gh015 crontab entries'; echo &quot;honest scope note: the table says WHAT was hidden, not WHEN it was mounted&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- record the table BEFORE touching anything ---"; grep gh015 /proc/mounts &gt; /tmp/gh015/mount-evidence.txt &amp;&amp; cat /tmp/gh015/mount-evidence.txt; echo "--- lift the cover ---"; umount /tmp/gh015/stash; ls -A /tmp/gh015/stash; echo "the mount was the only thing hiding them"
+--- record the table BEFORE touching anything ---
+tmpfs /tmp/gh015/stash tmpfs rw,relatime,uid=131072,gid=131072,inode64 0 0
+--- lift the cover ---
+implant.sh  notes.txt
+the mount was the only thing hiding them
+$ echo "--- MITIGATION: hash and quarantine what was underneath ---"; sha256sum /tmp/gh015/stash/implant.sh /tmp/gh015/stash/notes.txt; mkdir -p /tmp/gh015/quarantine &amp;&amp; mv /tmp/gh015/stash/implant.sh /tmp/gh015/stash/notes.txt /tmp/gh015/quarantine/ &amp;&amp; ls -A /tmp/gh015/quarantine; echo "--- persistence sweep ---"; grep gh015 /etc/fstab 2&gt;/dev/null || echo 'no gh015 entry in /etc/fstab'; ls /etc/systemd/system/ 2&gt;/dev/null | grep -i gh015 || echo 'no gh015 systemd units'; crontab -l 2&gt;/dev/null | grep -i gh015 || echo 'no gh015 crontab entries'; echo "honest scope note: the table says WHAT was hidden, not WHEN it was mounted"
+--- MITIGATION: hash and quarantine what was underneath ---
+f67666cc128f2471db26fe6626b4464efeb081c96eadede8453f9b5c851bd602  /tmp/gh015/stash/implant.sh
+4b550b1f2a285164dbb7e0d0552b70c78b0a1c26a897e256c51ed6755debacf3  /tmp/gh015/stash/notes.txt
+implant.sh  notes.txt
+--- persistence sweep ---
+no gh015 entry in /etc/fstab
+no gh015 systemd units
+no gh015 crontab entries
+honest scope note: the table says WHAT was hidden, not WHEN it was mounted</pre>
+</div>
+              <div class="callout"><p><strong>Honest limit.</strong> Unmounting disturbs the scene, so the table is recorded first and treated as the evidence. Open file descriptors into the hidden tree survive the unmount: a process that opened the stash before the cover went down still reads the real files, so hunt /proc/*/fd for handles into the path too. The table tells what was hidden, not when it was mounted; mount-syscall audit logs are the production backstop for the when. Stated, not shown: audit is not functional inside the lab namespace.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>Monitor: diff the table against a baseline</h3>
+              <div class="prose"><p>The scheduled form of the phase-blue read: snapshot <strong>findmnt -rn -o TARGET,SOURCE</strong> known-good, and diff it on a timer. The tell is an undocumented bind, especially an empty directory over a populated path.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- PREVENTION: the mount-table inventory ---&quot;; findmnt -rn -o TARGET,SOURCE &gt; /tmp/gh015/mounts.baseline &amp;&amp; echo &quot;baseline saved: $(wc -l &lt; /tmp/gh015/mounts.baseline) lines&quot;; echo &quot;the scheduled check runs: diff mounts.baseline &lt;(findmnt -rn -o TARGET,SOURCE)&quot;; diff /tmp/gh015/mounts.baseline &lt;(findmnt -rn -o TARGET,SOURCE) &amp;&amp; echo 'clean: no drift'"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- PREVENTION: the mount-table inventory ---"; findmnt -rn -o TARGET,SOURCE &gt; /tmp/gh015/mounts.baseline &amp;&amp; echo "baseline saved: $(wc -l &lt; /tmp/gh015/mounts.baseline) lines"; echo "the scheduled check runs: diff mounts.baseline &lt;(findmnt -rn -o TARGET,SOURCE)"; diff /tmp/gh015/mounts.baseline &lt;(findmnt -rn -o TARGET,SOURCE) &amp;&amp; echo 'clean: no drift'
+--- PREVENTION: the mount-table inventory ---
+baseline saved: 72 lines
+the scheduled check runs: diff mounts.baseline &lt;(findmnt -rn -o TARGET,SOURCE)
+clean: no drift</pre>
+</div>
+              <div class="callout"><p><strong>Honest limit.</strong> Enumerate every mount namespace: <strong>lsns -t mnt</strong>, then read each namespace's table. A mount created and removed between polls is missed, so the poll interval sets the detection floor. Bind mounts are legitimate: containers use them constantly, so the signal is undocumented, never present. An allowlist of expected mounts is what makes the diff meaningful.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>Prevent: restrict CAP_SYS_ADMIN</h3>
+              <div class="prose"><p>The durable form: only the mount paths that need the capability keep it. Without CAP_SYS_ADMIN the mount syscall is refused, as demonstrated above. Container runtimes and service managers can drop the capability per workload.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- PREVENTION: the capability gate ---&quot;; mkdir -p /tmp/gh015/demo &amp;&amp; capsh --drop=cap_sys_admin -- -c 'mount --bind /tmp/gh015/decoy /tmp/gh015/demo' 2&gt;&amp;1; echo &quot;(mount refused: bind mounts need CAP_SYS_ADMIN)&quot;; rmdir /tmp/gh015/demo"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- PREVENTION: the capability gate ---"; mkdir -p /tmp/gh015/demo &amp;&amp; capsh --drop=cap_sys_admin -- -c 'mount --bind /tmp/gh015/decoy /tmp/gh015/demo' 2&gt;&amp;1; echo "(mount refused: bind mounts need CAP_SYS_ADMIN)"; rmdir /tmp/gh015/demo
+--- PREVENTION: the capability gate ---
+mount: /tmp/gh015/demo: permission denied.
+       dmesg(1) may have more information after failed mount system call.
+(mount refused: bind mounts need CAP_SYS_ADMIN)</pre>
+</div>
+              <div class="callout"><p><strong>Honest limit.</strong> User namespaces can re-grant the capability inside a new namespace where the kernel allows unprivileged user namespaces: the gate holds at the host boundary, not inside a namespace the attacker was allowed to create. And the mount syscall itself cannot be blocked outright without breaking containers, which is why the inventory in step 2 is the backstop, not the afterthought.</p></div>
+              <div class="verdict green">
+                <span class="mlabel">Countermeasures verified</span>
+                <p>The cover was recorded, lifted, and quarantined with its hashes; the table is inventoried on a schedule with every namespace enumerated; the capability is gated so the mount is refused without it. The listing still lies to whoever only reads listings. The table does not lie to whoever reads it.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="debrief">
+          <div class="phase-head"><span class="phase-num">06</span><h2>Debrief</h2><span class="phase-tag neutral">TAKEAWAY</span></div>
+          <p class="takeaway">When the listing and the mount table disagree, the table is the truth: read the mounts, not the directory.</p>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">IOC checklist: signs this technique was used</span></p></div>
+          <ul class="checklist">
+            <li><span>A directory that reads empty but answers yes to <strong>mountpoint -q</strong></span></li>
+            <li><span><strong>findmnt</strong> showing a path whose SOURCE is an unrelated directory, especially an empty one</span></li>
+            <li><span>An undocumented bind of an empty directory over a populated path in <strong>/proc/mounts</strong> or <strong>/proc/self/mountinfo</strong></span></li>
+            <li><span>Files reappearing under a path immediately after an <strong>umount</strong></span></li>
+            <li><span>Mount-syscall audit events with no matching change record</span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Reproducibility checklist</span></p></div>
+          <ul class="checklist">
+            <li><span>Verified on <strong>Ubuntu 24.04.5 LTS</strong>, x86-64, on 2026-09-21</span></li>
+            <li><span>Both recordings are real executions on that platform, not simulations</span></li>
+            <li><span>Runs as root in a disposable mount namespace (the mount syscall requires CAP_SYS_ADMIN; the assumed breach: something on the box holds the capability)</span></li>
+            <li><span>Cleanup: <strong>umount /tmp/gh015/stash</strong>, <strong>rm -rf /tmp/gh015</strong>; verify with <strong>findmnt -T</strong> and <strong>grep gh015 /proc/mounts</strong></span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Sources</span></p></div>
+          <div class="prose"><p><a href="https://attack.mitre.org/techniques/T1564/013/" rel="noopener">MITRE ATT&amp;CK T1564.013: Bind Mounts</a><br>
+          <a href="https://man7.org/linux/man-pages/man8/mount.8.html" rel="noopener">mount(8)</a> (the bind operation)<br>
+          <a href="https://man7.org/linux/man-pages/man8/findmnt.8.html" rel="noopener">findmnt(8)</a> (the table read)<br>
+          <a href="https://man7.org/linux/man-pages/man5/proc.5.html" rel="noopener">proc(5)</a> (/proc/mounts, mountinfo)<br>
+          <a href="https://man7.org/linux/man-pages/man7/capabilities.7.html" rel="noopener">capabilities(7)</a> (the CAP_SYS_ADMIN gate)<br>
+          <a href="https://man7.org/linux/man-pages/man7/mount_namespaces.7.html" rel="noopener">mount_namespaces(7)</a> (why lsns matters)<br>
+          <a href="https://d3fend.mitre.org/technique/d3f:ConfigurationInventory/" rel="noopener">D3FEND D3-CI: Configuration Inventory</a><br>
+          <a href="https://d3fend.mitre.org/technique/d3f:SystemConfigurationPermissions/" rel="noopener">D3FEND D3-SCP: System Configuration Permissions</a><br>
+          <a href="https://d3fend.mitre.org/technique/d3f:SystemInitConfigAnalysis/" rel="noopener">D3FEND D3-SICA: System Init Config Analysis</a></p></div>
+        </section>
+
+        <a class="next-file" href="../016-clear-persistence/index.html">
+          <span class="mlabel">Next file</span>
+          <h3>GH-016 Clear Persistence</h3>
+          <p>The next file wipes the traces that say it was ever here.</p>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <div>
+      <div class="footer-brand">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+        <span class="brand-name" style="font-size:17px">GHOSTLIGHT</span>
+      </div>
+      <p class="footer-note">An independent adversary-stealth research publication. Every command verified on the named OS before publishing. No trackers, no frameworks, no autoplay.</p>
+    </div>
+    <nav class="footer-links">
+      <a href="../../method.html">METHOD</a>
+      <a href="../../index.html">FILES</a>
+      <a href="https://attack.mitre.org/tactics/TA0005/" rel="noopener">MITRE TA0005</a>
+    </nav>
+    <div class="footer-elsewhere">
+      <span class="mlabel">Elsewhere</span><a href="https://dillingerstaffing.github.io/portfolio/" target="_blank" rel="noopener">Portfolio</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/proving-ground/" target="_blank" rel="noopener">Proving Ground</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/tapeout/" target="_blank" rel="noopener">Tapeout</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/old-iron/" target="_blank" rel="noopener">Old Iron</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/unstuck/" target="_blank" rel="noopener">Unstuck</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../../assets/site.js?v=512f8825"></script>
+</body>
+</html>
