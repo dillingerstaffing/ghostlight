@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>GH-016 The Erased Anchor (T1070.009): GHOSTLIGHT</title>
+<meta name="description" content="T1070.009 Clear Persistence, reproduced on Ubuntu 24.04: an attacker shreds the cron entry, the service unit, and the implant binary, so every enumeration of persistence locations finds nothing. The defender reads the manifest that predates the attacker, restores from the known-good backup, and gates the locations behind root-only writes.">
+<link rel="canonical" href="https://dillingerstaffing.github.io/ghostlight/ops/016-erased-anchor/">
+<meta property="og:title" content="GH-016 The Erased Anchor (T1070.009): GHOSTLIGHT">
+<meta property="og:description" content="T1070.009 Clear Persistence, reproduced on Ubuntu 24.04: an attacker shreds the cron entry, the service unit, and the implant binary, so every enumeration of persistence locations finds nothing. The defender reads the manifest that predates the attacker, restores from the known-good backup, and gates the locations behind root-only writes.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dillingerstaffing.github.io/ghostlight/ops/016-erased-anchor/">
+<meta property="og:site_name" content="GHOSTLIGHT">
+<meta property="og:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="GH-016 The Erased Anchor (T1070.009): GHOSTLIGHT">
+<meta name="twitter:description" content="T1070.009 Clear Persistence, reproduced on Ubuntu 24.04: an attacker shreds the cron entry, the service unit, and the implant binary, so every enumeration of persistence locations finds nothing. The defender reads the manifest that predates the attacker, restores from the known-good backup, and gates the locations behind root-only writes.">
+<meta name="twitter:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23ece6d5'/%3E%3Ccircle cx='256' cy='196' r='104' fill='none' stroke='%23241f17' stroke-width='20'/%3E%3Cline x1='256' y1='152' x2='256' y2='240' stroke='%238c3f22' stroke-width='16'/%3E%3Cline x1='256' y1='300' x2='256' y2='424' stroke='%23241f17' stroke-width='14'/%3E%3Cline x1='200' y1='424' x2='312' y2='424' stroke='%23241f17' stroke-width='18'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+<link rel="manifest" href="../../assets/manifest.webmanifest">
+<meta name="theme-color" content="#0a0c0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GHOSTLIGHT">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<script>
+(function () {
+  // Theme: notebook is the default; a stored visitor choice wins.
+  // Runs before the stylesheet is parsed so the first paint is already
+  // the right theme (no flash of the wrong one).
+  try {
+    var t = localStorage.getItem('emi-site-theme');
+    var theme = t === 'classic' ? 'classic' : 'notebook';
+    document.documentElement.dataset.theme = theme;
+    var m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute('content', theme === 'classic' ? '#0a0c0f' : '#ece6d5');
+  } catch (e) {
+    document.documentElement.dataset.theme = 'notebook';
+  }
+})();
+</script>
+<link rel="stylesheet" href="../../assets/site.css?v=36a0084f">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"GH-016 The Erased Anchor (T1070.009): GHOSTLIGHT",
+"url":"https://dillingerstaffing.github.io/ghostlight/ops/016-erased-anchor/","description":"T1070.009 Clear Persistence, reproduced on Ubuntu 24.04: an attacker shreds the cron entry, the service unit, and the implant binary, so every enumeration of persistence locations finds nothing. The defender reads the manifest that predates the attacker, restores from the known-good backup, and gates the locations behind root-only writes.",
+"author":{"@type":"Person","name":"Chris Dillinger","url":"https://www.linkedin.com/in/christopherdillinger/"},
+"inLanguage":"en"}
+</script>
+</head>
+<body>
+
+<header class="site-header">
+  <a class="brand" href="../../index.html" aria-label="GHOSTLIGHT home">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+    <span class="brand-name">GHOSTLIGHT</span>
+  </a>
+  <nav class="site-nav">
+    <a href="../../method.html">METHOD</a>
+    <a href="../../index.html">FILES</a>
+    <button class="theme-toggle" type="button" aria-label="Switch to dark field dossier theme" title="Switch theme">
+      <span class="theme-toggle-mark" aria-hidden="true"><i></i><i></i></span>
+    </button>
+  </nav>
+</header>
+
+<div class="onboard" data-onboard hidden>
+  <span><strong>How to read a file:</strong> every file follows the six-phase structure below. <span class="k-green">Green</span> is verified, <span class="k-red">red</span> is hostile.</span>
+  <button aria-label="Dismiss">GOT IT</button>
+</div>
+
+<div class="page" data-op="016">
+  <div class="wrap">
+    <section class="op-hero">
+      <div class="op-kicker">
+        <span class="case-no">GH-016</span>
+        <a class="tech-id" href="https://attack.mitre.org/techniques/T1070/009/" rel="noopener">T1070.009</a>
+        <span class="phase-tag red">PHASE RED INSIDE</span>
+      </div>
+      <h1>The Erased Anchor</h1>
+      <p class="lede">The implant kept coming back through a cron entry, a service unit, and a binary on disk. The attacker shreds all three, and every enumeration of persistence locations finds nothing. This file runs that clearing, then reads the manifest that predates the attacker, restores the artifacts from the known-good backup, and gates the locations behind root-only writes.</p>
+      <div class="op-meta-grid">
+        <div class="op-meta"><span class="mlabel">Technique</span><span class="mvalue">Clear Persistence (T1070.009)</span></div>
+        <div class="op-meta"><span class="mlabel">Target OS</span><span class="mvalue">Ubuntu 24.04.5 LTS</span></div>
+        <div class="op-meta"><span class="mlabel">Toolchain</span><span class="mvalue">bash, coreutils, login</span></div>
+        <div class="op-meta"><span class="mlabel">Level</span><span class="mvalue">Intermediate</span></div>
+        <div class="op-meta"><span class="mlabel">Time</span><span class="mvalue">25 min</span></div>
+      </div>
+      <div class="objectives">
+        <h2>OBJECTIVES</h2>
+        <ol>
+          <li data-phase="phase-red"><span class="box"></span>Shred a cron entry, a service unit, and an implant binary, and watch every persistence enumeration come back empty</li>
+          <li data-phase="phase-blue"><span class="box"></span>Detect the clearing from a sha256 manifest that predates the attacker, restore the artifacts from backup, verify every hash</li>
+          <li data-phase="countermeasures"><span class="box"></span>Gate persistence locations behind root-only writes, inventory the manifest on a schedule, sweep every other door</li>
+          <li data-phase="debrief"><span class="box"></span>Take the IOC checklist and the one-sentence lesson</li>
+        </ol>
+      </div>
+    </section>
+
+    <div class="op-layout">
+      <nav class="rail" aria-label="Phases">
+        <span class="mlabel">Phases</span>
+        <ol>
+          <li><a href="#intel-brief"><span class="pnum">01</span>INTEL BRIEF<span class="tick"></span></a></li>
+          <li><a href="#target-environment"><span class="pnum">02</span>TARGET ENV<span class="tick"></span></a></li>
+          <li><a href="#phase-red"><span class="pnum">03</span>PHASE RED<span class="tick"></span></a></li>
+          <li><a href="#phase-blue"><span class="pnum">04</span>PHASE BLUE<span class="tick"></span></a></li>
+          <li><a href="#countermeasures"><span class="pnum">05</span>COUNTERMEASURES<span class="tick"></span></a></li>
+          <li><a href="#debrief"><span class="pnum">06</span>DEBRIEF<span class="tick"></span></a></li>
+        </ol>
+      </nav>
+
+      <div class="op-content">
+        <section class="phase" id="intel-brief">
+          <div class="phase-head"><span class="phase-num">01</span><h2>Intel Brief</h2><span class="phase-tag neutral">CONTEXT</span></div>
+          <p class="lede">MITRE ATT&amp;CK <a href="https://attack.mitre.org/techniques/T1070/009/" rel="noopener">T1070.009</a>: adversaries clear artifacts of previously established persistence, removing services, deleting executables, deleting accounts, to deny defenders the evidence of how the implant kept coming back. This file runs that clearing end to end, then detects it from a manifest that predates the attacker. Two actors: the attacker, who owns the lab directory, the persistence artifacts, and the shred; and the defender, who owns the manifest reads, the restore, and every inventory in the blue phase.</p>
+          <div class="prose">
+            <p><strong>Why this technique.</strong> Persistence is an anchor, and an anchor is evidence. While the implant is running, the attacker wants the anchor: the cron entry that relaunches it every five minutes, the service unit that restarts it, the binary on disk. Once the implant has moved on, or once the defender is closing in, the anchor becomes a liability. Every persistence artifact is a labeled arrow pointing at the attacker's method. Clearing them removes the arrow. The defender still finds the intrusion, but the how-it-kept-coming-back is gone, and without it the defender cannot scope the incident, cannot be sure the implant is really dead, and cannot harden the right door.</p>
+            <p><strong>Why not hide the persistence instead.</strong> The obvious alternative is hiding inside the listing: dotfiles, deep paths, the T1564.001 ground from GH-009. Break it on the concrete input: a sha256 inventory still lists the files, because the artifacts exist on disk for any recursive sweep. Hiding only beats a casual glance. The attacker here needs the artifact to not exist at all, because the defender's question is not "what is in this directory" but "what was here, with hashes". Clearing removes the artifact entirely, at the cost of the directory-mtime scar and the manifest gap, which the blue phase reads.</p>
+            <p><strong>Why not timestomp the artifacts into the background.</strong> The other obvious alternative is timestomping the files into the past, the T1070.006 ground from GH-005. Break it: you cannot timestomp a file you need gone. The bytes remain on disk for carving, and the persistence mechanism itself still works, which is the opposite of the attacker's goal once the anchor must die. Clearing is for when the persistence has done its job and the implant has moved on. Timestamps hide a file's story; clearing removes the file.</p>
+            <p><strong>Why not clear the command history.</strong> The third alternative is clearing the shell history, the T1070.003 ground from GH-001, to hide the clearing commands. Break it: the history covers the attacker's keystrokes, not the missing files. The manifest gap is independent of what was typed. A defender with a manifest that predates the attacker does not need the attacker's keystrokes. The history is the wrong evidence to protect, which is exactly why this technique and GH-001 are different files.</p>
+            <p><strong>The mechanism, in one line.</strong> <strong>Persistence</strong> is a mechanism that runs the implant again after reboot or on schedule: a cron entry, a service unit, a startup script. <strong>Indicator removal</strong> is deleting or modifying artifacts the adversary's own activity created, to remove evidence of the presence or hinder defenses. A <strong>baseline manifest</strong> is a sha256 inventory of the known-good state, taken before the attacker arrives: the independent observation path, because it describes what should be here regardless of what is here now. A <strong>directory mtime</strong> is a directory's modification timestamp, updated whenever entries are added or removed: the scar deletions leave, because removing a file changes its parent directory. Terms earned, no borrowing.</p>
+            <p><strong>The concrete case, before the abstraction.</strong> Three artifacts live in /tmp/gh016/persist: cron.d/persist launches the implant every five minutes, units/persist.service is the unit stand-in, bin/implant.sh is the inert payload, never executed. The defender's manifest holds all three hashes. shred -u removes all three, overwriting before unlinking. After: ls -R shows empty directories, grep finds no gh016 strings anywhere. The defender's manifest check reports FAILED open or read on all three. One shred, three empty directories, one manifest that refuses to agree.</p>
+          </div>
+          <div class="callout"><p><strong>Scope.</strong> T1070.009 covers clearing persistence broadly: removing services, deleting executables, modifying registries and plists, deleting accounts. This file works the Linux service-and-binary case end to end: the cron entry, the unit, the executable, the shred, the manifest detection, the backup restore, the permission gate, and the scheduled inventory. The lab runs in a disposable namespace because the attack destroys evidence by design; the backup and the manifest are the defender's earlier inventory, made before the attacker acts.</p></div>
+        </section>
+
+        <section class="phase" id="target-environment">
+          <div class="phase-head"><span class="phase-num">02</span><h2>Target Environment</h2><span class="phase-tag neutral">LOADOUT</span></div>
+          <p class="lede">Ubuntu 24.04.5 LTS, x86-64, in a disposable namespace used only for this lab. Runs as root: the lab owns its own cron.d and unit stand-ins inside /tmp/gh016, and the permission gate in the blue phase demonstrates the refusal, not describes it. Everything the lab touches lives inside /tmp/gh016, so cleanup is a single rm.</p>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Build the lab</h3>
+              <div class="prose"><p>One disposable directory, built from scratch. <strong>rm -rf /tmp/gh016</strong> clears any earlier take; <strong>mkdir -p</strong> makes the three persistence locations and the backup directory. The three artifacts go in through heredocs. <strong>cron.d/persist</strong> is the cron.d-format entry launching the implant every five minutes. <strong>units/persist.service</strong> is the systemd unit stand-in. <strong>bin/implant.sh</strong> is the stand-in for the payload the persistence would launch: kept, never run. Then the defender's earlier inventory, made before the attacker: <strong>cp -r</strong> the known-good copies into backup, and <strong>sha256sum</strong> writes the manifest. The final <strong>ls -R</strong> proves the lab built: three locations, three files.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="rm -rf /tmp/gh016 &amp;&amp; mkdir -p /tmp/gh016/persist/cron.d /tmp/gh016/persist/units /tmp/gh016/persist/bin /tmp/gh016/backup &amp;&amp; cat &gt; /tmp/gh016/persist/cron.d/persist &lt;&lt;'EOF'&#10;# gh016 persistence: cron.d-format entry, runs the implant every 5 minutes&#10;*/5 * * * * root /tmp/gh016/persist/bin/implant.sh&#10;EOF&#10;cat &gt; /tmp/gh016/persist/units/persist.service &lt;&lt;'EOF'&#10;[Unit]&#10;Description=gh016 persistence stand-in (never enabled, never run)&#10;&#10;[Service]&#10;ExecStart=/tmp/gh016/persist/bin/implant.sh&#10;Restart=always&#10;&#10;[Install]&#10;WantedBy=multi-user.target&#10;EOF&#10;cat &gt; /tmp/gh016/persist/bin/implant.sh &lt;&lt;'EOF'&#10;#!/bin/sh&#10;# Stand-in for the payload the persistence would launch: kept, never run.&#10;# The point is the mechanism, not the malware.&#10;echo &quot;this file is never executed&quot;&#10;exit 0&#10;EOF&#10;chmod +x /tmp/gh016/persist/bin/implant.sh &amp;&amp; cp -r /tmp/gh016/persist/cron.d /tmp/gh016/persist/units /tmp/gh016/persist/bin /tmp/gh016/backup/ &amp;&amp; (cd /tmp/gh016 &amp;&amp; sha256sum persist/cron.d/persist persist/units/persist.service persist/bin/implant.sh &gt; manifest.txt) &amp;&amp; echo &quot;lab built: /tmp/gh016&quot;; ls -R /tmp/gh016/persist"><span data-label>COPY</span></button></div>
+<pre>$ rm -rf /tmp/gh016 &amp;&amp; mkdir -p /tmp/gh016/persist/cron.d /tmp/gh016/persist/units /tmp/gh016/persist/bin /tmp/gh016/backup &amp;&amp; cat &gt; /tmp/gh016/persist/cron.d/persist &lt;&lt;'EOF'
+# gh016 persistence: cron.d-format entry, runs the implant every 5 minutes
+*/5 * * * * root /tmp/gh016/persist/bin/implant.sh
+EOF
+cat &gt; /tmp/gh016/persist/units/persist.service &lt;&lt;'EOF'
+[Unit]
+Description=gh016 persistence stand-in (never enabled, never run)
+
+[Service]
+ExecStart=/tmp/gh016/persist/bin/implant.sh
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+cat &gt; /tmp/gh016/persist/bin/implant.sh &lt;&lt;'EOF'
+#!/bin/sh
+# Stand-in for the payload the persistence would launch: kept, never run.
+# The point is the mechanism, not the malware.
+echo "this file is never executed"
+exit 0
+EOF
+chmod +x /tmp/gh016/persist/bin/implant.sh &amp;&amp; cp -r /tmp/gh016/persist/cron.d /tmp/gh016/persist/units /tmp/gh016/persist/bin /tmp/gh016/backup/ &amp;&amp; (cd /tmp/gh016 &amp;&amp; sha256sum persist/cron.d/persist persist/units/persist.service persist/bin/implant.sh &gt; manifest.txt) &amp;&amp; echo "lab built: /tmp/gh016"; ls -R /tmp/gh016/persist
+lab built: /tmp/gh016
+/tmp/gh016/persist:
+bin  cron.d  units
+
+/tmp/gh016/persist/bin:
+implant.sh
+
+/tmp/gh016/persist/cron.d:
+persist
+
+/tmp/gh016/persist/units:
+persist.service</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>The before view</h3>
+              <div class="prose"><p>This is what normal looks like, recorded before the clearing. <strong>cat</strong> shows the cron entry and the unit in full. Then the manifest check: <strong>(cd /tmp/gh016 &amp;&amp; sha256sum -c manifest.txt)</strong> reports OK on all three. This is the baseline the defender trusts, and the blue phase will compare everything against it.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- the before view: what normal looks like ---&quot;; cat /tmp/gh016/persist/cron.d/persist; echo; cat /tmp/gh016/persist/units/persist.service; echo &quot;--- the defender trusts this manifest (taken before the attacker) ---&quot;; (cd /tmp/gh016 &amp;&amp; sha256sum -c manifest.txt)"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- the before view: what normal looks like ---"; cat /tmp/gh016/persist/cron.d/persist; echo; cat /tmp/gh016/persist/units/persist.service; echo "--- the defender trusts this manifest (taken before the attacker) ---"; (cd /tmp/gh016 &amp;&amp; sha256sum -c manifest.txt)
+--- the before view: what normal looks like ---
+# gh016 persistence: cron.d-format entry, runs the implant every 5 minutes
+*/5 * * * * root /tmp/gh016/persist/bin/implant.sh
+
+[Unit]
+Description=gh016 persistence stand-in (never enabled, never run)
+
+[Service]
+ExecStart=/tmp/gh016/persist/bin/implant.sh
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+--- the defender trusts this manifest (taken before the attacker) ---
+persist/cron.d/persist: OK
+persist/units/persist.service: OK
+persist/bin/implant.sh: OK</pre>
+</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="phase-red">
+          <div class="phase-head"><span class="phase-num">03</span><h2>Phase Red: erase the anchor</h2><span class="phase-tag red">ATTACK</span></div>
+          <p class="lede">First the before view, then the shred, then the attacker's confirmation that enumeration finds nothing.</p>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">175.7s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/anchor-red.jpg" aria-label="Screen recording: ANCHOR RED, operator@lab">
+              <source src="../../assets/vid/anchor-red.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> A cron entry, a service unit, and an implant binary are shredded. Every persistence enumeration comes back empty. Every command below is copy-pasteable.</figcaption>
+          </figure>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>The attack</h3>
+              <div class="prose"><p><strong>shred -u</strong> overwrites all three artifacts before unlinking them: the cron entry, the unit, the implant binary. shred is silent on success: the evidence is what enumeration says after. <strong>ls -R</strong> shows empty directories, with the (empty directories) marker. <strong>grep -ri gh016</strong> finds no strings anywhere under persist. The persistence locations are still there; what made them persistence is gone.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- the attack: shred the persistence artifacts ---&quot;; shred -u /tmp/gh016/persist/cron.d/persist /tmp/gh016/persist/units/persist.service /tmp/gh016/persist/bin/implant.sh; echo &quot;--- the after view: every persistence location, enumerated ---&quot;; ls -R /tmp/gh016/persist; echo '(empty directories)'; grep -ri gh016 /tmp/gh016/persist 2&gt;/dev/null || echo '(no gh016 strings anywhere)'"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- the attack: shred the persistence artifacts ---"; shred -u /tmp/gh016/persist/cron.d/persist /tmp/gh016/persist/units/persist.service /tmp/gh016/persist/bin/implant.sh; echo "--- the after view: every persistence location, enumerated ---"; ls -R /tmp/gh016/persist; echo '(empty directories)'; grep -ri gh016 /tmp/gh016/persist 2&gt;/dev/null || echo '(no gh016 strings anywhere)'
+--- the attack: shred the persistence artifacts ---
+--- the after view: every persistence location, enumerated ---
+/tmp/gh016/persist:
+bin  cron.d  units
+
+/tmp/gh016/persist/bin:
+
+/tmp/gh016/persist/cron.d:
+
+/tmp/gh016/persist/units:
+(empty directories)
+(no gh016 strings anywhere)</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>Stealth confirmed</h3>
+              <div class="prose"><p>Three echo lines, the attacker's summary: the cron entry, the unit, and the implant are gone; there is nothing left to inventory; enumeration finds nothing. The attacker is counting on no manifest existing: without a baseline, "nothing here" is indistinguishable from "nothing was ever here".</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;stealth confirmed: the cron entry, the unit, and the implant are gone&quot;; echo &quot;there is nothing left to inventory; enumeration finds nothing&quot;; echo &quot;the attacker is counting on no manifest existing&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "stealth confirmed: the cron entry, the unit, and the implant are gone"; echo "there is nothing left to inventory; enumeration finds nothing"; echo "the attacker is counting on no manifest existing"
+stealth confirmed: the cron entry, the unit, and the implant are gone
+there is nothing left to inventory; enumeration finds nothing
+the attacker is counting on no manifest existing</pre>
+</div>
+              <div class="verdict red">
+                <span class="mlabel">Stealth confirmed</span>
+                <p>The cron entry, the service unit, and the implant binary went through shred -u, and every persistence enumeration came back empty: empty directories, no strings, no artifacts. The mechanism that kept the implant coming back no longer exists on disk. The attack works because nothing independent describes what was here.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="phase-blue">
+          <div class="phase-head"><span class="phase-num">04</span><h2>Phase Blue: read the manifest</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">The defender does not trust the listing. The defender reads the manifest that predates the attacker: detect from the independent inventory, record before touching, restore from the known-good backup, then gate the locations and inventory the manifest on a schedule.</p>
+          <div class="prose">
+            <p>Here is the trap: running ls, seeing empty directories, and calling the persistence locations clean. That is trusting the same enumeration the attacker just emptied. The detection is the manifest check: sha256sum -c against the known-good inventory, while the clearing is still in effect.</p>
+          </div>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot blue" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">223.2s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/anchor-blue.jpg" aria-label="Screen recording: ANCHOR BLUE, operator@lab">
+              <source src="../../assets/vid/anchor-blue.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> The defender detects the clearing from the manifest, records the evidence, restores the artifacts from backup with hashes verified, sweeps the other persistence locations, then demonstrates the permission gate and the scheduled inventory. Every command below is copy-pasteable.</figcaption>
+          </figure>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>DETECTION: the naive view, then the independent path</h3>
+              <div class="prose"><p><strong>ls -R</strong> shows empty directories: the naive view says clean. Then the independent path. <strong>sha256sum -c manifest.txt</strong> reports FAILED open or read on all three artifacts: the manifest describes files that no longer exist. Then the scar: <strong>stat -c '%y %n'</strong> on the persist directories shows the mtimes moved when the entries were removed, even though the directories read empty. Good versus bad, concrete: good is the manifest reporting OK; bad is missing-from-baseline plus fresh directory mtimes with no change record. The three FAILED lines in the output are the detection: the manifest names files the disk no longer has.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- DETECTION: the naive view first ---&quot;; ls -R /tmp/gh016/persist; echo '(looks clean: empty directories)'; echo &quot;--- the independent path: the manifest that predates the attacker ---&quot;; (cd /tmp/gh016 &amp;&amp; sha256sum -c manifest.txt) 2&gt;&amp;1; echo &quot;--- the scar: directory mtimes moved when the entries were removed ---&quot;; stat -c '%y %n' /tmp/gh016/persist /tmp/gh016/persist/cron.d /tmp/gh016/persist/units /tmp/gh016/persist/bin; echo &quot;good: manifest OK&quot;; echo &quot;bad: missing-from-baseline plus fresh directory mtimes with no change record&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- DETECTION: the naive view first ---"; ls -R /tmp/gh016/persist; echo '(looks clean: empty directories)'; echo "--- the independent path: the manifest that predates the attacker ---"; (cd /tmp/gh016 &amp;&amp; sha256sum -c manifest.txt) 2&gt;&amp;1; echo "--- the scar: directory mtimes moved when the entries were removed ---"; stat -c '%y %n' /tmp/gh016/persist /tmp/gh016/persist/cron.d /tmp/gh016/persist/units /tmp/gh016/persist/bin; echo "good: manifest OK"; echo "bad: missing-from-baseline plus fresh directory mtimes with no change record"
+--- DETECTION: the naive view first ---
+/tmp/gh016/persist:
+bin  cron.d  units
+
+/tmp/gh016/persist/bin:
+
+/tmp/gh016/persist/cron.d:
+
+/tmp/gh016/persist/units:
+(looks clean: empty directories)
+--- the independent path: the manifest that predates the attacker ---
+sha256sum: persist/cron.d/persist: No such file or directory
+persist/cron.d/persist: FAILED open or read
+sha256sum: persist/units/persist.service: No such file or directory
+persist/units/persist.service: FAILED open or read
+sha256sum: persist/bin/implant.sh: No such file or directory
+persist/bin/implant.sh: FAILED open or read
+sha256sum: WARNING: 3 listed files could not be read
+--- the scar: directory mtimes moved when the entries were removed ---
+2026-09-21 23:18:56.199479176 +0000 /tmp/gh016/persist
+2026-09-21 23:18:56.224479176 +0000 /tmp/gh016/persist/cron.d
+2026-09-21 23:18:56.224479176 +0000 /tmp/gh016/persist/units
+2026-09-21 23:18:56.224479176 +0000 /tmp/gh016/persist/bin
+good: manifest OK
+bad: missing-from-baseline plus fresh directory mtimes with no change record</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>Record, then restore</h3>
+              <div class="prose"><p>The manifest diff and the directory mtimes go into evidence.txt BEFORE anything is touched: restoring disturbs the scene, so the evidence is recorded first. Then the restore: <strong>cp</strong> the three artifacts back from the known-good backup the manifest describes, <strong>chmod +x</strong> the implant back to executable, and <strong>sha256sum -c</strong> reports OK on all three. The manifest is the truth; the backup is the recovery. The tell closes only when every hash checks.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- record the evidence BEFORE touching anything ---&quot;; ((cd /tmp/gh016 &amp;&amp; sha256sum -c manifest.txt); stat -c '%y %n' /tmp/gh016/persist /tmp/gh016/persist/cron.d /tmp/gh016/persist/units /tmp/gh016/persist/bin) &gt; /tmp/gh016/evidence.txt 2&gt;&amp;1; cat /tmp/gh016/evidence.txt; echo &quot;--- restore from the known-good backup the manifest describes ---&quot;; cp /tmp/gh016/backup/cron.d/persist /tmp/gh016/persist/cron.d/persist &amp;&amp; cp /tmp/gh016/backup/units/persist.service /tmp/gh016/persist/units/persist.service &amp;&amp; cp /tmp/gh016/backup/bin/implant.sh /tmp/gh016/persist/bin/implant.sh &amp;&amp; chmod +x /tmp/gh016/persist/bin/implant.sh &amp;&amp; (cd /tmp/gh016 &amp;&amp; sha256sum -c manifest.txt)"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- record the evidence BEFORE touching anything ---"; ((cd /tmp/gh016 &amp;&amp; sha256sum -c manifest.txt); stat -c '%y %n' /tmp/gh016/persist /tmp/gh016/persist/cron.d /tmp/gh016/persist/units /tmp/gh016/persist/bin) &gt; /tmp/gh016/evidence.txt 2&gt;&amp;1; cat /tmp/gh016/evidence.txt; echo "--- restore from the known-good backup the manifest describes ---"; cp /tmp/gh016/backup/cron.d/persist /tmp/gh016/persist/cron.d/persist &amp;&amp; cp /tmp/gh016/backup/units/persist.service /tmp/gh016/persist/units/persist.service &amp;&amp; cp /tmp/gh016/backup/bin/implant.sh /tmp/gh016/persist/bin/implant.sh &amp;&amp; chmod +x /tmp/gh016/persist/bin/implant.sh &amp;&amp; (cd /tmp/gh016 &amp;&amp; sha256sum -c manifest.txt)
+--- record the evidence BEFORE touching anything ---
+sha256sum: persist/cron.d/persist: No such file or directory
+persist/cron.d/persist: FAILED open or read
+sha256sum: persist/units/persist.service: No such file or directory
+persist/units/persist.service: FAILED open or read
+sha256sum: persist/bin/implant.sh: No such file or directory
+persist/bin/implant.sh: FAILED open or read
+sha256sum: WARNING: 3 listed files could not be read
+2026-09-21 23:18:56.199479176 +0000 /tmp/gh016/persist
+2026-09-21 23:18:56.224479176 +0000 /tmp/gh016/persist/cron.d
+2026-09-21 23:18:56.224479176 +0000 /tmp/gh016/persist/units
+2026-09-21 23:18:56.224479176 +0000 /tmp/gh016/persist/bin
+--- restore from the known-good backup the manifest describes ---
+persist/cron.d/persist: OK
+persist/units/persist.service: OK
+persist/bin/implant.sh: OK</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>MITIGATION: confirm and sweep the other doors</h3>
+              <div class="prose"><p><strong>ls -R</strong> shows the files back in their locations. Then the sweep: the attack cleared the lab, but a real attacker takes every door, so the defender checks the other persistence locations. <strong>grep -ri gh016 /etc/cron.d /etc/cron.daily</strong> finds nothing in system cron; the systemd units hold no gh016 units. The attack only cleared the lab; the sweep names the doors the attacker did not take, which is how the defender knows the scope.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- confirm the restore ---&quot;; ls -R /tmp/gh016/persist; echo &quot;--- persistence sweep: the other doors the attacker could have taken ---&quot;; grep -ri gh016 /etc/cron.d /etc/cron.daily 2&gt;/dev/null || echo 'no gh016 in system cron'; ls /etc/systemd/system 2&gt;/dev/null | grep -i gh016 || echo 'no gh016 systemd units'"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- confirm the restore ---"; ls -R /tmp/gh016/persist; echo "--- persistence sweep: the other doors the attacker could have taken ---"; grep -ri gh016 /etc/cron.d /etc/cron.daily 2&gt;/dev/null || echo 'no gh016 in system cron'; ls /etc/systemd/system 2&gt;/dev/null | grep -i gh016 || echo 'no gh016 systemd units'
+--- confirm the restore ---
+/tmp/gh016/persist:
+bin  cron.d  units
+
+/tmp/gh016/persist/bin:
+implant.sh
+
+/tmp/gh016/persist/cron.d:
+persist
+
+/tmp/gh016/persist/units:
+persist.service
+--- persistence sweep: the other doors the attacker could have taken ---
+no gh016 in system cron
+no gh016 systemd units</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div>
+              <h3>PREVENTION: the permission gate</h3>
+              <div class="prose"><p><strong>chmod 755</strong> on the persist directories, root-owned: only root writes the persistence locations. The demonstration: <strong>su -s /bin/sh nobody</strong> tries the attacker's rm as the unprivileged user, and the kernel refuses it: rm: cannot remove '/tmp/gh016/persist/cron.d/persist': Permission denied. The gate raises the required privilege to root before the technique can run. D3FEND <a href="https://d3fend.mitre.org/technique/d3f:SystemConfigurationPermissions/" rel="noopener">D3-SCP: System Configuration Permissions</a> names exactly this shape: restricting system configuration modifications to the principals that need them.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- PREVENTION: the permission gate ---&quot;; chmod 755 /tmp/gh016/persist /tmp/gh016/persist/cron.d /tmp/gh016/persist/units /tmp/gh016/persist/bin; su -s /bin/sh nobody -c 'rm /tmp/gh016/persist/cron.d/persist' 2&gt;&amp;1; echo &quot;(refused: only root writes the persistence locations)&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- PREVENTION: the permission gate ---"; chmod 755 /tmp/gh016/persist /tmp/gh016/persist/cron.d /tmp/gh016/persist/units /tmp/gh016/persist/bin; su -s /bin/sh nobody -c 'rm /tmp/gh016/persist/cron.d/persist' 2&gt;&amp;1; echo "(refused: only root writes the persistence locations)"
+--- PREVENTION: the permission gate ---
+rm: cannot remove '/tmp/gh016/persist/cron.d/persist': Permission denied
+(refused: only root writes the persistence locations)</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">5</div>
+            <div>
+              <h3>PREVENTION: the manifest is the inventory</h3>
+              <div class="prose"><p><strong>cat</strong> shows the manifest: three paths, three hashes, the whole inventory in three lines. The scheduled check is one command: <strong>(cd /tmp/gh016 &amp;&amp; sha256sum -c manifest.txt)</strong>, and after the restore it reports OK on all three. The tell is any FAILED or missing entry. D3FEND <a href="https://d3fend.mitre.org/technique/d3f:ConfigurationInventory/" rel="noopener">D3-CI: Configuration Inventory</a> is the inventory discipline behind the manifest, and <a href="https://d3fend.mitre.org/technique/d3f:FileIntegrityMonitoring/" rel="noopener">D3-FIM: File Integrity Monitoring</a> is the change-detection shape the scheduled check implements.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- PREVENTION: the manifest is the inventory ---&quot;; cat /tmp/gh016/manifest.txt; echo &quot;the scheduled check runs: (cd /tmp/gh016 &amp;&amp; sha256sum -c manifest.txt)&quot;; (cd /tmp/gh016 &amp;&amp; sha256sum -c manifest.txt); echo &quot;the tell is any FAILED or missing entry&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- PREVENTION: the manifest is the inventory ---"; cat /tmp/gh016/manifest.txt; echo "the scheduled check runs: (cd /tmp/gh016 &amp;&amp; sha256sum -c manifest.txt)"; (cd /tmp/gh016 &amp;&amp; sha256sum -c manifest.txt); echo "the tell is any FAILED or missing entry"
+--- PREVENTION: the manifest is the inventory ---
+f739c786f26322d541ec61d2c0d9626a1d36427d5425c4e58a2c5bd1b2340279  persist/cron.d/persist
+0978f032fc00aa0ea9d643a64163588f1f9e4dcb08a91f021e3c4af69a927e46  persist/units/persist.service
+281b63811945f5af8520f9d5deaa98c6a673a932a05c34a196cdd514c05b2eb6  persist/bin/implant.sh
+the scheduled check runs: (cd /tmp/gh016 &amp;&amp; sha256sum -c manifest.txt)
+persist/cron.d/persist: OK
+persist/units/persist.service: OK
+persist/bin/implant.sh: OK
+the tell is any FAILED or missing entry</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">6</div>
+            <div>
+              <h3>Verdict</h3>
+              <div class="prose"><p>The summary, in the defender's own words: the listing said clean, the manifest said cleared. The evidence was recorded, the artifacts were restored from backup, every hash checks. The gate refused the unprivileged delete, and the manifest is the scheduled inventory.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;detection verified: the listing said clean, the manifest said cleared&quot;; echo &quot;the evidence was recorded, the artifacts were restored from backup, every hash checks&quot;; echo &quot;the gate refused the unprivileged delete, and the manifest is the scheduled inventory&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "detection verified: the listing said clean, the manifest said cleared"; echo "the evidence was recorded, the artifacts were restored from backup, every hash checks"; echo "the gate refused the unprivileged delete, and the manifest is the scheduled inventory"
+detection verified: the listing said clean, the manifest said cleared
+the evidence was recorded, the artifacts were restored from backup, every hash checks
+the gate refused the unprivileged delete, and the manifest is the scheduled inventory</pre>
+</div>
+              <div class="verdict green">
+                <span class="mlabel">Detection verified</span>
+                <p>The listing said clean and the manifest said cleared, and the manifest was right: three missing artifacts, three fresh directory mtimes. The evidence was recorded before anything was touched, the artifacts were restored from the known-good backup with every hash verified, and the other persistence locations swept clean. The permission gate refused the unprivileged delete, and the manifest check is the scheduled inventory.</p>
+              </div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">7</div>
+            <div>
+              <h3>Cleanup</h3>
+              <div class="prose"><p><strong>rm -rf /tmp/gh016</strong> removes the lab; <strong>ls</strong> confirms the directory is gone. The namespace dies with the session regardless; the cleanup keeps the record honest.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="rm -rf /tmp/gh016; ls /tmp | grep gh016 || echo &quot;lab gone&quot;"><span data-label>COPY</span></button></div>
+<pre>$ rm -rf /tmp/gh016; ls /tmp | grep gh016 || echo "lab gone"
+lab gone</pre>
+</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="countermeasures">
+          <div class="phase-head"><span class="phase-num">05</span><h2>Countermeasures</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">Three moves, in order: record and restore from backup, inventory the manifest on a schedule, gate the locations behind root-only writes. Each is one way, not the way.</p>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Mitigate: record, restore, verify, sweep</h3>
+              <div class="prose"><p>Proven first against the live clearing: record the manifest diff and the directory mtimes before touching anything, restore the cleared artifacts from the known-good backup the manifest describes, verify every hash, sweep the other persistence locations: system cron, systemd units. A real sweep names every other door: rc.local, profile.d, authorized_keys, and on other platforms the registry and the plist.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- record the evidence BEFORE touching anything ---&quot;; ((cd /tmp/gh016 &amp;&amp; sha256sum -c manifest.txt); stat -c '%y %n' /tmp/gh016/persist /tmp/gh016/persist/cron.d /tmp/gh016/persist/units /tmp/gh016/persist/bin) &gt; /tmp/gh016/evidence.txt 2&gt;&amp;1; cat /tmp/gh016/evidence.txt; echo &quot;--- restore from the known-good backup the manifest describes ---&quot;; cp /tmp/gh016/backup/cron.d/persist /tmp/gh016/persist/cron.d/persist &amp;&amp; cp /tmp/gh016/backup/units/persist.service /tmp/gh016/persist/units/persist.service &amp;&amp; cp /tmp/gh016/backup/bin/implant.sh /tmp/gh016/persist/bin/implant.sh &amp;&amp; chmod +x /tmp/gh016/persist/bin/implant.sh &amp;&amp; (cd /tmp/gh016 &amp;&amp; sha256sum -c manifest.txt)&#10;echo &quot;--- confirm the restore ---&quot;; ls -R /tmp/gh016/persist; echo &quot;--- persistence sweep: the other doors the attacker could have taken ---&quot;; grep -ri gh016 /etc/cron.d /etc/cron.daily 2&gt;/dev/null || echo 'no gh016 in system cron'; ls /etc/systemd/system 2&gt;/dev/null | grep -i gh016 || echo 'no gh016 systemd units'"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- record the evidence BEFORE touching anything ---"; ((cd /tmp/gh016 &amp;&amp; sha256sum -c manifest.txt); stat -c '%y %n' /tmp/gh016/persist /tmp/gh016/persist/cron.d /tmp/gh016/persist/units /tmp/gh016/persist/bin) &gt; /tmp/gh016/evidence.txt 2&gt;&amp;1; cat /tmp/gh016/evidence.txt; echo "--- restore from the known-good backup the manifest describes ---"; cp /tmp/gh016/backup/cron.d/persist /tmp/gh016/persist/cron.d/persist &amp;&amp; cp /tmp/gh016/backup/units/persist.service /tmp/gh016/persist/units/persist.service &amp;&amp; cp /tmp/gh016/backup/bin/implant.sh /tmp/gh016/persist/bin/implant.sh &amp;&amp; chmod +x /tmp/gh016/persist/bin/implant.sh &amp;&amp; (cd /tmp/gh016 &amp;&amp; sha256sum -c manifest.txt)
+--- record the evidence BEFORE touching anything ---
+sha256sum: persist/cron.d/persist: No such file or directory
+persist/cron.d/persist: FAILED open or read
+sha256sum: persist/units/persist.service: No such file or directory
+persist/units/persist.service: FAILED open or read
+sha256sum: persist/bin/implant.sh: No such file or directory
+persist/bin/implant.sh: FAILED open or read
+sha256sum: WARNING: 3 listed files could not be read
+2026-09-21 23:18:56.199479176 +0000 /tmp/gh016/persist
+2026-09-21 23:18:56.224479176 +0000 /tmp/gh016/persist/cron.d
+2026-09-21 23:18:56.224479176 +0000 /tmp/gh016/persist/units
+2026-09-21 23:18:56.224479176 +0000 /tmp/gh016/persist/bin
+--- restore from the known-good backup the manifest describes ---
+persist/cron.d/persist: OK
+persist/units/persist.service: OK
+persist/bin/implant.sh: OK
+$ echo "--- confirm the restore ---"; ls -R /tmp/gh016/persist; echo "--- persistence sweep: the other doors the attacker could have taken ---"; grep -ri gh016 /etc/cron.d /etc/cron.daily 2&gt;/dev/null || echo 'no gh016 in system cron'; ls /etc/systemd/system 2&gt;/dev/null | grep -i gh016 || echo 'no gh016 systemd units'
+--- confirm the restore ---
+/tmp/gh016/persist:
+bin  cron.d  units
+
+/tmp/gh016/persist/bin:
+implant.sh
+
+/tmp/gh016/persist/cron.d:
+persist
+
+/tmp/gh016/persist/units:
+persist.service
+--- persistence sweep: the other doors the attacker could have taken ---
+no gh016 in system cron
+no gh016 systemd units</pre>
+</div>
+              <div class="callout"><p><strong>Honest limit.</strong> shred overwrites before unlinking, so carving recovers nothing: the backup's integrity IS the evidence chain, and the backup must be protected before the attacker arrives, not after. The manifest says WHAT was cleared, not WHEN it was cleared: file-watch audit logs are the production backstop for the when. Stated, not shown: audit is not functional inside the lab namespace. Restoring disturbs the scene, so evidence.txt is recorded first and treated as the record.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>Monitor: check the manifest on a schedule</h3>
+              <div class="prose"><p>The scheduled form of the phase-blue read: <strong>sha256sum -c</strong> against the known-good manifest on a timer. The tell is FAILED or missing, especially at persistence locations.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- PREVENTION: the manifest is the inventory ---&quot;; cat /tmp/gh016/manifest.txt; echo &quot;the scheduled check runs: (cd /tmp/gh016 &amp;&amp; sha256sum -c manifest.txt)&quot;; (cd /tmp/gh016 &amp;&amp; sha256sum -c manifest.txt); echo &quot;the tell is any FAILED or missing entry&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- PREVENTION: the manifest is the inventory ---"; cat /tmp/gh016/manifest.txt; echo "the scheduled check runs: (cd /tmp/gh016 &amp;&amp; sha256sum -c manifest.txt)"; (cd /tmp/gh016 &amp;&amp; sha256sum -c manifest.txt); echo "the tell is any FAILED or missing entry"
+--- PREVENTION: the manifest is the inventory ---
+f739c786f26322d541ec61d2c0d9626a1d36427d5425c4e58a2c5bd1b2340279  persist/cron.d/persist
+0978f032fc00aa0ea9d643a64163588f1f9e4dcb08a91f021e3c4af69a927e46  persist/units/persist.service
+281b63811945f5af8520f9d5deaa98c6a673a932a05c34a196cdd514c05b2eb6  persist/bin/implant.sh
+the scheduled check runs: (cd /tmp/gh016 &amp;&amp; sha256sum -c manifest.txt)
+persist/cron.d/persist: OK
+persist/units/persist.service: OK
+persist/bin/implant.sh: OK
+the tell is any FAILED or missing entry</pre>
+</div>
+              <div class="callout"><p><strong>Honest limit.</strong> The manifest must predate the attacker: an attacker who arrives before the first inventory is invisible to it. The poll interval sets the detection floor: a clearing and a re-creation between polls is missed. A location that is not inventoried is a door left open, so the manifest must cover every persistence location the platform offers, or the attacker simply takes the uncovered one.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>Prevent: only root writes persistence locations</h3>
+              <div class="prose"><p>The durable form: persistence locations are root-owned and writable only by root. Without write access the clearing, like the planting, is refused at the gate, as demonstrated above. Service managers and configuration management can enforce the ownership continuously.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- PREVENTION: the permission gate ---&quot;; chmod 755 /tmp/gh016/persist /tmp/gh016/persist/cron.d /tmp/gh016/persist/units /tmp/gh016/persist/bin; su -s /bin/sh nobody -c 'rm /tmp/gh016/persist/cron.d/persist' 2&gt;&amp;1; echo &quot;(refused: only root writes the persistence locations)&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- PREVENTION: the permission gate ---"; chmod 755 /tmp/gh016/persist /tmp/gh016/persist/cron.d /tmp/gh016/persist/units /tmp/gh016/persist/bin; su -s /bin/sh nobody -c 'rm /tmp/gh016/persist/cron.d/persist' 2&gt;&amp;1; echo "(refused: only root writes the persistence locations)"
+--- PREVENTION: the permission gate ---
+rm: cannot remove '/tmp/gh016/persist/cron.d/persist': Permission denied
+(refused: only root writes the persistence locations)</pre>
+</div>
+              <div class="callout"><p><strong>Honest limit.</strong> An attacker who already runs as root can chmod the locations back: the gate raises the required privilege, it does not end the game. This is why the inventory in step 2 is the backstop for the gate, not the other way around: the gate stops the unprivileged, the manifest catches the privileged.</p></div>
+              <div class="verdict green">
+                <span class="mlabel">Countermeasures verified</span>
+                <p>The clearing was detected from the manifest, recorded, and restored from backup with every hash verified; the manifest is checked on a schedule with every persistence location covered; the locations are root-owned so the unprivileged delete is refused. The listing still says clean to whoever only reads listings. The manifest does not agree.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="debrief">
+          <div class="phase-head"><span class="phase-num">06</span><h2>Debrief</h2><span class="phase-tag neutral">TAKEAWAY</span></div>
+          <p class="takeaway">When the listing says clean and the manifest says cleared, the manifest is the truth: inventory what was here, not what is here.</p>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">IOC checklist: signs this technique was used</span></p></div>
+          <ul class="checklist">
+            <li><span>Persistence locations that read empty but whose <strong>directory mtimes</strong> moved with no change record</span></li>
+            <li><span>A baseline manifest reporting <strong>FAILED open or read</strong> on service, timer, or launcher artifacts</span></li>
+            <li><span>Audit events showing <strong>shred</strong> or repeated overwrites run against persistence paths</span></li>
+            <li><span>A cron entry or service unit present in backups but absent on the live host</span></li>
+            <li><span>A known implant whose launch mechanism cannot be found anywhere on the box</span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Reproducibility checklist</span></p></div>
+          <ul class="checklist">
+            <li><span>Verified on <strong>Ubuntu 24.04.5 LTS</strong>, x86-64, on 2026-09-21</span></li>
+            <li><span>Both recordings are real executions on that platform, not simulations</span></li>
+            <li><span>Runs as root in a disposable namespace (the lab owns its own cron.d and unit stand-ins; the assumed breach: something on the box planted the persistence)</span></li>
+            <li><span>Cleanup: <strong>rm -rf /tmp/gh016</strong>; verify with <strong>ls /tmp</strong></span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Sources</span></p></div>
+          <div class="prose"><p><a href="https://attack.mitre.org/techniques/T1070/009/" rel="noopener">MITRE ATT&amp;CK T1070.009: Clear Persistence</a><br>
+          <a href="https://man7.org/linux/man-pages/man1/shred.1.html" rel="noopener">shred(1)</a> (the overwriting removal)<br>
+          <a href="https://man7.org/linux/man-pages/man1/sha256sum.1.html" rel="noopener">sha256sum(1)</a> (the manifest check)<br>
+          <a href="https://man7.org/linux/man-pages/man1/stat.1.html" rel="noopener">stat(1)</a> (the directory-mtime scar)<br>
+          <a href="https://man7.org/linux/man-pages/man5/crontab.5.html" rel="noopener">crontab(5)</a> (the cron persistence form)<br>
+          <a href="https://man7.org/linux/man-pages/man5/systemd.service.5.html" rel="noopener">systemd.service(5)</a> (the unit persistence form)<br>
+          <a href="https://d3fend.mitre.org/technique/d3f:ConfigurationInventory/" rel="noopener">D3FEND D3-CI: Configuration Inventory</a><br>
+          <a href="https://d3fend.mitre.org/technique/d3f:FileIntegrityMonitoring/" rel="noopener">D3FEND D3-FIM: File Integrity Monitoring</a><br>
+          <a href="https://d3fend.mitre.org/technique/d3f:SystemConfigurationPermissions/" rel="noopener">D3FEND D3-SCP: System Configuration Permissions</a></p></div>
+        </section>
+
+        <a class="next-file" href="../017-reflective-code-loading/index.html">
+          <span class="mlabel">Next file</span>
+          <h3>GH-017 Reflective Code Loading</h3>
+          <p>The next file runs code that was never a file.</p>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <div>
+      <div class="footer-brand">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+        <span class="brand-name" style="font-size:17px">GHOSTLIGHT</span>
+      </div>
+      <p class="footer-note">An independent adversary-stealth research publication. Every command verified on the named OS before publishing. No trackers, no frameworks, no autoplay.</p>
+    </div>
+    <nav class="footer-links">
+      <a href="../../method.html">METHOD</a>
+      <a href="../../index.html">FILES</a>
+      <a href="https://attack.mitre.org/tactics/TA0005/" rel="noopener">MITRE TA0005</a>
+    </nav>
+    <div class="footer-elsewhere">
+      <span class="mlabel">Elsewhere</span><a href="https://dillingerstaffing.github.io/portfolio/" target="_blank" rel="noopener">Portfolio</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/proving-ground/" target="_blank" rel="noopener">Proving Ground</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/tapeout/" target="_blank" rel="noopener">Tapeout</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/old-iron/" target="_blank" rel="noopener">Old Iron</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/unstuck/" target="_blank" rel="noopener">Unstuck</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../../assets/site.js?v=512f8825"></script>
+</body>
+</html>
