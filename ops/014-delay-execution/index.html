@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>GH-014 The Patient Fuse (T1678): GHOSTLIGHT</title>
+<meta name="description" content="T1678 Delay Execution, reproduced on Ubuntu 24.04: a payload sleeps 45 seconds while the sandbox watches for 20, keeps its appointment, and fires its one beacon. The defender reads the schedule off the process and kills it before the fuse burns.">
+<link rel="canonical" href="https://dillingerstaffing.github.io/ghostlight/ops/014-delay-execution/">
+<meta property="og:title" content="GH-014 The Patient Fuse (T1678): GHOSTLIGHT">
+<meta property="og:description" content="T1678 Delay Execution, reproduced on Ubuntu 24.04: a payload sleeps 45 seconds while the sandbox watches for 20, keeps its appointment, and fires its one beacon. The defender reads the schedule off the process and kills it before the fuse burns.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dillingerstaffing.github.io/ghostlight/ops/014-delay-execution/">
+<meta property="og:site_name" content="GHOSTLIGHT">
+<meta property="og:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="GH-014 The Patient Fuse (T1678): GHOSTLIGHT">
+<meta name="twitter:description" content="T1678 Delay Execution, reproduced on Ubuntu 24.04: a payload sleeps 45 seconds while the sandbox watches for 20, keeps its appointment, and fires its one beacon. The defender reads the schedule off the process and kills it before the fuse burns.">
+<meta name="twitter:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23ece6d5'/%3E%3Ccircle cx='256' cy='196' r='104' fill='none' stroke='%23241f17' stroke-width='20'/%3E%3Cline x1='256' y1='152' x2='256' y2='240' stroke='%238c3f22' stroke-width='16'/%3E%3Cline x1='256' y1='300' x2='256' y2='424' stroke='%23241f17' stroke-width='14'/%3E%3Cline x1='200' y1='424' x2='312' y2='424' stroke='%23241f17' stroke-width='18'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+<link rel="manifest" href="../../assets/manifest.webmanifest">
+<meta name="theme-color" content="#0a0c0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GHOSTLIGHT">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<script>
+(function () {
+  // Theme: notebook is the default; a stored visitor choice wins.
+  // Runs before the stylesheet is parsed so the first paint is already
+  // the right theme (no flash of the wrong one).
+  try {
+    var t = localStorage.getItem('emi-site-theme');
+    var theme = t === 'classic' ? 'classic' : 'notebook';
+    document.documentElement.dataset.theme = theme;
+    var m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute('content', theme === 'classic' ? '#0a0c0f' : '#ece6d5');
+  } catch (e) {
+    document.documentElement.dataset.theme = 'notebook';
+  }
+})();
+</script>
+<link rel="stylesheet" href="../../assets/site.css?v=36a0084f">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"GH-014 The Patient Fuse (T1678): GHOSTLIGHT",
+"url":"https://dillingerstaffing.github.io/ghostlight/ops/014-delay-execution/","description":"T1678 Delay Execution, reproduced on Ubuntu 24.04: a payload sleeps 45 seconds while the sandbox watches for 20, keeps its appointment, and fires its one beacon. The defender reads the schedule off the process and kills it before the fuse burns.",
+"author":{"@type":"Person","name":"Chris Dillinger","url":"https://www.linkedin.com/in/christopherdillinger/"},
+"inLanguage":"en"}
+</script>
+</head>
+<body>
+
+<header class="site-header">
+  <a class="brand" href="../../index.html" aria-label="GHOSTLIGHT home">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+    <span class="brand-name">GHOSTLIGHT</span>
+  </a>
+  <nav class="site-nav">
+    <a href="../../method.html">METHOD</a>
+    <a href="../../index.html">FILES</a>
+    <button class="theme-toggle" type="button" aria-label="Switch to dark field dossier theme" title="Switch theme">
+      <span class="theme-toggle-mark" aria-hidden="true"><i></i><i></i></span>
+    </button>
+  </nav>
+</header>
+
+<div class="onboard" data-onboard hidden>
+  <span><strong>How to read a file:</strong> every file follows the six-phase structure below. <span class="k-green">Green</span> is verified, <span class="k-red">red</span> is hostile.</span>
+  <button aria-label="Dismiss">GOT IT</button>
+</div>
+
+<div class="page" data-op="014">
+  <div class="wrap">
+    <section class="op-hero">
+      <div class="op-kicker">
+        <span class="case-no">GH-014</span>
+        <a class="tech-id" href="https://attack.mitre.org/techniques/T1678/" rel="noopener">T1678</a>
+        <span class="phase-tag red">PHASE RED INSIDE</span>
+      </div>
+      <h1>The Patient Fuse</h1>
+      <p class="lede">A payload sits on this box with a 45-second fuse and one job: phone home once, then exit. The sandbox watches for 20 seconds, sees nothing, and stamps it clean. This file waits out the clock with the payload, then reads the next sleeper's schedule off its own command line and kills it before the appointment.</p>
+      <div class="op-meta-grid">
+        <div class="op-meta"><span class="mlabel">Technique</span><span class="mvalue">Delay Execution (T1678)</span></div>
+        <div class="op-meta"><span class="mlabel">Target OS</span><span class="mvalue">Ubuntu 24.04.5 LTS</span></div>
+        <div class="op-meta"><span class="mlabel">Toolchain</span><span class="mvalue">python3, bash, coreutils, procps</span></div>
+        <div class="op-meta"><span class="mlabel">Level</span><span class="mvalue">Introductory</span></div>
+        <div class="op-meta"><span class="mlabel">Time</span><span class="mvalue">20 min</span></div>
+      </div>
+      <div class="objectives">
+        <h2>OBJECTIVES</h2>
+        <ol>
+          <li data-phase="phase-red"><span class="box"></span>Plant a payload with a 45-second fuse and watch a 20-second sandbox call it clean</li>
+          <li data-phase="phase-blue"><span class="box"></span>Read a sleeper's fire time from its start time and kill it before the fuse burns</li>
+          <li data-phase="countermeasures"><span class="box"></span>Kill by pid, baseline the process inventory, allowlist what may run</li>
+          <li data-phase="debrief"><span class="box"></span>Take the IOC checklist and the one-sentence lesson</li>
+        </ol>
+      </div>
+    </section>
+
+    <div class="op-layout">
+      <nav class="rail" aria-label="Phases">
+        <span class="mlabel">Phases</span>
+        <ol>
+          <li><a href="#intel-brief"><span class="pnum">01</span>INTEL BRIEF<span class="tick"></span></a></li>
+          <li><a href="#target-environment"><span class="pnum">02</span>TARGET ENV<span class="tick"></span></a></li>
+          <li><a href="#phase-red"><span class="pnum">03</span>PHASE RED<span class="tick"></span></a></li>
+          <li><a href="#phase-blue"><span class="pnum">04</span>PHASE BLUE<span class="tick"></span></a></li>
+          <li><a href="#countermeasures"><span class="pnum">05</span>COUNTERMEASURES<span class="tick"></span></a></li>
+          <li><a href="#debrief"><span class="pnum">06</span>DEBRIEF<span class="tick"></span></a></li>
+        </ol>
+      </nav>
+
+      <div class="op-content">
+        <section class="phase" id="intel-brief">
+          <div class="phase-head"><span class="phase-num">01</span><h2>Intel Brief</h2><span class="phase-tag neutral">CONTEXT</span></div>
+          <p class="lede">MITRE ATT&amp;CK <a href="https://attack.mitre.org/techniques/T1678/" rel="noopener">T1678</a>: adversaries schedule the malicious act in the future, so any defense that stops watching first sees nothing. This file runs a 45-second fuse against a 20-second watch, then shows the read that beats it. Two actors: the attacker, who owns the payload and its listener, and the defender, who owns the sandbox, the scans, and every inventory in the blue phase.</p>
+          <div class="prose">
+            <p><strong>Why this technique.</strong> A verdict costs money by the minute. An automated sandbox rents each sample a fixed time budget: run it, watch it, stamp it, move on. The attacker knows the budget and simply waits it out. Nothing about the payload has to be clever. It does not hide, it does not encrypt itself, it does not check whether it is being watched. It sleeps. At second 21, or minute 6, or next Tuesday, it wakes and does the one thing it came to do. The defense did not fail to look; it stopped looking before there was anything to see.</p>
+            <p><strong>Why not hide the payload instead.</strong> The obvious alternative is obfuscation: pack it, encrypt it, scramble the strings. Break it on the concrete input: the sandbox still runs it. Obfuscation slows the human analyst, but a detonated sample shows its behavior anyway, and the verdict comes from behavior, not from reading the binary. Delay attacks the verdict itself: the verdict is a function of the observation window, and the attacker picks a window the sandbox cannot afford.</p>
+            <p><strong>Why not detect the sandbox.</strong> The other obvious alternative is fingerprinting: check for a VM, a debugger, a short uptime, and stay quiet only there. Break it: fingerprinting is an arms race, it is brittle (one wrong check and the payload never fires on the real target), and the checks themselves are detectable in turn. Delay needs no fingerprint. It works on every box with a clock, real or virtual, because the clock is the one thing the sandbox cannot take away.</p>
+            <p><strong>The mechanism, in one line.</strong> <strong>Delay execution</strong> is scheduling the malicious act in the future through a legitimate wait: here, one <strong>time.sleep</strong> call, which is one <strong>nanosleep</strong> syscall underneath. The <strong>fuse</strong> is the wait between launch and the act. The <strong>observation window</strong> is how long the defender watches. A <strong>sandbox</strong> is automated analysis that runs a sample for a fixed time budget and stamps a verdict. The <strong>beacon</strong> is the payload's one network act: a TCP connect and a single line. The <strong>wchan</strong>, the kernel wait channel, is what a sleeping process is parked in, readable at /proc/PID/wchan. Terms earned, no borrowing.</p>
+            <p><strong>The concrete case, before the abstraction.</strong> delayer.py --wait 45 --beacon 4100. The sandbox watches 20 seconds: beacon.log stays empty, verdict CLEAN. At 45 seconds the beacon lands on port 4100. One sleep, one connect, one line.</p>
+          </div>
+          <div class="callout"><p><strong>Scope.</strong> T1678 covers time-based evasion broadly: sleeps, scheduled tasks, far-future trigger dates. This file works the sleep-fuse case end to end: the wait, the appointment, and the schedule read that catches the next one. The constants are compressed for the lab: real sandboxes typically detonate a sample for 2 to 5 minutes, and real payloads sleep 10 or more minutes or aim at a far-future date. The mechanism is window length, not the specific value.</p></div>
+        </section>
+
+        <section class="phase" id="target-environment">
+          <div class="phase-head"><span class="phase-num">02</span><h2>Target Environment</h2><span class="phase-tag neutral">LOADOUT</span></div>
+          <p class="lede">Ubuntu 24.04.5 LTS, x86-64, in a disposable namespace used only for this lab. Everything runs as the current user; no root needed. The lab is lab-local: 127.0.0.1 only, nothing leaves the box.</p>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Build the lab</h3>
+              <div class="prose"><p>One disposable directory, plus a pre-flight that kills any stray payload or listener on the lab ports from an earlier run. Everything the lab touches lives inside /tmp/gh014, so cleanup is a single rm.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="pkill -f 'delayer\.py' 2&gt;/dev/null; pkill -f 'nc -l 127.0.0.1 41' 2&gt;/dev/null; rm -rf /tmp/gh014 &amp;&amp; mkdir -p /tmp/gh014 &amp;&amp; echo &quot;lab built: /tmp/gh014&quot;"><span data-label>COPY</span></button></div>
+<pre>$ pkill -f 'delayer\.py' 2&gt;/dev/null; pkill -f 'nc -l 127.0.0.1 41' 2&gt;/dev/null; rm -rf /tmp/gh014 &amp;&amp; mkdir -p /tmp/gh014 &amp;&amp; echo "lab built: /tmp/gh014"
+lab built: /tmp/gh014</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>The payload: 16 lines</h3>
+              <div class="prose"><p>Line by line. <strong>#!/usr/bin/env python3</strong> runs the file under python3. The docstring says what the file is: sleep, then beacon. The three imports: <strong>socket</strong> for the beacon connect, <strong>sys</strong> for reading the command line, <strong>time</strong> for the fuse. <strong>WAIT</strong> reads the fuse length off the process's own command line: <strong>sys.argv.index('--wait')</strong> finds the flag, plus one is its value. <strong>PORT</strong> does the same for <strong>--beacon</strong>. This is the detail the blue phase exploits: the schedule is printed on the process for anyone who looks. <strong>time.sleep(WAIT)</strong> is the fuse: one syscall, nothing happens until it returns. <strong>socket.create_connection(('127.0.0.1', PORT), timeout=10)</strong> is the one malicious act: a TCP connect to the listener, lab-local only. <strong>sendall(b'GH-014 beacon
+')</strong> sends the beacon line. <strong>close()</strong> ends the connect, and the process exits. The technique is the clock.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">python: payload</span><button class="copy-btn" data-copy="cat &gt; /tmp/gh014/delayer.py &lt;&lt;'EOF'&#10;#!/usr/bin/env python3&#10;&quot;&quot;&quot;GH-014 lab payload: sleeps --wait seconds, then beacons to 127.0.0.1:PORT.&#10;The delay is the whole technique (T1678): any observer whose watch window&#10;is shorter than the fuse sees nothing.&quot;&quot;&quot;&#10;import socket&#10;import sys&#10;import time&#10;&#10;WAIT = int(sys.argv[sys.argv.index('--wait') + 1])&#10;PORT = int(sys.argv[sys.argv.index('--beacon') + 1])&#10;&#10;time.sleep(WAIT)  # the fuse: nothing happens until this returns&#10;&#10;s = socket.create_connection(('127.0.0.1', PORT), timeout=10)&#10;s.sendall(b'GH-014 beacon\n')  # the payload's one malicious act&#10;s.close()&#10;EOF&#10;chmod +x /tmp/gh014/delayer.py &amp;&amp; echo &quot;payload written: $(wc -l &lt; /tmp/gh014/delayer.py) lines&quot;"><span data-label>COPY</span></button></div>
+<pre>$ cat &gt; /tmp/gh014/delayer.py &lt;&lt;'EOF'
+#!/usr/bin/env python3
+"""GH-014 lab payload: sleeps --wait seconds, then beacons to 127.0.0.1:PORT.
+The delay is the whole technique (T1678): any observer whose watch window
+is shorter than the fuse sees nothing."""
+import socket
+import sys
+import time
+
+WAIT = int(sys.argv[sys.argv.index('--wait') + 1])
+PORT = int(sys.argv[sys.argv.index('--beacon') + 1])
+
+time.sleep(WAIT)  # the fuse: nothing happens until this returns
+
+s = socket.create_connection(('127.0.0.1', PORT), timeout=10)
+s.sendall(b'GH-014 beacon\n')  # the payload's one malicious act
+s.close()
+EOF
+chmod +x /tmp/gh014/delayer.py &amp;&amp; echo "payload written: $(wc -l &lt; /tmp/gh014/delayer.py) lines"
+payload written: 16 lines</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>Start the listener and the payload</h3>
+              <div class="prose"><p><strong>timeout 90 nc -l 127.0.0.1 4100</strong> is the attacker's listener: it holds port 4100 and writes the first connect's bytes to beacon.log, then exits. <strong>timeout 90</strong> is a backstop so a failed take never hangs the lab. <strong>python3 /tmp/gh014/delayer.py --wait 45 --beacon 4100 &amp;</strong> launches the payload in the background; <strong>$!</strong> is its pid, kept in <strong>DELAYER</strong>. The fuse is 45 seconds; the beacon goes to port 4100.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="timeout 90 nc -l 127.0.0.1 4100 &gt; /tmp/gh014/beacon.log 2&gt;&amp;1 &amp; LISTENER=$!; sleep 1; python3 /tmp/gh014/delayer.py --wait 45 --beacon 4100 &amp; DELAYER=$!; echo &quot;payload pid=$DELAYER (fuse: 45s, beacon port 4100)&quot;"><span data-label>COPY</span></button></div>
+<pre>$ timeout 90 nc -l 127.0.0.1 4100 &gt; /tmp/gh014/beacon.log 2&gt;&amp;1 &amp; LISTENER=$!; sleep 1; python3 /tmp/gh014/delayer.py --wait 45 --beacon 4100 &amp; DELAYER=$!; echo "payload pid=$DELAYER (fuse: 45s, beacon port 4100)"
+[1] 12
+[2] 15
+payload pid=15 (fuse: 45s, beacon port 4100)</pre>
+</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="phase-red">
+          <div class="phase-head"><span class="phase-num">03</span><h2>Phase Red: outwait the clock</h2><span class="phase-tag red">ATTACK</span></div>
+          <p class="lede">First the sandbox's view: 20 seconds of silence, then a verdict. Then the appointment the sandbox missed.</p>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">159.1s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/fuse-red.jpg" aria-label="Screen recording: FUSE RED, operator@lab">
+              <source src="../../assets/vid/fuse-red.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> A payload with a 45-second fuse launches while the sandbox watches for 20 seconds and stamps it clean. At 45 seconds the beacon lands. Every command below is copy-pasteable.</figcaption>
+          </figure>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>The 20-second watch</h3>
+              <div class="prose"><p><strong>sleep 20</strong> is the sandbox: a fixed observation window, then a verdict. <strong>beacon.log</strong> is empty: nothing arrived. The verdict is CLEAN, honestly observed for 20 seconds. The honest part matters: the sandbox did its job. Its job was just shorter than the fuse.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- the sandbox watches for 20 seconds ---&quot;; sleep 20; echo &quot;--- sandbox watch ends ---&quot;; [ -s /tmp/gh014/beacon.log ] &amp;&amp; cat /tmp/gh014/beacon.log || echo &quot;(beacon.log empty: nothing arrived)&quot;; echo &quot;sandbox verdict: CLEAN (observed 20s)&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- the sandbox watches for 20 seconds ---"; sleep 20; echo "--- sandbox watch ends ---"; [ -s /tmp/gh014/beacon.log ] &amp;&amp; cat /tmp/gh014/beacon.log || echo "(beacon.log empty: nothing arrived)"; echo "sandbox verdict: CLEAN (observed 20s)"
+--- the sandbox watches for 20 seconds ---
+--- sandbox watch ends ---
+(beacon.log empty: nothing arrived)
+sandbox verdict: CLEAN (observed 20s)</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>The appointment</h3>
+              <div class="prose"><p><strong>wait $LISTENER</strong> blocks until the listener exits, which happens when the beacon arrives. At t+45s the log shows one line: GH-014 beacon. The payload kept its appointment; nobody was watching.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- waiting for the appointment (t+45s) ---&quot;; wait $LISTENER; echo &quot;--- the listener exited: the beacon arrived ---&quot;; cat /tmp/gh014/beacon.log"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- waiting for the appointment (t+45s) ---"; wait $LISTENER; echo "--- the listener exited: the beacon arrived ---"; cat /tmp/gh014/beacon.log
+--- waiting for the appointment (t+45s) ---
+--- the listener exited: the beacon arrived ---
+GH-014 beacon</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>Stealth confirmed</h3>
+              <div class="prose"><p><strong>wait $DELAYER</strong> reaps the payload; <strong>ps -p</strong> confirms it exited after firing. The 20-second watch looked away too early, and the fuse kept burning to t+45s.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="wait $DELAYER 2&gt;/dev/null; ps -p $DELAYER &gt;/dev/null 2&gt;&amp;1 &amp;&amp; echo &quot;payload still alive (unexpected)&quot; || echo &quot;payload exited after firing&quot;; echo &quot;stealth confirmed: the 20s watch looked away too early, the fuse kept burning to t+45s&quot;"><span data-label>COPY</span></button></div>
+<pre>$ wait $DELAYER 2&gt;/dev/null; ps -p $DELAYER &gt;/dev/null 2&gt;&amp;1 &amp;&amp; echo "payload still alive (unexpected)" || echo "payload exited after firing"; echo "stealth confirmed: the 20s watch looked away too early, the fuse kept burning to t+45s"
+payload exited after firing
+stealth confirmed: the 20s watch looked away too early, the fuse kept burning to t+45s</pre>
+</div>
+              <div class="verdict red">
+                <span class="mlabel">Stealth confirmed</span>
+                <p>The sandbox watched for 20 seconds, saw nothing, and stamped the payload clean. At 45 seconds the payload woke, connected, sent its beacon, and exited. A verdict with a time limit is a bet the attacker can outwait, and the attacker sets the odds.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="phase-blue">
+          <div class="phase-head"><span class="phase-num">04</span><h2>Phase Blue: read the schedule</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">The defender does not wait out the fuse; the defender reads it. A sleeper's start time plus its delay is its fire time, and both are on the box right now.</p>
+          <div class="prose">
+            <p>Here is the trap: watching the specimen until it fires and calling the beacon the detection. That is the sandbox's mistake with a human watching. The detection is the schedule read: start time plus delay, computed in seconds, while the fuse is still burning.</p>
+          </div>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot blue" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">232.2s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/fuse-blue.jpg" aria-label="Screen recording: FUSE BLUE, operator@lab">
+              <source src="../../assets/vid/fuse-blue.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> A fresh specimen sleeps on a 300-second fuse. The defender reads its start time, computes the fire time, correlates the binary and the launch site, and kills it before the appointment. The beacon never arrives. Every command below is copy-pasteable.</figcaption>
+          </figure>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>DETECTION: a sleeper with a schedule</h3>
+              <div class="prose"><p><strong>timeout 400 nc -l 127.0.0.1 4101</strong> is the defender's listener this time: it must exist so the specimen's beacon would be caught, which makes the beacon's absence the proof the kill worked. The specimen launches with <strong>--wait 300 --beacon 4101</strong>. <strong>ps -eo pid,etime,stat,args</strong> shows it parked in <strong>S</strong> state, elapsed time ticking, the full command line visible. Good versus bad, concrete: good is a known updater sleeping on a documented schedule; bad is an unknown python binary from /tmp parked in a sleep with a 300-second fuse and a beacon target on its own command line.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- DETECTION: a sleeper with a schedule ---&quot;; timeout 400 nc -l 127.0.0.1 4101 &gt; /tmp/gh014/specimen-beacon.log 2&gt;&amp;1 &amp; BLIST=$!; SPEC_START=$(date +%s); python3 /tmp/gh014/delayer.py --wait 300 --beacon 4101 &amp; SPEC=$!; sleep 2; echo &quot;specimen pid=$SPEC&quot;; ps -eo pid,etime,stat,args | grep &quot;[d]elayer&quot;; echo &quot;good: a known updater sleeping on a documented schedule&quot;; echo &quot;bad: an unknown python from /tmp parked in S with a 300s fuse and a beacon target on its command line&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- DETECTION: a sleeper with a schedule ---"; timeout 400 nc -l 127.0.0.1 4101 &gt; /tmp/gh014/specimen-beacon.log 2&gt;&amp;1 &amp; BLIST=$!; SPEC_START=$(date +%s); python3 /tmp/gh014/delayer.py --wait 300 --beacon 4101 &amp; SPEC=$!; sleep 2; echo "specimen pid=$SPEC"; ps -eo pid,etime,stat,args | grep "[d]elayer"; echo "good: a known updater sleeping on a documented schedule"; echo "bad: an unknown python from /tmp parked in S with a 300s fuse and a beacon target on its command line"
+--- DETECTION: a sleeper with a schedule ---
+[1] 19
+[2] 22
+specimen pid=22
+     22       00:02 S    python3 /tmp/gh014/delayer.py --wait 300 --beacon 4101
+good: a known updater sleeping on a documented schedule
+bad: an unknown python from /tmp parked in S with a 300s fuse and a beacon target on its command line</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>Read the schedule, without waiting for it</h3>
+              <div class="prose"><p><strong>ps -o lstart=</strong> gives the process start time: the wall-clock moment the fuse started burning. <strong>date -d</strong> turns it into epoch seconds, plus 300 is the fire time, formatted back for a human. No waiting involved: the appointment is computed while the specimen sleeps. <strong>/proc/PID/wchan</strong> shows <strong>hrtimer_nanosleep</strong>: the kernel's own word for what the process is parked in. ATT&amp;CK's detection guidance for T1678 names exactly this shape: a sleep-class wait in a short-lived chain with no user interaction.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- read the schedule, without waiting for it ---&quot;; echo &quot;process start: $(ps -o lstart= -p $SPEC)&quot;; START=$(date -d &quot;$(ps -o lstart= -p $SPEC)&quot; +%s); echo &quot;fires at: $(date -d &quot;@$((START + 300))&quot; &quot;+%F %T %Z&quot;)&quot;; echo &quot;--- what the kernel says it is parked in ---&quot;; cat /proc/$SPEC/wchan; echo"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- read the schedule, without waiting for it ---"; echo "process start: $(ps -o lstart= -p $SPEC)"; START=$(date -d "$(ps -o lstart= -p $SPEC)" +%s); echo "fires at: $(date -d "@$((START + 300))" "+%F %T %Z")"; echo "--- what the kernel says it is parked in ---"; cat /proc/$SPEC/wchan; echo
+--- read the schedule, without waiting for it ---
+process start: Mon Sep 21 00:06:09 2026
+fires at: 2026-09-21 00:11:09 UTC
+--- what the kernel says it is parked in ---
+hrtimer_nanosleep</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>Correlate: the appointment, the messenger, the launch site</h3>
+              <div class="prose"><p><strong>/proc/PID/cmdline</strong> names the appointment (--wait 300) and the messenger (--beacon 4101): the schedule and the target, in the open. <strong>/proc/PID/exe</strong> points at /usr/bin/python3.12: that is how it runs. <strong>/proc/PID/cwd</strong> shows /tmp, the working directory it was launched from; the payload file itself sits in /tmp/gh014. The appointment, the messenger, and the launch site, all without touching the binary.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- correlate: the appointment, the messenger, the launch site ---&quot;; tr &quot;\0&quot; &quot; &quot; &lt; /proc/$SPEC/cmdline; echo; ls -l /proc/$SPEC/exe; readlink /proc/$SPEC/cwd"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- correlate: the appointment, the messenger, the launch site ---"; tr "\0" " " &lt; /proc/$SPEC/cmdline; echo; ls -l /proc/$SPEC/exe; readlink /proc/$SPEC/cwd
+--- correlate: the appointment, the messenger, the launch site ---
+python3 /tmp/gh014/delayer.py --wait 300 --beacon 4101
+lrwxrwxrwx 1 root root 0 Sep 21 00:06 /proc/22/exe -&gt; /usr/bin/python3.12
+/tmp</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div>
+              <h3>MITIGATION: kill the sleeper before the fuse burns</h3>
+              <div class="prose"><p><strong>kill $SPEC</strong> stops the specimen before the fuse burns; <strong>ps -p</strong> confirms it is dead, never assumed. <strong>kill $BLIST</strong> stops the defender's listener. <strong>specimen-beacon.log</strong> is empty: the appointment was cancelled, proven by absence. The window is scoped: the specimen lived a few seconds of its 300-second fuse, so nothing fired inside it. The persistence sweep checks the three places a respawn hides: <strong>crontab -l</strong>, the systemd units, and stray files in /tmp. The honest detail: crontab is not installed on this lab box, so there is nothing to check there; on a real host this is where the sweep matters.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- MITIGATION: kill the sleeper before the fuse burns ---&quot;; kill $SPEC; sleep 1; ps -p $SPEC &gt;/dev/null 2&gt;&amp;1 &amp;&amp; echo &quot;STILL ALIVE&quot; || echo &quot;specimen dead&quot;; kill $BLIST 2&gt;/dev/null; [ -s /tmp/gh014/specimen-beacon.log ] &amp;&amp; echo &quot;BEACON ARRIVED (bad)&quot; || echo &quot;no beacon: the appointment was cancelled&quot;; echo &quot;--- scope the window ---&quot;; echo &quot;specimen lived $(( $(date +%s) - SPEC_START ))s of its 300s fuse; nothing fired&quot;; echo &quot;--- persistence sweep ---&quot;; crontab -l 2&gt;&amp;1 | head -3; ls /etc/systemd/system/ 2&gt;/dev/null | grep -iE 'delayer|gh014' || echo 'no gh014 systemd units'; ls /tmp | grep gh014"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- MITIGATION: kill the sleeper before the fuse burns ---"; kill $SPEC; sleep 1; ps -p $SPEC &gt;/dev/null 2&gt;&amp;1 &amp;&amp; echo "STILL ALIVE" || echo "specimen dead"; kill $BLIST 2&gt;/dev/null; [ -s /tmp/gh014/specimen-beacon.log ] &amp;&amp; echo "BEACON ARRIVED (bad)" || echo "no beacon: the appointment was cancelled"; echo "--- scope the window ---"; echo "specimen lived $(( $(date +%s) - SPEC_START ))s of its 300s fuse; nothing fired"; echo "--- persistence sweep ---"; crontab -l 2&gt;&amp;1 | head -3; ls /etc/systemd/system/ 2&gt;/dev/null | grep -iE 'delayer|gh014' || echo 'no gh014 systemd units'; ls /tmp | grep gh014
+--- MITIGATION: kill the sleeper before the fuse burns ---
+specimen dead
+no beacon: the appointment was cancelled
+--- scope the window ---
+specimen lived 3s of its 300s fuse; nothing fired
+--- persistence sweep ---
+bash: crontab: command not found
+no gh014 systemd units
+gh014</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">5</div>
+            <div>
+              <h3>Confirm, three ways</h3>
+              <div class="prose"><p><strong>ps -eo args | grep</strong> finds no delayer processes. <strong>ss -tln</strong> shows no listener on 4101. The beacon log is empty. Three independent confirmations: the process is gone, the port is dark, the act never happened.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- confirm ---&quot;; ps -eo args | grep &quot;[d]elayer&quot; || echo &quot;no delayer processes&quot;; ss -tln | grep &quot;:4101 &quot; || echo &quot;no listener on 4101&quot;; [ -s /tmp/gh014/specimen-beacon.log ] || echo &quot;specimen-beacon.log empty: no beacon ever arrived&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- confirm ---"; ps -eo args | grep "[d]elayer" || echo "no delayer processes"; ss -tln | grep ":4101 " || echo "no listener on 4101"; [ -s /tmp/gh014/specimen-beacon.log ] || echo "specimen-beacon.log empty: no beacon ever arrived"
+--- confirm ---
+no delayer processes
+no listener on 4101
+specimen-beacon.log empty: no beacon ever arrived</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">6</div>
+            <div>
+              <h3>PREVENTION: application control plus a scheduled inventory</h3>
+              <div class="prose"><p>Two durable controls. First, application control: only approved binaries run, so a python beaconer from /tmp never launches in the first place. Second, the scheduled inventory: snapshot <strong>ss -tlnp</strong> known-good, and diff it on a timer; the check is one diff. The honest limits, stated plainly: ATT&amp;CK says T1678 cannot be easily mitigated with preventive controls, because it abuses legitimate system features; sleep is a legitimate syscall, so behavior alone cannot be blocked without breaking normal software. And polling has a floor: a sleeper that wakes between polls is missed, which is the observation-window problem again, in defender form.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- PREVENTION: application control plus a scheduled inventory ---&quot;; echo &quot;allowlist: only approved binaries run, a /tmp python beaconer never launches&quot;; ss -tlnp &gt; /tmp/gh014/listeners.baseline &amp;&amp; echo &quot;known-good baseline snapshot saved: $(wc -l &lt; /tmp/gh014/listeners.baseline) lines&quot;; echo &quot;the scheduled check runs: diff listeners.baseline &lt;(ss -tlnp)&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- PREVENTION: application control plus a scheduled inventory ---"; echo "allowlist: only approved binaries run, a /tmp python beaconer never launches"; ss -tlnp &gt; /tmp/gh014/listeners.baseline &amp;&amp; echo "known-good baseline snapshot saved: $(wc -l &lt; /tmp/gh014/listeners.baseline) lines"; echo "the scheduled check runs: diff listeners.baseline &lt;(ss -tlnp)"
+--- PREVENTION: application control plus a scheduled inventory ---
+allowlist: only approved binaries run, a /tmp python beaconer never launches
+known-good baseline snapshot saved: 1 lines
+the scheduled check runs: diff listeners.baseline &lt;(ss -tlnp)</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">7</div>
+            <div>
+              <h3>Verdict</h3>
+              <div class="prose"><p>The schedule was on the command line the whole time. The defender read it instead of waiting for it.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;detection verified: the sleeper was read, not waited out&quot;; echo &quot;the schedule was on the command line the whole time: start plus 300s&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "detection verified: the sleeper was read, not waited out"; echo "the schedule was on the command line the whole time: start plus 300s"
+detection verified: the sleeper was read, not waited out
+the schedule was on the command line the whole time: start plus 300s</pre>
+</div>
+              <div class="verdict green">
+                <span class="mlabel">Detection verified</span>
+                <p>The sleeper was read, not waited out. Its start time plus its delay was its fire time, and both were on the box the whole time. The specimen died before the appointment, the beacon never arrived, and the window was scoped to seconds.</p>
+              </div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">8</div>
+            <div>
+              <h3>Cleanup</h3>
+              <div class="prose"><p>Kill any stray payload, remove the lab, confirm it is gone: no directory, no listeners on 4100 or 4101. The namespace dies with the session regardless; the cleanup keeps the record honest.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="pkill -f 'delayer\.py' 2&gt;/dev/null; sleep 1; rm -rf /tmp/gh014; ls /tmp | grep gh014 || echo &quot;lab gone&quot;; ss -tln | grep -E &quot;:(4100|4101) &quot; || echo &quot;no fuse listeners on the box&quot;"><span data-label>COPY</span></button></div>
+<pre>$ pkill -f 'delayer\.py' 2&gt;/dev/null; sleep 1; rm -rf /tmp/gh014; ls /tmp | grep gh014 || echo "lab gone"; ss -tln | grep -E ":(4100|4101) " || echo "no fuse listeners on the box"
+lab gone
+no fuse listeners on the box</pre>
+</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="countermeasures">
+          <div class="phase-head"><span class="phase-num">05</span><h2>Countermeasures</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">Three moves, in order: kill the sleeper before its timer fires, inventory the sleepers on a schedule, allowlist what may run. Each is one way, not the way.</p>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Mitigate: stop, scope, sweep</h3>
+              <div class="prose"><p>Proven first against the live specimen: kill by pid, confirm dead, confirm the beacon never arrived. Scope the window from process start to kill: that is when the act could have happened. Sweep persistence: cron, systemd, /tmp strays. Remove the binary.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- MITIGATION: kill the sleeper before the fuse burns ---&quot;; kill $SPEC; sleep 1; ps -p $SPEC &gt;/dev/null 2&gt;&amp;1 &amp;&amp; echo &quot;STILL ALIVE&quot; || echo &quot;specimen dead&quot;; kill $BLIST 2&gt;/dev/null; [ -s /tmp/gh014/specimen-beacon.log ] &amp;&amp; echo &quot;BEACON ARRIVED (bad)&quot; || echo &quot;no beacon: the appointment was cancelled&quot;; echo &quot;--- scope the window ---&quot;; echo &quot;specimen lived $(( $(date +%s) - SPEC_START ))s of its 300s fuse; nothing fired&quot;; echo &quot;--- persistence sweep ---&quot;; crontab -l 2&gt;&amp;1 | head -3; ls /etc/systemd/system/ 2&gt;/dev/null | grep -iE 'delayer|gh014' || echo 'no gh014 systemd units'; ls /tmp | grep gh014&#10;echo &quot;--- confirm ---&quot;; ps -eo args | grep &quot;[d]elayer&quot; || echo &quot;no delayer processes&quot;; ss -tln | grep &quot;:4101 &quot; || echo &quot;no listener on 4101&quot;; [ -s /tmp/gh014/specimen-beacon.log ] || echo &quot;specimen-beacon.log empty: no beacon ever arrived&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- MITIGATION: kill the sleeper before the fuse burns ---"; kill $SPEC; sleep 1; ps -p $SPEC &gt;/dev/null 2&gt;&amp;1 &amp;&amp; echo "STILL ALIVE" || echo "specimen dead"; kill $BLIST 2&gt;/dev/null; [ -s /tmp/gh014/specimen-beacon.log ] &amp;&amp; echo "BEACON ARRIVED (bad)" || echo "no beacon: the appointment was cancelled"; echo "--- scope the window ---"; echo "specimen lived $(( $(date +%s) - SPEC_START ))s of its 300s fuse; nothing fired"; echo "--- persistence sweep ---"; crontab -l 2&gt;&amp;1 | head -3; ls /etc/systemd/system/ 2&gt;/dev/null | grep -iE 'delayer|gh014' || echo 'no gh014 systemd units'; ls /tmp | grep gh014
+--- MITIGATION: kill the sleeper before the fuse burns ---
+specimen dead
+no beacon: the appointment was cancelled
+--- scope the window ---
+specimen lived 3s of its 300s fuse; nothing fired
+--- persistence sweep ---
+bash: crontab: command not found
+no gh014 systemd units
+gh014
+$ echo "--- confirm ---"; ps -eo args | grep "[d]elayer" || echo "no delayer processes"; ss -tln | grep ":4101 " || echo "no listener on 4101"; [ -s /tmp/gh014/specimen-beacon.log ] || echo "specimen-beacon.log empty: no beacon ever arrived"
+--- confirm ---
+no delayer processes
+no listener on 4101
+specimen-beacon.log empty: no beacon ever arrived</pre>
+</div>
+              <div class="callout"><p><strong>Honest limit.</strong> Killing stops this specimen; it does not find the launcher, and it does not undo anything a previous specimen already did. A kill without a window scope is an anecdote; the scope is what tells you whether the appointment was kept.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>Monitor: inventory the sleepers on a schedule</h3>
+              <div class="prose"><p>The scheduled form of the phase-blue read: snapshot the process inventory known-good, and diff it on a timer. The tell is an unknown binary parked in a sleep with a long fuse and a network target on its command line.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- DETECTION: a sleeper with a schedule ---&quot;; timeout 400 nc -l 127.0.0.1 4101 &gt; /tmp/gh014/specimen-beacon.log 2&gt;&amp;1 &amp; BLIST=$!; SPEC_START=$(date +%s); python3 /tmp/gh014/delayer.py --wait 300 --beacon 4101 &amp; SPEC=$!; sleep 2; echo &quot;specimen pid=$SPEC&quot;; ps -eo pid,etime,stat,args | grep &quot;[d]elayer&quot;; echo &quot;good: a known updater sleeping on a documented schedule&quot;; echo &quot;bad: an unknown python from /tmp parked in S with a 300s fuse and a beacon target on its command line&quot;&#10;echo &quot;--- PREVENTION: application control plus a scheduled inventory ---&quot;; echo &quot;allowlist: only approved binaries run, a /tmp python beaconer never launches&quot;; ss -tlnp &gt; /tmp/gh014/listeners.baseline &amp;&amp; echo &quot;known-good baseline snapshot saved: $(wc -l &lt; /tmp/gh014/listeners.baseline) lines&quot;; echo &quot;the scheduled check runs: diff listeners.baseline &lt;(ss -tlnp)&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- DETECTION: a sleeper with a schedule ---"; timeout 400 nc -l 127.0.0.1 4101 &gt; /tmp/gh014/specimen-beacon.log 2&gt;&amp;1 &amp; BLIST=$!; SPEC_START=$(date +%s); python3 /tmp/gh014/delayer.py --wait 300 --beacon 4101 &amp; SPEC=$!; sleep 2; echo "specimen pid=$SPEC"; ps -eo pid,etime,stat,args | grep "[d]elayer"; echo "good: a known updater sleeping on a documented schedule"; echo "bad: an unknown python from /tmp parked in S with a 300s fuse and a beacon target on its command line"
+--- DETECTION: a sleeper with a schedule ---
+[1] 19
+[2] 22
+specimen pid=22
+     22       00:02 S    python3 /tmp/gh014/delayer.py --wait 300 --beacon 4101
+good: a known updater sleeping on a documented schedule
+bad: an unknown python from /tmp parked in S with a 300s fuse and a beacon target on its command line
+$ echo "--- PREVENTION: application control plus a scheduled inventory ---"; echo "allowlist: only approved binaries run, a /tmp python beaconer never launches"; ss -tlnp &gt; /tmp/gh014/listeners.baseline &amp;&amp; echo "known-good baseline snapshot saved: $(wc -l &lt; /tmp/gh014/listeners.baseline) lines"; echo "the scheduled check runs: diff listeners.baseline &lt;(ss -tlnp)"
+--- PREVENTION: application control plus a scheduled inventory ---
+allowlist: only approved binaries run, a /tmp python beaconer never launches
+known-good baseline snapshot saved: 1 lines
+the scheduled check runs: diff listeners.baseline &lt;(ss -tlnp)</pre>
+</div>
+              <div class="callout"><p><strong>Honest limit.</strong> ps shows the current truth only. A sleeper that wakes between polls is missed, so the poll interval sets the detection floor. Process-start audit logs are the backstop: the kernel remembers what ps forgot.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>Prevent: allowlist what may run</h3>
+              <div class="prose"><p>The durable form: execution prevention, so unapproved binaries never launch. A /tmp python beaconer is stopped at exec, not at fire time. Demonstrated above as the baseline snapshot plus the scheduled diff; the production form is the allowlist policy.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- PREVENTION: application control plus a scheduled inventory ---&quot;; echo &quot;allowlist: only approved binaries run, a /tmp python beaconer never launches&quot;; ss -tlnp &gt; /tmp/gh014/listeners.baseline &amp;&amp; echo &quot;known-good baseline snapshot saved: $(wc -l &lt; /tmp/gh014/listeners.baseline) lines&quot;; echo &quot;the scheduled check runs: diff listeners.baseline &lt;(ss -tlnp)&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- PREVENTION: application control plus a scheduled inventory ---"; echo "allowlist: only approved binaries run, a /tmp python beaconer never launches"; ss -tlnp &gt; /tmp/gh014/listeners.baseline &amp;&amp; echo "known-good baseline snapshot saved: $(wc -l &lt; /tmp/gh014/listeners.baseline) lines"; echo "the scheduled check runs: diff listeners.baseline &lt;(ss -tlnp)"
+--- PREVENTION: application control plus a scheduled inventory ---
+allowlist: only approved binaries run, a /tmp python beaconer never launches
+known-good baseline snapshot saved: 1 lines
+the scheduled check runs: diff listeners.baseline &lt;(ss -tlnp)</pre>
+</div>
+              <div class="callout"><p><strong>Honest limit.</strong> Allowlisting is a program, not a switch: it needs an inventory, an approval flow, and exceptions that attackers will study. And sleep itself must keep working for legitimate software, which is why ATT&amp;CK says this technique cannot be easily mitigated with preventive controls. The allowlist stops the unknown binary; it does not stop a signed one from sleeping.</p></div>
+              <div class="verdict green">
+                <span class="mlabel">Countermeasures verified</span>
+                <p>The specimen was killed by pid with its window scoped and persistence swept. The sleepers are inventoried on a schedule, and unapproved binaries never launch. The fuse still burns on an unwatched box; on a watched box it is just a line in the inventory.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="debrief">
+          <div class="phase-head"><span class="phase-num">06</span><h2>Debrief</h2><span class="phase-tag neutral">TAKEAWAY</span></div>
+          <p class="takeaway">A verdict with a time limit is a bet the attacker can outwait: read the schedule, don't trust the silence.</p>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">IOC checklist: signs this technique was used</span></p></div>
+          <ul class="checklist">
+            <li><span>An unknown binary, especially from <strong>/tmp</strong> or another world-writable directory, parked in S state with elapsed time climbing</span></li>
+            <li><span>A command line carrying a long wait value plus a network target (<strong>--wait 300 --beacon 4101</strong>)</span></li>
+            <li><span><strong>/proc/PID/wchan</strong> showing <strong>hrtimer_nanosleep</strong> in a short-lived process with no user interaction</span></li>
+            <li><span><strong>exe</strong> pointing at an interpreter (<strong>python3</strong>) with <strong>cwd</strong> in the launch directory</span></li>
+            <li><span>A computed fire time (start plus delay) that falls outside every observation window</span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Reproducibility checklist</span></p></div>
+          <ul class="checklist">
+            <li><span>Verified on <strong>Ubuntu 24.04.5 LTS</strong>, x86-64, on 2026-09-20</span></li>
+            <li><span>Both recordings are real executions on that platform, not simulations</span></li>
+            <li><span>Runs as the current user; no root needed (the assumed breach: something on the box runs the payload)</span></li>
+            <li><span>Cleanup: <strong>pkill -f delayer.py</strong>, <strong>rm -rf /tmp/gh014</strong>; verify with <strong>ps -eo args</strong> and <strong>ss -tln</strong></span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Sources</span></p></div>
+          <div class="prose"><p><a href="https://attack.mitre.org/techniques/T1678/" rel="noopener">MITRE ATT&amp;CK T1678: Delay Execution</a><br>
+          <a href="https://man7.org/linux/man-pages/man1/ps.1.html" rel="noopener">ps(1)</a> (the sleeper inventory: etime, stat, lstart)<br>
+          <a href="https://man7.org/linux/man-pages/man5/proc.5.html" rel="noopener">proc(5)</a> (wchan, cmdline, exe, cwd)<br>
+          <a href="https://man7.org/linux/man-pages/man1/date.1.html" rel="noopener">date(1)</a> (the fire-time arithmetic)<br>
+          No D3FEND defender is modeled for T1678 in D3FEND 1.6.0, so the blue procedure comes from lab work plus ATT&amp;CK's detection guidance; no D3FEND link is invented.</p></div>
+        </section>
+
+        <a class="next-file" href="../015-bind-mounts/index.html">
+          <span class="mlabel">Next file</span>
+          <h3>GH-015 Bind Mounts</h3>
+          <p>The next file hides a directory in plain sight with a bind mount.</p>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <div>
+      <div class="footer-brand">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+        <span class="brand-name" style="font-size:17px">GHOSTLIGHT</span>
+      </div>
+      <p class="footer-note">An independent adversary-stealth research publication. Every command verified on the named OS before publishing. No trackers, no frameworks, no autoplay.</p>
+    </div>
+    <nav class="footer-links">
+      <a href="../../method.html">METHOD</a>
+      <a href="../../index.html">FILES</a>
+      <a href="https://attack.mitre.org/tactics/TA0005/" rel="noopener">MITRE TA0005</a>
+    </nav>
+    <div class="footer-elsewhere">
+      <span class="mlabel">Elsewhere</span><a href="https://dillingerstaffing.github.io/portfolio/" target="_blank" rel="noopener">Portfolio</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/proving-ground/" target="_blank" rel="noopener">Proving Ground</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/tapeout/" target="_blank" rel="noopener">Tapeout</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/old-iron/" target="_blank" rel="noopener">Old Iron</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/unstuck/" target="_blank" rel="noopener">Unstuck</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../../assets/site.js?v=512f8825"></script>
+</body>
+</html>
