@@ -399,7 +399,7 @@ $ od -A d -t u8 /tmp/gh003_pwned
             <div class="recording-bar">
               <span class="rec-dot blue" aria-hidden="true"></span>
               <span class="mlabel">Real screen recording</span>
-              <span class="dur">38.2s</span>
+              <span class="dur">49.1s</span>
             </div>
             <video controls playsinline preload="metadata" poster="../../assets/vid/borrow-blue.jpg" aria-label="Screen recording: BORROW BLUE, operator@lab">
               <source src="../../assets/vid/borrow-blue.mp4" type="video/mp4">
@@ -412,13 +412,15 @@ $ od -A d -t u8 /tmp/gh003_pwned
               <h3>Observation one: the tracer relationship</h3>
               <div class="prose"><p>The kernel always knows who is controlling whom. While the injector holds the victim, /proc says so plainly.</p></div>
               <div class="codeblock codeblock-scrollhint">
-                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="./inject --pause &gt; red.log 2&gt;&amp;1 &amp;&#10;sleep 2&#10;VP=$(sed -n 's/.*victim: sleep, pid \([0-9]*\).*/\1/p' red.log)&#10;grep -E '^(TracerPid|State):' /proc/$VP/status"><span data-label>COPY</span></button></div>
-                <pre>$ ./inject --pause &gt; red.log 2&gt;&amp;1 &amp;
+                <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="stdbuf -o0 -e0 ./inject --pause &gt; red.log 2&gt;&amp;1 &lt; &lt;(sleep 60) &amp;&#10;sleep 2&#10;VP=$(sed -n 's/.*victim: sleep, pid \([0-9]*\).*/\1/p' red.log); echo &quot;victim=$VP&quot;&#10;grep -E '^(TracerPid|State):' /proc/$VP/status"><span data-label>COPY</span></button></div>
+                <pre>$ stdbuf -o0 -e0 ./inject --pause &gt; red.log 2&gt;&amp;1 &lt; &lt;(sleep 60) &amp;
+[1] 16
 $ sleep 2
-$ VP=$(sed -n 's/.*victim: sleep, pid \([0-9]*\).*/\1/p' red.log)
+$ VP=$(sed -n 's/.*victim: sleep, pid \([0-9]*\).*/\1/p' red.log); echo "victim=$VP"
+victim=19
 $ grep -E '^(TracerPid|State):' /proc/$VP/status
-TracerPid:      16846
-State:  t (tracing stop)</pre>
+State:	t (tracing stop)
+TracerPid:	16</pre>
               </div>
               <div class="prose"><p><strong>State t</strong> means tracing stop; <strong>TracerPid</strong> names the controller. A daemon sitting in state <strong>t</strong> with a TracerPid you do not recognize is the intrusion, stated in two lines. After the detach, TracerPid returns to 0, which is exactly why one observation is not enough: the relationship is only visible while the borrowing is in progress.</p></div>
             </div>
@@ -431,8 +433,8 @@ State:  t (tracing stop)</pre>
               <div class="codeblock codeblock-scrollhint">
                 <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="diff /tmp/gh003_maps_before /tmp/gh003_maps_after"><span data-label>COPY</span></button></div>
                 <pre>$ diff /tmp/gh003_maps_before /tmp/gh003_maps_after
-13a14
-&gt; 7f8b3c1e9000-7f8b3c1eb000 rwxp 00000000 00:00 0</pre>
+6a7
+&gt; 719fe9076000-719fe9078000 rwxp 00000000 00:00 0</pre>
               </div>
               <div class="prose"><p>One added line: an 8KB <strong>rwxp</strong> region with no file behind it (the 00:00 device). Legitimate processes almost never gain anonymous executable mappings mid-life; JIT compilers are the exception, and sleep is not a JIT. Baseline the maps of the processes that matter, diff on a timer, and this line is your alert. D3FEND names the general form <a href="https://d3fend.mitre.org/technique/d3f:SystemCallAnalysis/" rel="noopener">System Call Analysis (D3-SCA)</a>: the ptrace, mmap, and process_vm_writev sequence from a single parent is the behavioral signature behind the artifact.</p></div>
             </div>
@@ -441,7 +443,7 @@ State:  t (tracing stop)</pre>
             <div class="recording-bar">
               <span class="rec-dot blue" aria-hidden="true"></span>
               <span class="mlabel">Real screen recording</span>
-              <span class="dur">20.2s</span>
+              <span class="dur">33.5s</span>
             </div>
             <video controls playsinline preload="metadata" poster="../../assets/vid/borrow-yama.jpg" aria-label="Screen recording: BORROW YAMA, operator@lab">
               <source src="../../assets/vid/borrow-yama.mp4" type="video/mp4">
@@ -562,7 +564,7 @@ int main(int argc, char **argv) {
                 <div class="recording-bar">
                   <span class="rec-dot blue" aria-hidden="true"></span>
                   <span class="mlabel">Real screen recording</span>
-                  <span class="dur">17.6s</span>
+                  <span class="dur">18.8s</span>
                 </div>
                 <video controls playsinline preload="metadata" poster="../../assets/vid/borrow-close.jpg" aria-label="Screen recording: BORROW CLOSE, operator@lab">
                   <source src="../../assets/vid/borrow-close.mp4" type="video/mp4">
@@ -570,10 +572,10 @@ int main(int argc, char **argv) {
                 <figcaption class="recording-cap"><strong>What you are watching:</strong> The injector runs under the seccomp filter. Its first ptrace dies with EPERM, and the victim is cleaned up, not orphaned. Every command below is copy-pasteable.</figcaption>
               </figure>
               <div class="codeblock codeblock-scrollhint">
-                <div class="codeblock-bar"><span class="mlabel">bash, commands in this recording</span><button class="copy-btn" data-copy="gcc -O2 -o nospy nospy.c&#10;./nospy ./inject; echo &quot;exit=$?&quot;"><span data-label>COPY</span></button></div>
-                <pre>$ gcc -O2 -o nospy nospy.c
-$ ./nospy ./inject; echo "exit=$?"
+                <div class="codeblock-bar"><span class="mlabel">bash, commands in this recording</span><button class="copy-btn" data-copy="gcc -O2 -o nospy nospy.c &amp;&amp; ./nospy ./inject; echo &quot;exit=$?&quot;"><span data-label>COPY</span></button></div>
+                <pre>$ gcc -O2 -o nospy nospy.c &amp;&amp; ./nospy ./inject; echo "exit=$?"
 [nospy] seccomp filter live: ptrace() is now denied for this tree.
+[*] victim: sleep, pid 40 (our child)
 PTRACE_ATTACH: Operation not permitted
 exit=1</pre>
               </div>

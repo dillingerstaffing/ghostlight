@@ -387,7 +387,7 @@ int main(void) {
             <div class="recording-bar">
               <span class="rec-dot blue" aria-hidden="true"></span>
               <span class="mlabel">Real screen recording</span>
-              <span class="dur">00:13</span>
+              <span class="dur">00:30</span>
             </div>
             <video controls playsinline preload="metadata" poster="../../assets/vid/rootkit-hunt.jpg" aria-label="Screen recording: ROOTKIT HUNT, operator@lab">
               <source src="../../assets/vid/rootkit-hunt.mp4" type="video/mp4">
@@ -403,7 +403,7 @@ int main(void) {
                 <pre>$ pgrep -a ghost-miner || echo "no such process"
 no such process
 $ ./deepscan
-HIDDEN PID 4120     comm=ghost-miner  (invisible to ps, pgrep, top)</pre>
+HIDDEN PID 30       comm=ghost-miner  (invisible to ps, pgrep, top)</pre>
               </div>
               <div class="prose"><p><strong>pgrep</strong> says nothing is there. <strong>deepscan</strong> prints the hidden PID and its comm name. The contradiction <em>is</em> the finding: two views of the same directory disagree, so one of the paths is lying.</p></div>
             </div>
@@ -417,7 +417,7 @@ HIDDEN PID 4120     comm=ghost-miner  (invisible to ps, pgrep, top)</pre>
               <div class="codeblock codeblock-scrollhint">
                 <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="P=$(./deepscan | awk &#x27;/HIDDEN/ {print $3}&#x27;); echo &quot;target PID: $P&quot;&#10;cat /proc/$P/cmdline | tr &#x27;\0&#x27; &#x27; &#x27;; echo&#10;cat /etc/ld.so.preload"><span data-label>COPY</span></button></div>
                 <pre>$ P=$(./deepscan | awk '/HIDDEN/ {print $3}'); echo "target PID: $P"
-target PID: 4120
+target PID: 30
 $ cat /proc/$P/cmdline | tr '\0' ' '; echo
 /tmp/ghost-ops/ghost-miner
 $ cat /etc/ld.so.preload
@@ -547,7 +547,7 @@ $ echo /tmp/ghost-ops/libghost.so &gt; /etc/ld.so.preload</pre>
                 <div class="recording-bar">
                   <span class="rec-dot blue" aria-hidden="true"></span>
                   <span class="mlabel">Real screen recording</span>
-                  <span class="dur">00:17</span>
+                  <span class="dur">00:31</span>
                 </div>
                 <video controls playsinline preload="metadata" poster="../../assets/vid/rootkit-prevent.jpg" aria-label="Screen recording: ROOTKIT PREVENT, operator@lab">
                   <source src="../../assets/vid/rootkit-prevent.mp4" type="video/mp4">
@@ -555,11 +555,14 @@ $ echo /tmp/ghost-ops/libghost.so &gt; /etc/ld.so.preload</pre>
                 <figcaption class="recording-cap"><strong>What you are watching:</strong> The symlink eats the install: zero bytes stored. But an environment-local LD_PRELOAD still hides the directory, which the recording shows honestly. Every command below is copy-pasteable.</figcaption>
               </figure>
               <div class="codeblock codeblock-scrollhint">
-                <div class="codeblock-bar"><span class="mlabel">bash, commands in this recording</span><button class="copy-btn" data-copy="ln -sf /dev/null /etc/ld.so.preload&#10;echo /tmp/ghost-ops/libghost.so &gt; /etc/ld.so.preload&#10;wc -c /etc/ld.so.preload"><span data-label>COPY</span></button></div>
-                <pre>$ ln -sf /dev/null /etc/ld.so.preload
+                <div class="codeblock-bar"><span class="mlabel">bash, commands in this recording</span><button class="copy-btn" data-copy="ln -sf /dev/null /etc/ld.so.preload &amp;&amp; ls -la /etc/ld.so.preload&#10;echo /tmp/ghost-ops/libghost.so &gt; /etc/ld.so.preload&#10;wc -c /etc/ld.so.preload&#10;echo &quot;# the install path is gone: writes fall into /dev/null.&quot;"><span data-label>COPY</span></button></div>
+                <pre>$ ln -sf /dev/null /etc/ld.so.preload &amp;&amp; ls -la /etc/ld.so.preload
+lrwxrwxrwx 1 root root 9 Sep 22 23:51 /etc/ld.so.preload -&gt; /dev/null
 $ echo /tmp/ghost-ops/libghost.so &gt; /etc/ld.so.preload
 $ wc -c /etc/ld.so.preload
-0</pre>
+0 /etc/ld.so.preload
+$ echo "# the install path is gone: writes fall into /dev/null."
+# the install path is gone: writes fall into /dev/null.</pre>
               </div>
               <div class="prose"><p><strong>wc -c</strong> reports 0. The system-wide route is closed. Now the honest part, shown in the recording: <strong>LD_PRELOAD=/tmp/ghost-ops/libghost.so ls /tmp</strong> still hides the directory, because the environment variable route never touches the file. And root can delete the symlink. This control narrows one route; it does not solve rootkits. For the library file itself, D3FEND adds <a href="https://d3fend.mitre.org/technique/d3f:FileAnalysis/" rel="noopener">File Analysis (D3-FA)</a> and <a href="https://d3fend.mitre.org/technique/d3f:FileHashing/" rel="noopener">File Hashing (D3-FH)</a>: inspect any unknown <strong>.so</strong> found on the loader path and compare its hash against a known-good baseline, so a dropped library is evidence even when no process visibly loads it.</p></div>
               <div class="verdict green">
