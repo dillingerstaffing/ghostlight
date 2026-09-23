@@ -395,6 +395,7 @@ a.tech-id:hover { color: var(--bone); border-color: var(--bone-faint); }
 .copy-btn:hover { color: var(--bone); border-color: var(--ember); }
 .copy-btn.ok { color: var(--signal); border-color: rgba(61, 220, 132, 0.5); }
 .copy-btn.fail { color: var(--alarm); border-color: rgba(229, 72, 77, 0.5); }
+.share-link { margin-left: auto; }
 .codeblock pre {
   margin: 0; padding: 18px; overflow-x: auto;
   font-family: var(--font-mono); font-size: 14px; line-height: 1.7; color: var(--bone);

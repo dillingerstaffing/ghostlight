@@ -39,6 +39,25 @@
     if (btn) { copyText(btn.getAttribute("data-copy"), btn); }
   });
 
+  /* ---------- Share link on file pages ---------- */
+  (function () {
+    var kicker = document.querySelector(".op-hero .op-kicker");
+    if (!kicker || kicker.querySelector("[data-share-link]")) return;
+    var link = document.querySelector('link[rel="canonical"]');
+    var url = link ? link.getAttribute("href") : location.href.split("#")[0];
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "copy-btn share-link";
+    btn.setAttribute("data-copy", url);
+    btn.setAttribute("data-share-link", "");
+    btn.setAttribute("aria-label", "Copy share link to this file");
+    var span = document.createElement("span");
+    span.setAttribute("data-label", "");
+    span.textContent = "COPY LINK";
+    btn.appendChild(span);
+    kicker.appendChild(btn);
+  })();
+
 
   /* ---------- Long codeblocks: collapse with expander ---------- */
   document.querySelectorAll(".codeblock").forEach(function (block) {
