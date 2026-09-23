@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>GH-018 The Folded Letter (T1140): GHOSTLIGHT</title>
+<meta name="description" content="T1140 Deobfuscate/Decode Files or Information, reproduced on Ubuntu 24.04: an attacker folds a payload twice (base64 armor, an XOR fold, base64 armor again) so static inspection sees only opaque text, then decodes it straight into a shell. The defender flags the opaque artifact with entropy triage, reveals the payload with a sandboxed safe-decode, contains the running decoded process with evidence-first discipline, and installs the scheduled decode-hunt that makes the control durable.">
+<link rel="canonical" href="https://dillingerstaffing.github.io/ghostlight/ops/018-folded-letter/">
+<meta property="og:title" content="GH-018 The Folded Letter (T1140): GHOSTLIGHT">
+<meta property="og:description" content="T1140 Deobfuscate/Decode Files or Information, reproduced on Ubuntu 24.04: an attacker folds a payload twice (base64 armor, an XOR fold, base64 armor again) so static inspection sees only opaque text, then decodes it straight into a shell. The defender flags the opaque artifact with entropy triage, reveals the payload with a sandboxed safe-decode, contains the running decoded process with evidence-first discipline, and installs the scheduled decode-hunt that makes the control durable.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dillingerstaffing.github.io/ghostlight/ops/018-folded-letter/">
+<meta property="og:site_name" content="GHOSTLIGHT">
+<meta property="og:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="GH-018 The Folded Letter (T1140): GHOSTLIGHT">
+<meta name="twitter:description" content="T1140 Deobfuscate/Decode Files or Information, reproduced on Ubuntu 24.04: an attacker folds a payload twice (base64 armor, an XOR fold, base64 armor again) so static inspection sees only opaque text, then decodes it straight into a shell. The defender flags the opaque artifact with entropy triage, reveals the payload with a sandboxed safe-decode, contains the running decoded process with evidence-first discipline, and installs the scheduled decode-hunt that makes the control durable.">
+<meta name="twitter:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23ece6d5'/%3E%3Ccircle cx='256' cy='196' r='104' fill='none' stroke='%23241f17' stroke-width='20'/%3E%3Cline x1='256' y1='152' x2='256' y2='240' stroke='%238c3f22' stroke-width='16'/%3E%3Cline x1='256' y1='300' x2='256' y2='424' stroke='%23241f17' stroke-width='14'/%3E%3Cline x1='200' y1='424' x2='312' y2='424' stroke='%23241f17' stroke-width='18'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+<link rel="manifest" href="../../assets/manifest.webmanifest">
+<meta name="theme-color" content="#0a0c0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GHOSTLIGHT">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<script>
+(function () {
+  // Theme: notebook is the default; a stored visitor choice wins.
+  // Runs before the stylesheet is parsed so the first paint is already
+  // the right theme (no flash of the wrong one).
+  try {
+    var t = localStorage.getItem('emi-site-theme');
+    var theme = t === 'classic' ? 'classic' : 'notebook';
+    document.documentElement.dataset.theme = theme;
+    var m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute('content', theme === 'classic' ? '#0a0c0f' : '#ece6d5');
+  } catch (e) {
+    document.documentElement.dataset.theme = 'notebook';
+  }
+})();
+</script>
+<link rel="stylesheet" href="../../assets/site.css?v=36a0084f">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"GH-018 The Folded Letter (T1140): GHOSTLIGHT",
+"url":"https://dillingerstaffing.github.io/ghostlight/ops/018-folded-letter/","description":"T1140 Deobfuscate/Decode Files or Information, reproduced on Ubuntu 24.04: an attacker folds a payload twice (base64 armor, an XOR fold, base64 armor again) so static inspection sees only opaque text, then decodes it straight into a shell. The defender flags the opaque artifact with entropy triage, reveals the payload with a sandboxed safe-decode, contains the running decoded process with evidence-first discipline, and installs the scheduled decode-hunt that makes the control durable.",
+"author":{"@type":"Person","name":"Chris Dillinger","url":"https://www.linkedin.com/in/christopherdillinger/"},
+"inLanguage":"en"}
+</script>
+</head>
+<body>
+
+<header class="site-header">
+  <a class="brand" href="../../index.html" aria-label="GHOSTLIGHT home">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+    <span class="brand-name">GHOSTLIGHT</span>
+  </a>
+  <nav class="site-nav">
+    <a href="../../method.html">METHOD</a>
+    <a href="../../index.html">FILES</a>
+    <button class="theme-toggle" type="button" aria-label="Switch to dark field dossier theme" title="Switch theme">
+      <span class="theme-toggle-mark" aria-hidden="true"><i></i><i></i></span>
+    </button>
+  </nav>
+</header>
+
+<div class="onboard" data-onboard hidden>
+  <span><strong>How to read a file:</strong> every file follows the six-phase structure below. <span class="k-green">Green</span> is verified, <span class="k-red">red</span> is hostile.</span>
+  <button aria-label="Dismiss">GOT IT</button>
+</div>
+
+<div class="page" data-op="018">
+  <div class="wrap">
+    <section class="op-hero">
+      <div class="op-kicker">
+        <span class="case-no">GH-018</span>
+        <a class="tech-id" href="https://attack.mitre.org/techniques/T1140/" rel="noopener">T1140</a>
+        <span class="phase-tag red">PHASE RED INSIDE</span>
+      </div>
+      <h1>The Folded Letter</h1>
+      <p class="lede">The payload arrives folded twice, and static inspection sees only opaque text. base64 armor, an XOR fold that breaks the base64 alphabet, base64 armor again: the content is never at rest in cleartext. This file folds a benign payload end to end and runs it by decoding straight into a shell, then the defense measures the artifact instead of matching it, entropy triage flags the armor, a sandboxed safe-decode reveals the payload, the running decoded process is contained with evidence-first discipline, and a scheduled hunt makes the control durable.</p>
+      <div class="op-meta-grid">
+        <div class="op-meta"><span class="mlabel">Technique</span><span class="mvalue">Deobfuscate/Decode Files or Information (T1140)</span></div>
+        <div class="op-meta"><span class="mlabel">Target OS</span><span class="mvalue">Ubuntu 24.04.5 LTS</span></div>
+        <div class="op-meta"><span class="mlabel">Toolchain</span><span class="mvalue">bash, python3, coreutils</span></div>
+        <div class="op-meta"><span class="mlabel">Level</span><span class="mvalue">Intermediate</span></div>
+        <div class="op-meta"><span class="mlabel">Time</span><span class="mvalue">25 min</span></div>
+      </div>
+      <div class="objectives">
+        <h2>OBJECTIVES</h2>
+        <ol>
+          <li data-phase="phase-red"><span class="box"></span>Fold a benign payload twice (base64 armor, XOR, base64 armor) and run it by decoding straight into a shell, leaving only opaque text on disk</li>
+          <li data-phase="phase-blue"><span class="box"></span>Flag the opaque artifact with entropy triage, reveal the payload with a sandboxed safe-decode, capture evidence and contain the running decoded process</li>
+          <li data-phase="countermeasures"><span class="box"></span>Hunt opaque files on a schedule with safe-decode triage, sweep schedulers for decode pipelines, and state every control's bypass honestly</li>
+          <li data-phase="debrief"><span class="box"></span>Take the IOC checklist and the one-sentence lesson</li>
+        </ol>
+      </div>
+    </section>
+
+    <div class="op-layout">
+      <nav class="rail" aria-label="Phases">
+        <span class="mlabel">Phases</span>
+        <ol>
+          <li><a href="#intel-brief"><span class="pnum">01</span>INTEL BRIEF<span class="tick"></span></a></li>
+          <li><a href="#target-environment"><span class="pnum">02</span>TARGET ENV<span class="tick"></span></a></li>
+          <li><a href="#phase-red"><span class="pnum">03</span>PHASE RED<span class="tick"></span></a></li>
+          <li><a href="#phase-blue"><span class="pnum">04</span>PHASE BLUE<span class="tick"></span></a></li>
+          <li><a href="#countermeasures"><span class="pnum">05</span>COUNTERMEASURES<span class="tick"></span></a></li>
+          <li><a href="#debrief"><span class="pnum">06</span>DEBRIEF<span class="tick"></span></a></li>
+        </ol>
+      </nav>
+
+      <div class="op-content">
+        <section class="phase" id="intel-brief">
+          <div class="phase-head"><span class="phase-num">01</span><h2>Intel Brief</h2><span class="phase-tag neutral">CONTEXT</span></div>
+          <p class="lede">MITRE ATT&amp;CK <a href="https://attack.mitre.org/techniques/T1140/" rel="noopener">T1140</a>: adversaries decode or deobfuscate files or information at the moment of use, so the artifact at rest is armor, not content. This file folds a benign payload twice and runs it by decoding straight into a shell, so static inspection sees only opaque text. Then the defense: entropy triage flags the armor, a sandboxed safe-decode reveals the payload, the running decoded process is contained with evidence-first discipline, and a scheduled decode-hunt makes the control durable. Two actors: the attacker, who owns fold.py, note.folded, and unfold.sh; and the defender, who owns the entropy reads, the sandbox decode, the kill, and the scheduled hunt in the blue phase.</p>
+          <div class="prose">
+            <p><strong>Why this technique.</strong> Every static control answers one question: what does this file contain. Hash blocklists, content signatures, grep, strings: all of them read the artifact at rest. Folding changes what is at rest. The bytes on disk are armor, layered transforms chosen so the original text never appears. The content exists in cleartext only inside the decode pipe, for a fraction of a second, between unfold.sh and sh. A scanner that reads the file sees the armor. The payload is never at rest in cleartext, so there is nothing at rest to match.</p>
+            <p><strong>Why not ship it in cleartext.</strong> The obvious alternative is the naive dropper: a shell script on disk, executed directly. Break it on the concrete input: grep -l GHOSTLIGHT over the lab names /tmp/clear.sh instantly, strings would print its lines, any content rule keyed on the marker fires. The recording shows the measurement: grep -l finds the cleartext file and stays silent on note.folded. One artifact is found instantly; the other is invisible. That gap is what the folds buy.</p>
+            <p><strong>Why not a single base64 layer.</strong> The next obvious alternative is one fold of base64, the classic decode-then-execute one-liner. Break it: base64 has a fixed 64-character alphabet, and defenders know it. A base64 blob is recognizable by its alphabet, and one base64 -d reverses it. The XOR fold breaks the alphabet: the middle layer is binary, not base64 text, so alphabet signatures do not match and a lone base64 -d of the middle layer yields garbage instead of the payload. The outer armor re-encodes to base64, so the stored artifact still looks like ordinary encoded text. Each fold defeats one cheap detector.</p>
+            <p><strong>The mechanism, in one line.</strong> <strong>Obfuscation</strong> is transforming content to hide its meaning while keeping it recoverable. <strong>Encoding</strong>, here base64, is the binary-to-text armor that maps every 3 bytes to 4 text characters. A <strong>fold</strong> is one such transform applied in sequence. <strong>XOR</strong> with a key byte flips bits reversibly: applying the same XOR twice restores the original, so the decoder needs only the key, 0x5A here. <strong>Decode-then-execute</strong> is the pipeline that decodes standard input straight into an interpreter: ./unfold.sh note.folded | sh. The payload is cleartext only in the pipe between the two. Terms earned, no borrowing.</p>
+            <p><strong>The concrete case, before the abstraction.</strong> In /tmp/gh018: fold.py reads payload.sh, 124 bytes, a benign stand-in that prints a marker and sleeps 600. base64 makes it text, XOR 0x5A breaks the alphabet, base64 armors it again: note.folded, 224 bytes. payload.sh is deleted; the delivered artifact is note.folded plus unfold.sh. unfold.sh reverses the folds, base64 -d, XOR 0x5A, base64 -d, to standard output. The attack is one pipeline: ./unfold.sh note.folded | sh. The marker prints, the sleeper starts, and the disk still holds only armor.</p>
+          </div>
+          <div class="callout"><p><strong>Scope.</strong> T1140 covers deobfuscation and decoding broadly: encoded payloads, encrypted blobs with embedded keys, packed binaries, runtime decoding. This file works the encoded-artifact case end to end: the two-fold packer, the decoder stub, the decode-into-shell execution, entropy triage, the sandboxed safe-decode, evidence-first containment, and the scheduled hunt. The payload is a benign stand-in that prints a marker and sleeps: it proves execution and touches nothing else. The lab runs in a disposable namespace because every blue-phase read targets the live decoded process.</p></div>
+        </section>
+
+        <section class="phase" id="target-environment">
+          <div class="phase-head"><span class="phase-num">02</span><h2>Target Environment</h2><span class="phase-tag neutral">LOADOUT</span></div>
+          <p class="lede">Ubuntu 24.04.5 LTS, x86-64, in a disposable namespace used only for this lab. Runs as root: the lab folds its own payload, runs the decode pipeline, and every blue-phase read targets the live decoded process. Everything the lab touches lives inside /tmp/gh018, so cleanup is a single rm.</p>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Build the lab</h3>
+              <div class="prose"><p>One disposable directory, built from scratch. <strong>cp</strong> brings in the lab files; <strong>chmod +x</strong> makes the scripts executable; <strong>python3 fold.py</strong> folds the payload (124 bytes in, 224 bytes of armor out); <strong>rm -f payload.sh</strong> deletes the cleartext so the lab holds only the delivered artifact; <strong>file</strong> confirms the disguise. Every file below is shown in full, each line glossed after it.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">payload.sh</span></div>
+<pre>#!/bin/sh
+# Benign stand-in payload: proves execution, touches nothing.
+echo "GHOSTLIGHT folded payload executed"
+sleep 600</pre>
+</div>
+<div class="prose"><p><strong>payload.sh</strong>, the benign stand-in, in full: the shebang picks the interpreter, the echo prints the marker that proves execution, sleep 600 keeps the decoded process alive long enough for the blue phase to find it. It touches nothing else. This is the file the attacker deletes after folding: it never ships.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">fold.py</span></div>
+<pre>#!/usr/bin/env python3
+"""fold.py (attacker's packer): payload.sh -&gt; base64 -&gt; XOR 0x5A -&gt; base64 -&gt; note.folded.
+
+Two folds. The inner base64 armor hides the text. The XOR breaks the
+base64 alphabet so signature scanners see no base64. The outer base64
+armor makes the result look like ordinary encoded text.
+"""
+import base64
+
+with open('/tmp/gh018/payload.sh', 'rb') as f:
+    raw = f.read()
+inner = base64.b64encode(raw)
+xored = bytes(b ^ 0x5A for b in inner)
+outer = base64.b64encode(xored)
+with open('/tmp/gh018/note.folded', 'wb') as f:
+    f.write(outer + b'\n')
+print('folded %d -&gt; %d bytes' % (len(raw), len(outer)))</pre>
+</div>
+<div class="prose"><p><strong>fold.py</strong>, the packer, in full: read payload.sh as bytes; <strong>base64.b64encode</strong> makes it text, the inner armor; the generator expression XORs every byte with 0x5A, breaking the base64 alphabet so the middle layer is binary, not text; <strong>base64.b64encode</strong> again, the outer armor, so the stored artifact looks like ordinary encoded text; write note.folded with a trailing newline; print the size change. Two folds, each defeating one cheap detector.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">unfold.sh</span></div>
+<pre>#!/bin/sh
+# unfold.sh (attacker's decoder stub): reverses the two folds.
+# Usage: ./unfold.sh note.folded
+base64 -d "$1" | python3 -c "import sys;d=sys.stdin.buffer.read();sys.stdout.buffer.write(bytes(b^0x5A for b in d))" | base64 -d</pre>
+</div>
+<div class="prose"><p><strong>unfold.sh</strong>, the decoder stub, in full: one pipeline that reverses the folds. <strong>base64 -d</strong> strips the outer armor; the python3 one-liner XORs every byte with 0x5A again, which restores the inner armor, because applying the same XOR twice is the identity; the final <strong>base64 -d</strong> strips the inner armor. Decoded bytes go to standard output, which is what the attack pipes into sh.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">entropy.py</span></div>
+<pre>#!/usr/bin/env python3
+"""entropy.py (defender's triage): Shannon entropy per file in a directory.
+
+Armored or encoded blobs score near the top of their alphabet's range;
+ordinary scripts and text score lower. A triage signal, not a verdict:
+the verdict comes from safely decoding the flagged file.
+"""
+import math
+import os
+import sys
+from collections import Counter
+
+
+def entropy(path):
+    with open(path, 'rb') as f:
+        data = f.read()
+    if not data:
+        return 0.0, 0
+    counts = Counter(data)
+    n = len(data)
+    return -sum(v / n * math.log2(v / n) for v in counts.values()), n
+
+
+target = sys.argv[1] if len(sys.argv) &gt; 1 else '.'
+for root, _dirs, files in os.walk(target):
+    for name in sorted(files):
+        path = os.path.join(root, name)
+        try:
+            e, n = entropy(path)
+        except OSError:
+            continue
+        flag = '  &lt;-- OPAQUE' if e &gt; 5.0 else ''
+        print('%5.2f bits/byte  %6d bytes  %s%s' % (e, n, path, flag))</pre>
+</div>
+<div class="prose"><p><strong>entropy.py</strong>, the defender’s triage, in full: walk the target directory; read each file as bytes; count byte frequencies; compute the Shannon entropy in bits per byte; flag anything above 5.0. Armored blobs score near the top of their alphabet’s range; ordinary scripts score lower. The flag is a triage signal, not a verdict: the verdict comes from safely decoding the flagged file.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">decode-hunt.sh</span></div>
+<pre>#!/bin/sh
+# decode-hunt.sh (defender's scheduled control): triage a directory for
+# opaque files and attempt a SAFE decode of a COPY in a sandbox dir
+# (D3FEND D3-FCDC: File Content Decompression Checking).
+# It never executes what it finds. Run: ./decode-hunt.sh /srv/www
+dir=${1:-/srv/www}
+thresh=5.0
+tmp=$(mktemp -d)
+found=0
+for f in "$dir"/*; do
+    [ -f "$f" ] || continue
+    e=$(python3 -c "import math,sys;from collections import Counter;d=open(sys.argv[1],'rb').read();c=Counter(d);n=len(d);print('%.2f'%(-sum(v/n*math.log2(v/n) for v in c.values())))" "$f")
+    if [ "$(python3 -c "print(int(float('$e') &gt; $thresh))")" = 1 ]; then
+        found=1
+        echo "OPAQUE: $f ($e bits/byte)"
+        cp "$f" "$tmp/sample"
+        if base64 -d "$tmp/sample" &gt; "$tmp/dec" 2&gt;/dev/null; then
+            echo "  outer layer is base64; decoded first bytes:"
+            head -c 48 "$tmp/dec" | od -A d -t x1 | head -3
+        else
+            echo "  not plain base64; escalate to the sandbox"
+        fi
+    fi
+done
+if [ "$found" = 0 ]; then
+    echo "clean: no opaque files in $dir"
+fi
+rm -rf "$tmp"</pre>
+</div>
+<div class="prose"><p><strong>decode-hunt.sh</strong>, the scheduled control, in full: for each file in the directory, compute its entropy with the same formula; above the 5.0 threshold, copy the file to a sandbox temp dir and try <strong>base64 -d</strong> on the copy; print the decoded first bytes, or escalate if it is not plain base64. It never executes what it finds. D3FEND <a href="https://d3fend.mitre.org/technique/d3f:FileContentDecompressionChecking/" rel="noopener">D3-FCDC: File Content Decompression Checking</a> names this shape: checking whether encoded sections decode.</p></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="phase-red">
+          <div class="phase-head"><span class="phase-num">03</span><h2>Phase Red: run the folded letter</h2><span class="phase-tag red">ATTACK</span></div>
+          <p class="lede">The attacker confirms the delivered artifact, watches static inspection fail three ways, measures the cleartext alternative getting caught instantly, and runs the folded artifact by decoding it straight into a shell.</p>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">89.2s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/folded-red.jpg" aria-label="Screen recording: FOLDED RED, operator@lab">
+              <source src="../../assets/vid/folded-red.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> A payload folded twice is decoded straight into a shell. Static inspection of the artifact finds nothing. Every command below is copy-pasteable.</figcaption>
+          </figure>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>The delivered artifact</h3>
+              <div class="prose"><p><strong>ls -l</strong> shows the lab: note.folded, the armor; unfold.sh, the decoder stub; fold.py, the packer; entropy.py and decode-hunt.sh, the defender’s tools, already staged for the blue phase. No payload.sh: it was deleted after folding. The cleartext never ships.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="ls -l"><span data-label>COPY</span></button></div>
+<pre>$ ls -l
+total 20
+-rwxrwx--- 1 root root 1103 Sep 23 12:47 decode-hunt.sh
+-rwxrwx--- 1 root root  977 Sep 23 12:47 entropy.py
+-rwxrwx--- 1 root root  627 Sep 23 12:47 fold.py
+-rw-rw---- 1 root root  225 Sep 23 12:47 note.folded
+-rwxrwx--- 1 root root  235 Sep 23 12:47 unfold.sh</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>Static inspection sees nothing</h3>
+              <div class="prose"><p><strong>file</strong> says ASCII text: the armor wears a plain-text disguise. <strong>strings</strong> prints the armor lines, which say nothing. <strong>grep -c</strong> counts zero hits for the payload marker, and the fallback echo confirms it. Three independent static reads, all blind.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- static inspection:&quot;; file note.folded; echo &quot;--- strings:&quot;; strings note.folded | head -4; echo &quot;--- grep for the payload marker:&quot;; grep -c GHOSTLIGHT note.folded || echo &quot;(0 hits: the marker is nowhere in the artifact)&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- static inspection:"; file note.folded; echo "--- strings:"; strings note.folded | head -4; echo "--- grep for the payload marker:"; grep -c GHOSTLIGHT note.folded || echo "(0 hits: the marker is nowhere in the artifact)"
+--- static inspection:
+note.folded: ASCII text
+--- strings:
+EyMfLAM3Ni8WaRQ1GTMXPQs3DC87DT4vExIUagMNbzEWDTYvExIYMj8NIiwDDQtsExIYIzhpADY5Ixg2Px0MMD4CCCo4aG4pExIILD4NFDUAAhc9ODdjajsdNi8AI24RAA0UNTgjGzMIajIKD2sIFwkPPhMMGRg3OGgiMQANCz05HRxvOB1jMgAZGDY/HQwwPgIINgAZExE5aCI2AAIbPRQwGy0ZPWdn
+--- grep for the payload marker:
+0
+(0 hits: the marker is nowhere in the artifact)</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>The obvious alternative, broken on a concrete input</h3>
+              <div class="prose"><p><strong>printf</strong> writes the cleartext twin of the payload to /tmp/clear.sh. <strong>grep -l</strong> over both files names the cleartext instantly and stays silent on note.folded: the measurement, concrete. <strong>rm -f</strong> removes the twin. One artifact is found instantly; the other is invisible. That gap is what the folds buy.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="printf &#x27;echo &quot;GHOSTLIGHT folded payload executed&quot;\nsleep 600\n&#x27; &gt; /tmp/clear.sh &amp;&amp; echo &quot;--- the obvious alternative: ship it in cleartext ---&quot; &amp;&amp; grep -l GHOSTLIGHT /tmp/clear.sh note.folded; echo &quot;(cleartext: found instantly. folded: invisible.)&quot;; rm -f /tmp/clear.sh"><span data-label>COPY</span></button></div>
+<pre>$ printf 'echo "GHOSTLIGHT folded payload executed"\nsleep 600\n' &gt; /tmp/clear.sh &amp;&amp; echo "--- the obvious alternative: ship it in cleartext ---" &amp;&amp; grep -l GHOSTLIGHT /tmp/clear.sh note.folded; echo "(cleartext: found instantly. folded: invisible.)"; rm -f /tmp/clear.sh
+--- the obvious alternative: ship it in cleartext ---
+/tmp/clear.sh
+(cleartext: found instantly. folded: invisible.)</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div>
+              <h3>The attack: unfold and run</h3>
+              <div class="prose"><p><strong>./unfold.sh note.folded | sh &amp;</strong> backgrounds the decode-then-execute pipeline; the decoded bytes flow straight into the interpreter and are never a file. <strong>$!</strong> names the pipeline pid. The marker prints from red.out: the decoded payload ran. The disk still holds only armor.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- the attack: unfold and run ---&quot;; ./unfold.sh note.folded | sh &gt; red.out 2&gt;&amp;1 &amp; RPID=$!; sleep 1; echo &quot;--- the decoded payload ran:&quot;; cat red.out; echo &quot;pipeline pid: $RPID&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- the attack: unfold and run ---"; ./unfold.sh note.folded | sh &gt; red.out 2&gt;&amp;1 &amp; RPID=$!; sleep 1; echo "--- the decoded payload ran:"; cat red.out; echo "pipeline pid: $RPID"
+--- the attack: unfold and run ---
+[1] 25
+--- the decoded payload ran:
+GHOSTLIGHT folded payload executed
+pipeline pid: 25</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">5</div>
+            <div>
+              <h3>Stealth confirmed</h3>
+              <div class="prose"><p>Three echo lines, the attacker’s summary: the artifact on disk is opaque armor; the payload was cleartext only inside the pipe, for a fraction of a second; static inspection never saw it. The file listing is the wrong evidence to read, which is exactly what the blue phase exploits.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;stealth confirmed: the artifact on disk is opaque armor&quot;; echo &quot;the payload was cleartext only inside the pipe, for a fraction of a second&quot;; echo &quot;static inspection never saw it&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "stealth confirmed: the artifact on disk is opaque armor"; echo "the payload was cleartext only inside the pipe, for a fraction of a second"; echo "static inspection never saw it"
+stealth confirmed: the artifact on disk is opaque armor
+the payload was cleartext only inside the pipe, for a fraction of a second
+static inspection never saw it</pre>
+</div>
+              <div class="verdict red">
+                <span class="mlabel">Stealth confirmed</span>
+                <p>The folded artifact decoded straight into a shell and executed; static inspection (file, strings, grep) saw nothing at any point; the payload was cleartext only inside the pipe. The attack works because every static control reads the artifact at rest, and the content is never at rest.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="phase-blue">
+          <div class="phase-head"><span class="phase-num">04</span><h2>Phase Blue: measure, then decode a copy</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">The defender does not trust the static reads. The defender measures the artifact with entropy triage, decodes a copy in a sandbox, and only then touches the running process: evidence first, kill second, sweep the schedulers, install the hunt.</p>
+          <div class="prose">
+            <p>Here is the trap: running grep over the lab, finding nothing, and concluding the box is clean. That is trusting the static reads the attacker just defeated. The detection starts with a measurement, not a match: entropy.</p>
+          </div>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot blue" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">193.2s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/folded-blue.jpg" aria-label="Screen recording: FOLDED BLUE, operator@lab">
+              <source src="../../assets/vid/folded-blue.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> The defender flags the opaque artifact with entropy triage, reveals the payload by safely decoding a copy, captures evidence, contains the running process, and installs the scheduled hunt. Every command below is copy-pasteable.</figcaption>
+          </figure>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>DETECTION: the log proves something ran</h3>
+              <div class="prose"><p><strong>grep -l "folded payload"</strong> finds red.out, the execution log. It proves a payload ran; it says nothing about how. note.folded still gives up nothing. The log is the starting point, not the answer.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- the log proves something ran; the artifact hides the how:&quot;; grep -l &quot;folded payload&quot; * 2&gt;/dev/null; echo &quot;(red.out is the execution log. note.folded still gives up nothing.)&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- the log proves something ran; the artifact hides the how:"; grep -l "folded payload" * 2&gt;/dev/null; echo "(red.out is the execution log. note.folded still gives up nothing.)"
+--- the log proves something ran; the artifact hides the how:
+red.out
+(red.out is the execution log. note.folded still gives up nothing.)</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>DETECTION: entropy triage</h3>
+              <div class="prose"><p><strong>python3 entropy.py</strong> walks the lab and measures every file. note.folded scores 5.35 bits per byte and is flagged OPAQUE; the scripts score lower and are not. Good versus bad, concrete: good is text a human can read; bad is armor no human can read, investigate now. The flag is triage, not a verdict: the verdict comes from decoding the flagged file.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- DETECTION: entropy triage ---&quot;; python3 entropy.py /tmp/gh018"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- DETECTION: entropy triage ---"; python3 entropy.py /tmp/gh018
+--- DETECTION: entropy triage ---
+ 4.92 bits/byte    1103 bytes  /tmp/gh018/decode-hunt.sh
+ 4.59 bits/byte     977 bytes  /tmp/gh018/entropy.py
+ 4.96 bits/byte     627 bytes  /tmp/gh018/fold.py
+ 5.35 bits/byte     225 bytes  /tmp/gh018/note.folded  &lt;-- OPAQUE
+ 4.19 bits/byte      35 bytes  /tmp/gh018/red.out
+ 4.90 bits/byte     235 bytes  /tmp/gh018/unfold.sh</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>DETECTION: the innocent look</h3>
+              <div class="prose"><p><strong>file</strong> says ASCII text, again. The armor wears a plain-text disguise, and "text" is not "benign". This is why the triage measures instead of trusting the type: the type is the attacker’s costume.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- the innocent look:&quot;; file note.folded; echo &quot;(ASCII text: the armor wears a plain-text disguise)&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- the innocent look:"; file note.folded; echo "(ASCII text: the armor wears a plain-text disguise)"
+--- the innocent look:
+note.folded: ASCII text
+(ASCII text: the armor wears a plain-text disguise)</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div>
+              <h3>DETECTION: safe decode of a copy</h3>
+              <div class="prose"><p><strong>mkdir -p /tmp/sandbox</strong> and <strong>cp</strong> move a COPY of the artifact into the sandbox; the original is evidence and is never decoded in place. <strong>./unfold.sh</strong> on the copy writes decoded.sh; <strong>cat</strong> reveals the payload, in full, deterministically. Now the defender knows exactly what ran, before touching anything.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- DETECTION: safe decode of a COPY (never the original):&quot;; mkdir -p /tmp/sandbox &amp;&amp; cp note.folded /tmp/sandbox/ &amp;&amp; ./unfold.sh /tmp/sandbox/note.folded &gt; /tmp/sandbox/decoded.sh; echo &quot;--- the revealed payload:&quot;; cat /tmp/sandbox/decoded.sh"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- DETECTION: safe decode of a COPY (never the original):"; mkdir -p /tmp/sandbox &amp;&amp; cp note.folded /tmp/sandbox/ &amp;&amp; ./unfold.sh /tmp/sandbox/note.folded &gt; /tmp/sandbox/decoded.sh; echo "--- the revealed payload:"; cat /tmp/sandbox/decoded.sh
+--- DETECTION: safe decode of a COPY (never the original):
+--- the revealed payload:
+#!/bin/sh
+# Benign stand-in payload: proves execution, touches nothing.
+echo "GHOSTLIGHT folded payload executed"
+sleep 600</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">5</div>
+            <div>
+              <h3>MITIGATION: evidence before the kill</h3>
+              <div class="prose"><p><strong>pgrep -f "[s]leep 600"</strong> finds the sleeper; the bracket trick keeps pgrep from matching the hunter’s own command line. <strong>ps -o pid,ppid,args</strong> shows the process and its parent. The pid, the ppid, and the command line go into evidence.txt BEFORE the kill, because the kill destroys the evidence. <strong>kill $P</strong> ends the decoded process; pgrep confirms it is gone. There is no file to delete: the payload lived in the pipe.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- MITIGATION: evidence before the kill:&quot;; P=$(pgrep -f &quot;[s]leep 600&quot; | head -1); echo &quot;sleeper pid: $P&quot;; ps -o pid,ppid,args -p $P; { echo &quot;pid: $P&quot;; echo &quot;ppid: $(ps -o ppid= -p $P)&quot;; echo &quot;cmdline: $(tr &#x27;\0&#x27; &#x27; &#x27; &lt; /proc/$P/cmdline)&quot;; } &gt; evidence.txt 2&gt;&amp;1; echo &quot;--- recorded:&quot;; cat evidence.txt; echo &quot;--- contain:&quot;; kill $P; sleep 0.5; pgrep -f &quot;[s]leep 600&quot; &gt;/dev/null &amp;&amp; echo STILL-RUNNING || echo &quot;(gone: the decoded process is dead)&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- MITIGATION: evidence before the kill:"; P=$(pgrep -f "[s]leep 600" | head -1); echo "sleeper pid: $P"; ps -o pid,ppid,args -p $P; { echo "pid: $P"; echo "ppid: $(ps -o ppid= -p $P)"; echo "cmdline: $(tr '\0' ' ' &lt; /proc/$P/cmdline)"; } &gt; evidence.txt 2&gt;&amp;1; echo "--- recorded:"; cat evidence.txt; echo "--- contain:"; kill $P; sleep 0.5; pgrep -f "[s]leep 600" &gt;/dev/null &amp;&amp; echo STILL-RUNNING || echo "(gone: the decoded process is dead)"
+--- MITIGATION: evidence before the kill:
+sleeper pid: 30
+    PID    PPID COMMAND
+     30      25 sleep 600
+--- recorded:
+pid: 30
+ppid:      25
+cmdline: sleep 600
+--- contain:
+(gone: the decoded process is dead)</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">6</div>
+            <div>
+              <h3>MITIGATION: remove the artifacts, sweep the schedulers</h3>
+              <div class="prose"><p><strong>rm -f</strong> removes the folded artifact, the decoder stub, and the execution log. Then the persistence sweep: decode pipelines hide in schedulers, so the loop reads /etc/cron.d and /etc/cron.daily, and <strong>grep -rl "base64 -d"</strong> hunts decode pipelines in cron. Clean. <strong>ls -l</strong> shows what remains: the defender’s tools.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- remove the artifacts:&quot;; rm -f note.folded unfold.sh red.out; echo &quot;--- persistence sweep: decode pipelines hide in schedulers:&quot;; for d in /etc/cron.d /etc/cron.daily; do echo &quot;-- $d:&quot;; ls $d 2&gt;/dev/null || echo &quot;(absent)&quot;; done; grep -rl &quot;base64 -d&quot; /etc/cron.d/ 2&gt;/dev/null || echo &quot;(no decode pipelines in cron)&quot;; ls -l"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- remove the artifacts:"; rm -f note.folded unfold.sh red.out; echo "--- persistence sweep: decode pipelines hide in schedulers:"; for d in /etc/cron.d /etc/cron.daily; do echo "-- $d:"; ls $d 2&gt;/dev/null || echo "(absent)"; done; grep -rl "base64 -d" /etc/cron.d/ 2&gt;/dev/null || echo "(no decode pipelines in cron)"; ls -l
+--- remove the artifacts:
+--- persistence sweep: decode pipelines hide in schedulers:
+-- /etc/cron.d:
+e2scrub_all
+-- /etc/cron.daily:
+apt-compat  dpkg
+(no decode pipelines in cron)
+total 16
+-rwxrwx--- 1 root root 1103 Sep 23 12:47 decode-hunt.sh
+-rwxrwx--- 1 root root  977 Sep 23 12:47 entropy.py
+-rw-rw---- 1 root root   42 Sep 23 12:47 evidence.txt
+-rwxrwx--- 1 root root  627 Sep 23 12:47 fold.py</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">7</div>
+            <div>
+              <h3>PREVENTION: the scheduled hunt</h3>
+              <div class="prose"><p>The durable control: a cron line runs <strong>decode-hunt.sh</strong> over the served directory every 15 minutes. The hunt flags opaque files, safe-decodes copies in a sandbox temp dir, and never executes what it finds. Run by hand against this lab, it reports clean: the artifacts are gone and the control is watching.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- PREVENTION: the scheduled hunt:&quot;; printf &#x27;*/15 * * * * /tmp/gh018/decode-hunt.sh /srv/www\n&#x27; &gt; hunt.cron &amp;&amp; cat hunt.cron &amp;&amp; echo &quot;--- the hunt, right now, against this lab:&quot; &amp;&amp; ./decode-hunt.sh /tmp/gh018"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- PREVENTION: the scheduled hunt:"; printf '*/15 * * * * /tmp/gh018/decode-hunt.sh /srv/www\n' &gt; hunt.cron &amp;&amp; cat hunt.cron &amp;&amp; echo "--- the hunt, right now, against this lab:" &amp;&amp; ./decode-hunt.sh /tmp/gh018
+--- PREVENTION: the scheduled hunt:
+*/15 * * * * /tmp/gh018/decode-hunt.sh /srv/www
+--- the hunt, right now, against this lab:
+clean: no opaque files in /tmp/gh018</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">8</div>
+            <div>
+              <h3>Verdict and cleanup</h3>
+              <div class="prose"><p>The summary, in the defender’s own words: entropy flagged the armor, the sandboxed decode revealed the payload, the kill was evidenced first, the schedulers swept clean. <strong>rm -rf /tmp/sandbox /tmp/gh018</strong> removes the lab; <strong>ls</strong> confirms the directory is gone.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;detection verified: entropy flagged the armor, the sandboxed decode revealed the payload&quot;; echo &quot;mitigation verified: evidenced, killed, artifacts removed, schedulers swept&quot;; echo &quot;prevention verified: the hunt runs every 15 minutes and decodes only copies&quot;; rm -rf /tmp/sandbox /tmp/gh018; ls /tmp | grep gh018 || echo &quot;(lab gone)&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "detection verified: entropy flagged the armor, the sandboxed decode revealed the payload"; echo "mitigation verified: evidenced, killed, artifacts removed, schedulers swept"; echo "prevention verified: the hunt runs every 15 minutes and decodes only copies"; rm -rf /tmp/sandbox /tmp/gh018; ls /tmp | grep gh018 || echo "(lab gone)"
+detection verified: entropy flagged the armor, the sandboxed decode revealed the payload
+mitigation verified: evidenced, killed, artifacts removed, schedulers swept
+prevention verified: the hunt runs every 15 minutes and decodes only copies
+(lab gone)</pre>
+</div>
+              <div class="verdict green">
+                <span class="mlabel">Detection verified</span>
+                <p>Entropy triage flagged the armor at 5.35 bits per byte, the sandboxed safe-decode revealed the payload deterministically, the running decoded process was evidenced before the kill, the artifacts were removed, and the schedulers swept clean. The static reads still say nothing. The measurement does not agree.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="countermeasures">
+          <div class="phase-head"><span class="phase-num">05</span><h2>Countermeasures</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">Three moves, in order: reveal and contain, hunt on a schedule, shrink the decode surface. Each is one way, not the way.</p>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Mitigate: reveal, capture, kill, sweep</h3>
+              <div class="prose"><p>Proven first against the live decoded process: safe-decode a COPY of the folded artifact in a sandbox to learn what ran; capture the pid, ppid, and command line into evidence.txt before touching anything; kill the decoded process; remove the artifact, the decoder stub, and the log; sweep the schedulers for decode pipelines. A real response then hunts the delivery vector: how note.folded arrived on the box is the incident’s open question.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- MITIGATION: evidence before the kill:&quot;; P=$(pgrep -f &quot;[s]leep 600&quot; | head -1); echo &quot;sleeper pid: $P&quot;; ps -o pid,ppid,args -p $P; { echo &quot;pid: $P&quot;; echo &quot;ppid: $(ps -o ppid= -p $P)&quot;; echo &quot;cmdline: $(tr &#x27;\0&#x27; &#x27; &#x27; &lt; /proc/$P/cmdline)&quot;; } &gt; evidence.txt 2&gt;&amp;1; echo &quot;--- recorded:&quot;; cat evidence.txt; echo &quot;--- contain:&quot;; kill $P; sleep 0.5; pgrep -f &quot;[s]leep 600&quot; &gt;/dev/null &amp;&amp; echo STILL-RUNNING || echo &quot;(gone: the decoded process is dead)&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- MITIGATION: evidence before the kill:"; P=$(pgrep -f "[s]leep 600" | head -1); echo "sleeper pid: $P"; ps -o pid,ppid,args -p $P; { echo "pid: $P"; echo "ppid: $(ps -o ppid= -p $P)"; echo "cmdline: $(tr '\0' ' ' &lt; /proc/$P/cmdline)"; } &gt; evidence.txt 2&gt;&amp;1; echo "--- recorded:"; cat evidence.txt; echo "--- contain:"; kill $P; sleep 0.5; pgrep -f "[s]leep 600" &gt;/dev/null &amp;&amp; echo STILL-RUNNING || echo "(gone: the decoded process is dead)"
+--- MITIGATION: evidence before the kill:
+sleeper pid: 30
+    PID    PPID COMMAND
+     30      25 sleep 600
+--- recorded:
+pid: 30
+ppid:      25
+cmdline: sleep 600
+--- contain:
+(gone: the decoded process is dead)</pre>
+</div>
+              <div class="callout"><p><strong>Honest limit.</strong> The kill destroys the running decoded process, and the pipe’s transient cleartext is unrecoverable after it: evidence before kill is the whole discipline. The lab deletes the attacker’s artifact for cleanliness; a real incident preserves the original folded file and the sandbox copy for forensics instead of rm. A response that deletes first and preserves after has destroyed its own case.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>Monitor: hunt opaque files on a schedule</h3>
+              <div class="prose"><p>The scheduled form of the phase-blue read: decode-hunt.sh walks the directory, flags files above 5.0 bits per byte, safe-decodes copies in a sandbox dir, and never executes. D3FEND <a href="https://d3fend.mitre.org/technique/d3f:FileContentDecompressionChecking/" rel="noopener">D3-FCDC: File Content Decompression Checking</a> is the discipline behind it: encoded sections are decoded and inspected as a matter of routine, not after an incident.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- PREVENTION: the scheduled hunt:&quot;; printf &#x27;*/15 * * * * /tmp/gh018/decode-hunt.sh /srv/www\n&#x27; &gt; hunt.cron &amp;&amp; cat hunt.cron &amp;&amp; echo &quot;--- the hunt, right now, against this lab:&quot; &amp;&amp; ./decode-hunt.sh /tmp/gh018"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- PREVENTION: the scheduled hunt:"; printf '*/15 * * * * /tmp/gh018/decode-hunt.sh /srv/www\n' &gt; hunt.cron &amp;&amp; cat hunt.cron &amp;&amp; echo "--- the hunt, right now, against this lab:" &amp;&amp; ./decode-hunt.sh /tmp/gh018
+--- PREVENTION: the scheduled hunt:
+*/15 * * * * /tmp/gh018/decode-hunt.sh /srv/www
+--- the hunt, right now, against this lab:
+clean: no opaque files in /tmp/gh018</pre>
+</div>
+              <div class="callout"><p><strong>Honest limit.</strong> base64, xxd, and python3 are dual-use: they are in every legitimate stack, so flagging every decode drowns the team. The hunt keys on opaque FILES plus decode attempts, not the tools alone. The 5.0 threshold is a starting point, not a constant: compressed backups, encrypted stores, and media files also score high, so tune it against your own baseline or every backup window pages the team. And an attacker who decodes purely in memory, with no folded file on disk, defeats the file hunt entirely: that gap is answered by execve auditing of decode-then-interpreter chains, not by a tighter threshold.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>Prevent: the hunt as a control, and no decoder, no decode</h3>
+              <div class="prose"><p>Two demonstrations, same technique. First, the scheduled <strong>decode-hunt.sh</strong> engaged as the installed control: it flagged the rebuilt <strong>note.folded</strong> at <strong>5.35 bits/byte</strong> with the outer layer’s base64-decoded first bytes on display; the T1140 technique then attempted execution against the defended baseline, the decoded process was found and killed before it could reach its objective, and the post-engagement sweep came back clean. Second, the attack ran on a box with no decode tooling: a bare <strong>PATH</strong> holding only sh and echo, where <strong>./unfold.sh note.folded</strong> dies with <strong>“base64: not found”</strong>, rc 127. The attack needs its decoder, and the decoder is not there.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="cp /home/hatch/workspace/goals/ghostlight-stealth-research-site/hidden_files/gh018-lab/payload.sh payload.sh &amp;&amp; python3 fold.py payload.sh note.folded &amp;&amp; echo &quot;--- artifact:&quot; &amp;&amp; ls -l note.folded"><span data-label>COPY</span></button></div>
+<pre>$ cp /home/hatch/workspace/goals/ghostlight-stealth-research-site/hidden_files/gh018-lab/payload.sh payload.sh &amp;&amp; python3 fold.py payload.sh note.folded &amp;&amp; echo "--- artifact:" &amp;&amp; ls -l note.folded
+folded 124 -&gt; 224 bytes
+--- artifact:
+-rw-rw---- 1 root root 225 Sep 23 12:57 note.folded
+</pre>
+</div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- defense baseline: the scheduled decode-hunt against this lab ---&quot; &amp;&amp; ./decode-hunt.sh /tmp/gh018"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- defense baseline: the scheduled decode-hunt against this lab ---" &amp;&amp; ./decode-hunt.sh /tmp/gh018
+--- defense baseline: the scheduled decode-hunt against this lab ---
+OPAQUE: /tmp/gh018/note.folded (5.35 bits/byte)
+  outer layer is base64; decoded first bytes:
+0000000 13 23 1f 2c 03 37 36 2f 16 69 14 35 19 33 17 3d
+0000016 0b 37 0c 2f 3b 0d 3e 2f 13 12 14 6a 03 0d 6f 31
+0000032 16 0d 36 2f 13 12 18 32 3f 0d 22 2c 03 0d 0b 6c
+</pre>
+</div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="./unfold.sh note.folded | sh &gt; red.out 2&gt;&amp;1 &amp; echo $! &gt; /tmp/gh018/rpid.txt; sleep 1; P=$(pgrep -f &quot;[s]leep 600&quot; | head -1); echo &quot;live unfolded process found: PID $P&quot;; kill -9 $P; wait $(cat /tmp/gh018/rpid.txt) 2&gt;/dev/null; echo &quot;killed: the decoded process never reached its objective&quot;"><span data-label>COPY</span></button></div>
+<pre>$ ./unfold.sh note.folded | sh &gt; red.out 2&gt;&amp;1 &amp; echo $! &gt; /tmp/gh018/rpid.txt; sleep 1; P=$(pgrep -f "[s]leep 600" | head -1); echo "live unfolded process found: PID $P"; kill -9 $P; wait $(cat /tmp/gh018/rpid.txt) 2&gt;/dev/null; echo "killed: the decoded process never reached its objective"
+live unfolded process found: PID 9883
+killed: the decoded process never reached its objective
+</pre>
+</div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="rm -f payload.sh note.folded red.out rpid.txt &amp;&amp; echo &quot;--- post-engagement sweep ---&quot; &amp;&amp; ./decode-hunt.sh /tmp/gh018"><span data-label>COPY</span></button></div>
+<pre>$ rm -f payload.sh note.folded red.out rpid.txt &amp;&amp; echo "--- post-engagement sweep ---" &amp;&amp; ./decode-hunt.sh /tmp/gh018
+--- post-engagement sweep ---
+clean: no opaque files in /tmp/gh018
+</pre>
+</div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="mkdir -p /tmp/barebin &amp;&amp; ln -sf /bin/sh /bin/echo /tmp/barebin/ &amp;&amp; ls /tmp/barebin"><span data-label>COPY</span></button></div>
+<pre>$ mkdir -p /tmp/barebin &amp;&amp; ln -sf /bin/sh /bin/echo /tmp/barebin/ &amp;&amp; ls /tmp/barebin
+echo
+sh
+</pre>
+</div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- the attack, on a box with no decode tooling: ---&quot; &amp;&amp; PATH=/tmp/barebin ./unfold.sh note.folded; echo &quot;rc=$?&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- the attack, on a box with no decode tooling: ---" &amp;&amp; PATH=/tmp/barebin ./unfold.sh note.folded; echo "rc=$?"
+--- the attack, on a box with no decode tooling: ---
+rc=127
+./unfold.sh: 4: python3: not found
+./unfold.sh: 4: base64: not found
+./unfold.sh: 4: base64: not found
+</pre>
+</div>
+              <div class="callout"><p><strong>Honest limit.</strong> Any interpreter is a decoder: python3, perl, even sh itself can unwrap simple folds, so removing base64 raises the bar, it does not remove decoding. A determined attacker ships their own decoder. The durable win is the hunt from step 2, which catches the artifact regardless of which decoder the attacker brought. Strip the tooling where it is genuinely unneeded; monitor everywhere else.</p></div>
+              <div class="verdict green">
+                <span class="mlabel">Countermeasures verified</span>
+                <p>The payload was revealed by safe-decoding a copy, the running process was evidenced before the kill, the schedulers swept clean; the hunt runs every 15 minutes and decodes only copies; where decode tooling is not needed it is not installed, and the attack dies at the first fold. Every control names its bypass: the file hunt misses in-memory-only decoding, the threshold needs a local baseline, and no tool removal stops an interpreter.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="debrief">
+          <div class="phase-head"><span class="phase-num">06</span><h2>Debrief</h2><span class="phase-tag neutral">TAKEAWAY</span></div>
+          <p class="takeaway">When static inspection sees only armor, measure the file and decode a copy: the content is never at rest, so look at the moment of use.</p>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">IOC checklist: signs this technique was used</span></p></div>
+          <ul class="checklist">
+            <li><span>A file with <strong>high Shannon entropy</strong> (near the top of its alphabet’s range) that no human can read, especially newly arrived</span></li>
+            <li><span><strong>Opaque text blobs</strong>: base64 blocks, hex dumps, long encoded strings in files that should be readable</span></li>
+            <li><span><strong>Decode-then-interpreter pipelines</strong> in process trees or shell history: base64 -d piped into sh, xxd -r piped into sh</span></li>
+            <li><span>A payload marker that appears in <strong>logs but in no cleartext file</strong> on disk</span></li>
+            <li><span>Decoder tooling (<strong>base64, xxd, openssl enc, python3 one-liners</strong>) invoked with decode flags at odd hours or from odd parents</span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Reproducibility checklist</span></p></div>
+          <ul class="checklist">
+            <li><span>Verified on <strong>Ubuntu 24.04.5 LTS</strong>, x86-64, on 2026-09-23</span></li>
+            <li><span>Both recordings are real executions on that platform, not simulations</span></li>
+            <li><span>Runs as root in a disposable namespace (the lab folds its own payload; the assumed breach: something on the box delivered the folded artifact)</span></li>
+            <li><span>Cleanup: <strong>rm -rf /tmp/gh018 /tmp/sandbox</strong>; verify with <strong>ls /tmp</strong></span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Sources</span></p></div>
+          <div class="prose"><p><a href="https://attack.mitre.org/techniques/T1140/" rel="noopener">MITRE ATT&amp;CK T1140: Deobfuscate/Decode Files or Information</a><br>
+          <a href="https://attack.mitre.org/techniques/T1027/" rel="noopener">MITRE ATT&amp;CK T1027: Obfuscated Files or Information</a> (the armor; T1140 is the unwrapping)<br>
+          <a href="https://man7.org/linux/man-pages/man1/base64.1.html" rel="noopener">base64(1)</a> (the armor tool)<br>
+          <a href="https://d3fend.mitre.org/technique/d3f:FileContentDecompressionChecking/" rel="noopener">D3FEND D3-FCDC: File Content Decompression Checking</a></p></div>
+        </section>
+
+        <a class="next-file" href="../019-open-permissions/index.html">
+          <span class="mlabel">Next file</span>
+          <h3>GH-019 The Open Door</h3>
+          <p>The next file loosens a permission bit and walks through.</p>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <div>
+      <div class="footer-brand">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+        <span class="brand-name" style="font-size:17px">GHOSTLIGHT</span>
+      </div>
+      <p class="footer-note">An independent adversary-stealth research publication. Every command verified on the named OS before publishing. No trackers, no frameworks, no autoplay.</p>
+    </div>
+    <nav class="footer-links">
+      <a href="../../method.html">METHOD</a>
+      <a href="../../index.html">FILES</a>
+      <a href="https://attack.mitre.org/tactics/TA0005/" rel="noopener">MITRE TA0005</a>
+    </nav>
+    <div class="footer-elsewhere">
+      <span class="mlabel">Elsewhere</span><a href="https://dillingerstaffing.github.io/portfolio/" target="_blank" rel="noopener">Portfolio</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/proving-ground/" target="_blank" rel="noopener">Proving Ground</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/tapeout/" target="_blank" rel="noopener">Tapeout</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/old-iron/" target="_blank" rel="noopener">Old Iron</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/unstuck/" target="_blank" rel="noopener">Unstuck</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../../assets/site.js?v=512f8825"></script>
+</body>
+</html>
