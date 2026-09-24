@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>GH-020 The Invisible Ink (T1564.014): GHOSTLIGHT</title>
+<meta name="description" content="T1564.014 Extended Attributes, reproduced on Ubuntu 24.04: an attacker stores a canary string in a file's extended attributes, where ls, cat, file, stat, and grep never look, then retrieves it in one command. The defender asks the second namespace with getfattr, sweeps the whole tree with one find one-liner, captures evidence before stripping the xattr, and installs the xattr baseline diff that flags the next plant.">
+<link rel="canonical" href="https://dillingerstaffing.github.io/ghostlight/ops/020-invisible-ink/">
+<meta property="og:title" content="GH-020 The Invisible Ink (T1564.014): GHOSTLIGHT">
+<meta property="og:description" content="T1564.014 Extended Attributes, reproduced on Ubuntu 24.04: an attacker stores a canary string in a file's extended attributes, where ls, cat, file, stat, and grep never look, then retrieves it in one command. The defender asks the second namespace with getfattr, sweeps the whole tree with one find one-liner, captures evidence before stripping the xattr, and installs the xattr baseline diff that flags the next plant.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dillingerstaffing.github.io/ghostlight/ops/020-invisible-ink/">
+<meta property="og:site_name" content="GHOSTLIGHT">
+<meta property="og:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="GH-020 The Invisible Ink (T1564.014): GHOSTLIGHT">
+<meta name="twitter:description" content="T1564.014 Extended Attributes, reproduced on Ubuntu 24.04: an attacker stores a canary string in a file's extended attributes, where ls, cat, file, stat, and grep never look, then retrieves it in one command. The defender asks the second namespace with getfattr, sweeps the whole tree with one find one-liner, captures evidence before stripping the xattr, and installs the xattr baseline diff that flags the next plant.">
+<meta name="twitter:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23ece6d5'/%3E%3Ccircle cx='256' cy='196' r='104' fill='none' stroke='%23241f17' stroke-width='20'/%3E%3Cline x1='256' y1='152' x2='256' y2='240' stroke='%238c3f22' stroke-width='16'/%3E%3Cline x1='256' y1='300' x2='256' y2='424' stroke='%23241f17' stroke-width='14'/%3E%3Cline x1='200' y1='424' x2='312' y2='424' stroke='%23241f17' stroke-width='18'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+<link rel="manifest" href="../../assets/manifest.webmanifest">
+<meta name="theme-color" content="#0a0c0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GHOSTLIGHT">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<script>
+(function () {
+  // Theme: notebook is the default; a stored visitor choice wins.
+  // Runs before the stylesheet is parsed so the first paint is already
+  // the right theme (no flash of the wrong one).
+  try {
+    var t = localStorage.getItem('emi-site-theme');
+    var theme = t === 'classic' ? 'classic' : 'notebook';
+    document.documentElement.dataset.theme = theme;
+    var m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute('content', theme === 'classic' ? '#0a0c0f' : '#ece6d5');
+  } catch (e) {
+    document.documentElement.dataset.theme = 'notebook';
+  }
+})();
+</script>
+<link rel="stylesheet" href="../../assets/site.css?v=36a0084f">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"GH-020 The Invisible Ink (T1564.014): GHOSTLIGHT",
+"url":"https://dillingerstaffing.github.io/ghostlight/ops/020-invisible-ink/","description":"T1564.014 Extended Attributes, reproduced on Ubuntu 24.04: an attacker stores a canary string in a file's extended attributes, where ls, cat, file, stat, and grep never look, then retrieves it in one command. The defender asks the second namespace with getfattr, sweeps the whole tree with one find one-liner, captures evidence before stripping the xattr, and installs the xattr baseline diff that flags the next plant.",
+"author":{"@type":"Person","name":"Chris Dillinger","url":"https://www.linkedin.com/in/christopherdillinger/"},
+"inLanguage":"en"}
+</script>
+</head>
+<body>
+
+<header class="site-header">
+  <a class="brand" href="../../index.html" aria-label="GHOSTLIGHT home">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+    <span class="brand-name">GHOSTLIGHT</span>
+  </a>
+  <nav class="site-nav">
+    <a href="../../method.html">METHOD</a>
+    <a href="../../index.html">FILES</a>
+    <button class="theme-toggle" type="button" aria-label="Switch to dark field dossier theme" title="Switch theme">
+      <span class="theme-toggle-mark" aria-hidden="true"><i></i><i></i></span>
+    </button>
+  </nav>
+</header>
+
+<div class="onboard" data-onboard hidden>
+  <span><strong>How to read a file:</strong> every file follows the six-phase structure below. <span class="k-green">Green</span> is verified, <span class="k-red">red</span> is hostile.</span>
+  <button aria-label="Dismiss">GOT IT</button>
+</div>
+
+<div class="page" data-op="020">
+  <div class="wrap">
+    <section class="op-hero">
+      <div class="op-kicker">
+        <span class="case-no">GH-020</span>
+        <a class="tech-id" href="https://attack.mitre.org/techniques/T1564/014/" rel="noopener">T1564.014</a>
+        <span class="phase-tag red">PHASE RED INSIDE</span>
+      </div>
+      <h1>The Invisible Ink</h1>
+      <p class="lede">Every Linux file carries a second namespace the default tools never list: extended attributes, name:value pairs glued to the inode, outside the file's bytes. This file plants a benign canary in one xattr and watches five standard inspections come back clean, then the defense asks the second namespace directly, sweeps the whole tree with one command, captures evidence before stripping the xattr, and installs the baseline diff that flags the next plant.</p>
+      <div class="op-meta-grid">
+        <div class="op-meta"><span class="mlabel">Technique</span><span class="mvalue">Extended Attributes (T1564.014)</span></div>
+        <div class="op-meta"><span class="mlabel">Target OS</span><span class="mvalue">Ubuntu 24.04.5 LTS</span></div>
+        <div class="op-meta"><span class="mlabel">Toolchain</span><span class="mvalue">attr 2.5 (setfattr/getfattr)</span></div>
+        <div class="op-meta"><span class="mlabel">Level</span><span class="mvalue">Beginner</span></div>
+        <div class="op-meta"><span class="mlabel">Time</span><span class="mvalue">20 min</span></div>
+      </div>
+      <div class="objectives">
+        <h2>OBJECTIVES</h2>
+        <ol>
+          <li data-phase="phase-red"><span class="box"></span>Plant a benign canary in a file's extended attributes and confirm that ls, cat, file, stat, and grep all report the file clean</li>
+          <li data-phase="phase-blue"><span class="box"></span>Reveal the xattr with getfattr, sweep the whole tree with one find one-liner, capture evidence, and strip the xattr</li>
+          <li data-phase="countermeasures"><span class="box"></span>Install the xattr baseline diff as the durable control, and state every control's bypass honestly</li>
+          <li data-phase="debrief"><span class="box"></span>Take the IOC checklist and the one-sentence lesson</li>
+        </ol>
+      </div>
+    </section>
+
+    <div class="op-layout">
+      <nav class="rail" aria-label="Phases">
+        <span class="mlabel">Phases</span>
+        <ol>
+          <li><a href="#intel-brief"><span class="pnum">01</span>INTEL BRIEF<span class="tick"></span></a></li>
+          <li><a href="#target-environment"><span class="pnum">02</span>TARGET ENV<span class="tick"></span></a></li>
+          <li><a href="#phase-red"><span class="pnum">03</span>PHASE RED<span class="tick"></span></a></li>
+          <li><a href="#phase-blue"><span class="pnum">04</span>PHASE BLUE<span class="tick"></span></a></li>
+          <li><a href="#countermeasures"><span class="pnum">05</span>COUNTERMEASURES<span class="tick"></span></a></li>
+          <li><a href="#debrief"><span class="pnum">06</span>DEBRIEF<span class="tick"></span></a></li>
+        </ol>
+      </nav>
+
+      <div class="op-content">
+        <section class="phase" id="intel-brief">
+          <div class="phase-head"><span class="phase-num">01</span><h2>Intel Brief</h2><span class="phase-tag neutral">CONTEXT</span></div>
+          <p class="lede">MITRE ATT&amp;CK <a href="https://attack.mitre.org/techniques/T1564/014/" rel="noopener">T1564.014</a>: adversaries hide artifacts in extended file attributes, a parallel namespace the standard inventory never reads. This file plants a benign canary string in one xattr on an innocent report, watches ls, cat, file, stat, and grep all come back clean, and retrieves the canary in one command. Then the defense: ask the xattr list directly, sweep the whole tree with one find one-liner, capture evidence before stripping, and install the baseline diff that flags the next plant. Two actors: the attacker, who owns setfattr and the planted user.dead-drop; and the defender, who owns the getfattr reads, the tree sweep, the evidence-first strip, and the baseline in the blue phase.</p>
+          <div class="prose">
+            <p><strong>Why this technique.</strong> Every inspection tool enumerates two things: directory entries and byte streams. ls reads the directory; cat, grep, strings, and file read the bytes. Extended attributes are a third place: name:value metadata attached to the inode, stored outside the file's bytes, and no default tool lists them. An attacker who needs a small string on disk, a token, a marker, a dead-drop address, can store it where the inventory never looks. The hiding place is not a tool bug; it is storage the default tools were never written to enumerate.</p>
+            <p><strong>Why not hide the string in the file body.</strong> The obvious alternative is the naive plant: append the canary to report.txt. Break it on the concrete input: cat prints the canary in plain sight, grep -r finds it, strings and every content scan read the body. The recording shows the measurement: after the append, cat prints GHOSTLIGHT-CANARY-020 as the fourth line of the report. The file body is the first place anyone looks; hiding data in the bytes fails against every content scan ever written.</p>
+            <p><strong>Why not a dotfile.</strong> The next obvious alternative is .cache, the hidden-file dodge. Break it: ls -a lists it, find inventories it. Directory entries are always inventoried; the leading dot only hides the name from the laziest listing. The recording shows it: ls -a names .cache immediately. Both obvious hiding places die to the default tools, on the concrete inputs, in the recording.</p>
+            <p><strong>The mechanism, in one line.</strong> An <strong>extended attribute</strong> (xattr) is a name:value metadata pair attached to a file's <strong>inode</strong>, the filesystem's per-file record, and stored outside the file's byte stream: the size, the owner, the timestamps, and the xattr list all hang off the inode, but only the bytes are what cat reads. The <strong>xattr namespace</strong> is the prefix before the dot: user., trusted., security., system. user.* is the unprivileged one, any file owner may set it; trusted.* needs privilege; security.* belongs to the Linux security modules (SELinux labels live there). <strong>setfattr</strong> writes an xattr; <strong>getfattr</strong> reads xattrs back. The xattr fixes exactly the failure both alternatives share: the bytes and the directory entry are the two things default tools enumerate, and the xattr is neither. Terms earned, no borrowing.</p>
+            <p><strong>The concrete case, before the abstraction.</strong> In /tmp/gh020: report.txt, 52 bytes, a three-line capacity report. setfattr -n user.dead-drop -v GHOSTLIGHT-CANARY-020 report.txt: silent success. ls -l: still 52 bytes, the xattr adds zero bytes to the stream. cat: clean. file: ASCII text. stat -c '%s bytes': 52 bytes. grep -r CANARY .: no match. getfattr -n user.dead-drop --only-values report.txt: GHOSTLIGHT-CANARY-020. Stored, retrievable, invisible to the five standard reads. That gap, between what is stored and what the tools enumerate, is the whole technique.</p>
+          </div>
+          <div class="callout"><p><strong>Scope.</strong> T1564 covers hiding artifacts broadly: hidden files and directories, hidden users, extended attributes, alternate data streams on Windows. This file works the extended-attribute case end to end: the plant, the five-tool stealth sweep, the getfattr reveal, the tree sweep, the evidence-first strip, and the baseline diff. The canary is a benign token: it proves storage and retrieval and touches nothing else. The lab runs in a disposable namespace under /tmp because the blue phase plants and strips xattrs for real.</p></div>
+        </section>
+
+        <section class="phase" id="target-environment">
+          <div class="phase-head"><span class="phase-num">02</span><h2>Target Environment</h2><span class="phase-tag neutral">LOADOUT</span></div>
+          <p class="lede">Ubuntu 24.04.5 LTS, x86-64, in a disposable namespace used only for this lab. Runs as root: the lab plants its own xattrs, and every blue-phase read targets the live lab. Everything the lab touches lives inside /tmp/gh020, so cleanup is a single rm. The attr tools, setfattr and getfattr, ship in the attr package.</p>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Build the lab</h3>
+              <div class="prose"><p>One disposable directory, built from scratch. <strong>printf</strong> writes the decoy report and the field notes (<strong>%%</strong> is printf's escape for a literal percent sign, which is why the file holds 61%); <strong>cp</strong> keeps a pristine copy of the report for the broken-alternative demos; the heredoc writes xattr-baseline.sh, the defender's snapshot tool, staged now and used in the blue phase; <strong>chmod +x</strong> makes it executable; <strong>ls -l</strong> shows the lab. The baseline script is shown in full, each line glossed after it.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">xattr-baseline.sh</span></div>
+<pre>#!/bin/bash
+# snapshot every xattr on every file under the watched tree, sorted
+find . -type f -exec getfattr -d -m . {} + 2&gt;/dev/null | grep -v '^$' | sort &gt; "$1"</pre>
+</div>
+<div class="prose"><p><strong>xattr-baseline.sh</strong>, the defender's snapshot tool, in full: <strong>find . -type f</strong> walks every regular file under the watched tree; <strong>getfattr -d -m .</strong> dumps every xattr on each file, -d for dump, -m . to match every xattr name, and files with no xattrs print nothing, so they contribute no lines; <strong>grep -v '^$'</strong> drops the blank separator lines getfattr prints between files; <strong>sort</strong> orders the snapshot so the diff is stable run to run; the snapshot lands in the file named by <strong>$1</strong>. Two snapshots and a diff flag any new xattr.</p></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="phase-red">
+          <div class="phase-head"><span class="phase-num">03</span><h2>Phase Red: write in the second namespace</h2><span class="phase-tag red">ATTACK</span></div>
+          <p class="lede">The attacker plants a canary in the file's second namespace, watches five standard inspections come back clean, and retrieves the canary in one command.</p>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">98.3s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/ink-red.jpg" aria-label="Screen recording: INK RED, operator@lab">
+              <source src="../../assets/vid/ink-red.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> A canary is planted in a file's extended attributes. Five standard inspections report the file clean; one getfattr reads the canary back. Every command below is copy-pasteable.</figcaption>
+          </figure>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Build the lab</h3>
+              <div class="prose"><p><strong>rm -rf /tmp/gh020</strong> starts clean; <strong>mkdir -p</strong> and <strong>cd</strong> set up the lab directory. <strong>printf</strong> writes report.txt, the three-line decoy, and notes.txt; <strong>cp</strong> keeps report.pristine; the heredoc writes xattr-baseline.sh; <strong>chmod +x</strong>; <strong>ls -l</strong> shows the lab. Everything the page shows is built here.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="rm -rf /tmp/gh020; mkdir -p /tmp/gh020; cd /tmp/gh020
+printf &#x27;Q3 capacity report\nRegion: us-east\nUtilization: 61%%\n&#x27; &gt; report.txt
+printf &#x27;field notes\n&#x27; &gt; notes.txt
+cp report.txt report.pristine
+cat &gt; xattr-baseline.sh &lt;&lt;&#x27;EOF&#x27;
+#!/bin/bash
+# snapshot every xattr on every file under the watched tree, sorted
+find . -type f -exec getfattr -d -m . {} + 2&gt;/dev/null | grep -v &#x27;^$&#x27; | sort &gt; &quot;$1&quot;
+EOF
+chmod +x xattr-baseline.sh
+ls -l"><span data-label>COPY</span></button></div>
+<pre>$ rm -rf /tmp/gh020; mkdir -p /tmp/gh020; cd /tmp/gh020
+printf 'Q3 capacity report\nRegion: us-east\nUtilization: 61%%\n' &gt; report.txt
+printf 'field notes\n' &gt; notes.txt
+cp report.txt report.pristine
+cat &gt; xattr-baseline.sh &lt;&lt;'EOF'
+#!/bin/bash
+# snapshot every xattr on every file under the watched tree, sorted
+find . -type f -exec getfattr -d -m . {} + 2&gt;/dev/null | grep -v '^$' | sort &gt; "$1"
+EOF
+chmod +x xattr-baseline.sh
+ls -l
+total 16
+-rw-rw---- 1 root root  12 Sep 24 15:19 notes.txt
+-rw-rw---- 1 root root  52 Sep 24 15:19 report.pristine
+-rw-rw---- 1 root root  52 Sep 24 15:19 report.txt
+-rwxrwx--- 1 root root 164 Sep 24 15:19 xattr-baseline.sh</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>The obvious alternative, broken: the file body</h3>
+              <div class="prose"><p><strong>echo 'GHOSTLIGHT-CANARY-020' &gt;&gt; report.txt</strong> appends the canary to the file body. <strong>cat report.txt</strong> prints it in plain sight, fourth line. The file body is the first place anyone looks; hiding data in the bytes fails against every content scan ever written.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &#x27;GHOSTLIGHT-CANARY-020&#x27; &gt;&gt; report.txt
+cat report.txt"><span data-label>COPY</span></button></div>
+<pre>$ echo 'GHOSTLIGHT-CANARY-020' &gt;&gt; report.txt
+cat report.txt
+Q3 capacity report
+Region: us-east
+Utilization: 61%
+GHOSTLIGHT-CANARY-020</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>The second obvious alternative, broken: the dotfile</h3>
+              <div class="prose"><p><strong>cp report.pristine report.txt &amp;&amp; rm report.pristine</strong> restores the clean report and removes the spare copy. <strong>echo 'GHOSTLIGHT-CANARY-020' &gt; .cache</strong> writes the canary to a dotfile. <strong>ls -a</strong> lists it immediately: the leading dot only hides the name from the laziest listing. <strong>rm .cache</strong> removes it. Directory entries are inventoried; both obvious hiding places die to the default tools.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="cp report.pristine report.txt &amp;&amp; rm report.pristine
+echo &#x27;GHOSTLIGHT-CANARY-020&#x27; &gt; .cache
+ls -a
+rm .cache"><span data-label>COPY</span></button></div>
+<pre>$ cp report.pristine report.txt &amp;&amp; rm report.pristine
+echo 'GHOSTLIGHT-CANARY-020' &gt; .cache
+ls -a
+rm .cache
+.  ..  .cache  notes.txt  report.txt  xattr-baseline.sh</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div>
+              <h3>The attack: plant the xattr</h3>
+              <div class="prose"><p><strong>setfattr -n user.dead-drop -v GHOSTLIGHT-CANARY-020 report.txt</strong>: -n names the attribute, -v sets the value, and the unprivileged user.* namespace needs no special privilege. Silent success: the command prints nothing. The echo line is the attacker's own note: one xattr planted, zero byte changes.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="setfattr -n user.dead-drop -v GHOSTLIGHT-CANARY-020 report.txt
+echo &#x27;planted: one xattr, zero byte changes&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ setfattr -n user.dead-drop -v GHOSTLIGHT-CANARY-020 report.txt
+echo 'planted: one xattr, zero byte changes'
+planted: one xattr, zero byte changes</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">5</div>
+            <div>
+              <h3>The stealth sweep: five tools, five clean answers</h3>
+              <div class="prose"><p><strong>ls -l</strong>: still 52 bytes, the xattr adds nothing to the stream. <strong>cat</strong>: clean. <strong>file</strong>: ASCII text. <strong>stat -c '%s bytes'</strong>: 52 bytes. <strong>grep -r CANARY .</strong>: no match, and the fallback echo confirms it. Five independent standard inspections, all blind: none of them queries the xattr list.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="ls -l report.txt
+cat report.txt
+file report.txt
+stat -c &#x27;%s bytes&#x27; report.txt
+grep -r CANARY . || echo &#x27;grep: no match anywhere under .&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ ls -l report.txt
+cat report.txt
+file report.txt
+stat -c '%s bytes' report.txt
+grep -r CANARY . || echo 'grep: no match anywhere under .'
+-rw-rw---- 1 root root 52 Sep 24 15:19 report.txt
+Q3 capacity report
+Region: us-east
+Utilization: 61%
+report.txt: ASCII text
+52 bytes
+grep: no match anywhere under .</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">6</div>
+            <div>
+              <h3>The round trip: the attacker's retrieval</h3>
+              <div class="prose"><p><strong>getfattr -n user.dead-drop --only-values report.txt</strong> prints the canary. The data is really stored; the standard tools just never ask the second namespace. Whoever knows to ask gets the value in one command.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="getfattr -n user.dead-drop --only-values report.txt"><span data-label>COPY</span></button></div>
+<pre>$ getfattr -n user.dead-drop --only-values report.txt
+GHOSTLIGHT-CANARY-020</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">7</div>
+            <div>
+              <h3>Stealth confirmed</h3>
+              <div class="prose"><p>One echo line, the attacker's summary: the canary is stored, and no standard tool sees it. The listing and the bytes are the wrong evidence to read, which is exactly what the blue phase exploits.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &#x27;stealth confirmed: the canary is stored, and no standard tool sees it&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ echo 'stealth confirmed: the canary is stored, and no standard tool sees it'
+stealth confirmed: the canary is stored, and no standard tool sees it</pre>
+</div>
+              <div class="verdict red">
+                <span class="mlabel">Stealth confirmed</span>
+                <p>The canary was planted in user.dead-drop with setfattr; ls, cat, file, stat, and grep all reported the file clean; getfattr retrieved the canary in one command. The attack works because every standard inspection enumerates the directory entry or the byte stream, and the xattr is neither.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="phase-blue">
+          <div class="phase-head"><span class="phase-num">04</span><h2>Phase Blue: ask the second namespace</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">The defender does not trust the listing. The defender asks the xattr list directly, sweeps the whole tree with one command, captures evidence before stripping, and installs the baseline that flags the next plant.</p>
+          <div class="prose">
+            <p>Here is the trap: running ls -la, reading the file, finding nothing, and concluding the box is clean. That is trusting the directory entry and the byte stream the attacker just bypassed. The detection starts by asking the namespace the listing never checks.</p>
+          </div>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot blue" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">71.3s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/ink-blue.jpg" aria-label="Screen recording: INK BLUE, operator@lab">
+              <source src="../../assets/vid/ink-blue.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> The defender reveals the planted xattr with getfattr, sweeps the whole tree with one command, captures evidence before stripping, and installs the baseline diff that flags the next plant. Every command below is copy-pasteable.</figcaption>
+          </figure>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>DETECTION: the naive view</h3>
+              <div class="prose"><p><strong>cd /tmp/gh020</strong>, then <strong>ls -la</strong>: a clean lab, four files, nothing hidden. <strong>cat report.txt</strong>: a clean report. Stopping here is the attacker's win: the listing was never checking the xattr list, so a clean listing proves nothing.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="cd /tmp/gh020 &amp;&amp; ls -la
+cat report.txt"><span data-label>COPY</span></button></div>
+<pre>$ cd /tmp/gh020 &amp;&amp; ls -la
+cat report.txt
+total 12
+drwxrwx--- 2 root root 100 Sep 24 15:19 .
+drwxrwxrwt 3 root root  60 Sep 24 15:19 ..
+-rw-rw---- 1 root root  12 Sep 24 15:19 notes.txt
+-rw-rw---- 1 root root  52 Sep 24 15:19 report.txt
+-rwxrwx--- 1 root root 164 Sep 24 15:19 xattr-baseline.sh
+Q3 capacity report
+Region: us-east
+Utilization: 61%</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>DETECTION: ask the second namespace</h3>
+              <div class="prose"><p><strong>getfattr -d -m . report.txt</strong>: -d dumps, -m . matches every xattr name, so no prior knowledge of the xattr name is needed. The reveal: user.dead-drop="GHOSTLIGHT-CANARY-020". One command, asked of the right namespace.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="getfattr -d -m . report.txt"><span data-label>COPY</span></button></div>
+<pre>$ getfattr -d -m . report.txt
+# file: report.txt
+user.dead-drop="GHOSTLIGHT-CANARY-020"</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>DETECTION: the tree sweep, the runbook one-liner</h3>
+              <div class="prose"><p><strong>find . -type f -exec getfattr -d -m . {} +</strong>: every regular file under the tree, dumped. getfattr prints nothing for files with no xattrs, so the output lists only files that carry xattrs, with their values. One command, the whole tree. The tell, concrete: good is a file carrying no user.* xattr, or one the deployment put there on purpose; bad is a file carrying a user.* xattr it should not have.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="find . -type f -exec getfattr -d -m . {} +"><span data-label>COPY</span></button></div>
+<pre>$ find . -type f -exec getfattr -d -m . {} +
+# file: ./report.txt
+user.dead-drop="GHOSTLIGHT-CANARY-020"</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div>
+              <h3>DETECTION: the audit question</h3>
+              <div class="prose"><p><strong>command -v auditctl || echo 'no auditd in this lab'</strong>: the honest check first. Real output: no auditd in this lab. The rule for a real host is stated with its dependency, not demonstrated: <strong>auditctl -a always,exit -F arch=b64 -S setxattr -S lsetxattr -S fsetxattr -k xattr-write</strong> logs every xattr write, but it needs the audit subsystem enabled, and this lab, like many containers, lacks it. Where auditd runs, the good-versus-bad is concrete: good is a setxattr log line from a known deployment tool; bad is a setxattr from an unknown process on a user file.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="command -v auditctl || echo &#x27;no auditd in this lab&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ command -v auditctl || echo 'no auditd in this lab'
+no auditd in this lab</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">5</div>
+            <div>
+              <h3>MITIGATION: evidence first, then strip</h3>
+              <div class="prose"><p><strong>getfattr --dump report.txt &gt; evidence.txt</strong> captures the payload BEFORE the strip, because stripping destroys it; <strong>cat evidence.txt</strong> confirms the capture. <strong>setfattr -x user.dead-drop report.txt</strong> removes the xattr: the data lived only in the xattr, so removing the xattr removes the data. Verify: <strong>getfattr -d -m . report.txt</strong> prints nothing, and the tree sweep prints nothing. Scope: the sweep covered the whole tree, not just the known file.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="getfattr --dump report.txt &gt; evidence.txt
+cat evidence.txt
+setfattr -x user.dead-drop report.txt
+echo &#x27;--- after strip ---&#x27;
+getfattr -d -m . report.txt
+find . -type f -exec getfattr -d -m . {} +"><span data-label>COPY</span></button></div>
+<pre>$ getfattr --dump report.txt &gt; evidence.txt
+cat evidence.txt
+setfattr -x user.dead-drop report.txt
+echo '--- after strip ---'
+getfattr -d -m . report.txt
+find . -type f -exec getfattr -d -m . {} +
+# file: report.txt
+user.dead-drop="GHOSTLIGHT-CANARY-020"
+
+--- after strip ---</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">6</div>
+            <div>
+              <h3>PREVENTION: the baseline diff, demonstrated live</h3>
+              <div class="prose"><p>The durable control: <strong>./xattr-baseline.sh baseline.txt</strong> snapshots the cleaned tree; <strong>setfattr -n user.note -v GHOSTLIGHT-CANARY-020-B notes.txt</strong> plants a NEW canary on a different file; <strong>./xattr-baseline.sh current.txt</strong>; <strong>diff baseline.txt current.txt</strong> flags notes.txt and names the xattr. Demonstrated live, against this lab: the next plant is caught by the diff. Honest limit, stated now and repeated in the countermeasures: the baseline must be taken on a known-clean tree and kept off the watched tree in production; the poll interval sets the detection floor; this watches the xattr hiding place, not the other T1564 variants.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="./xattr-baseline.sh baseline.txt
+setfattr -n user.note -v GHOSTLIGHT-CANARY-020-B notes.txt
+./xattr-baseline.sh current.txt
+diff baseline.txt current.txt"><span data-label>COPY</span></button></div>
+<pre>$ ./xattr-baseline.sh baseline.txt
+setfattr -n user.note -v GHOSTLIGHT-CANARY-020-B notes.txt
+./xattr-baseline.sh current.txt
+diff baseline.txt current.txt
+0a1,2
+&gt; # file: ./notes.txt
+&gt; user.note="GHOSTLIGHT-CANARY-020-B"</pre>
+</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">7</div>
+            <div>
+              <h3>Verdict and cleanup</h3>
+              <div class="prose"><p>The summary, in the defender's own words: the xattr was found by asking the second namespace, stripped after the evidence was captured, and the baseline diff flags the next plant. <strong>rm -rf /tmp/gh020</strong> removes the lab; the echo confirms it is gone.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &#x27;detection verified: the xattr is found, stripped, and baselined&#x27;
+cd /tmp &amp;&amp; rm -rf /tmp/gh020 &amp;&amp; echo &#x27;lab cleaned&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ echo 'detection verified: the xattr is found, stripped, and baselined'
+cd /tmp &amp;&amp; rm -rf /tmp/gh020 &amp;&amp; echo 'lab cleaned'
+detection verified: the xattr is found, stripped, and baselined
+lab cleaned</pre>
+</div>
+              <div class="verdict green">
+                <span class="mlabel">Detection verified</span>
+                <p>getfattr revealed the planted xattr with no prior knowledge of its name; the one-line tree sweep listed every xattr-carrying file in the tree; evidence was captured before the strip; the post-strip sweep came back clean; the baseline diff flagged a newly planted canary on a different file. The listing and the bytes still say nothing. The second namespace does not agree.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="countermeasures">
+          <div class="phase-head"><span class="phase-num">05</span><h2>Countermeasures</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">Three moves, in order: strip with evidence first, sweep on a schedule, baseline the xattr list. Each is one way, not the way.</p>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Mitigate: capture, strip, re-sweep</h3>
+              <div class="prose"><p>Proven first against the live plant: <strong>getfattr --dump</strong> captures the payload into evidence.txt BEFORE the strip; <strong>setfattr -x</strong> removes the xattr, and with it the data, which lived only there; the per-file read and the tree sweep both confirm clean. A real response then hunts the delivery vector: how the xattr got set on the box is the incident's open question.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="getfattr --dump report.txt &gt; evidence.txt
+cat evidence.txt
+setfattr -x user.dead-drop report.txt
+echo &#x27;--- after strip ---&#x27;
+getfattr -d -m . report.txt
+find . -type f -exec getfattr -d -m . {} +"><span data-label>COPY</span></button></div>
+<pre>$ getfattr --dump report.txt &gt; evidence.txt
+cat evidence.txt
+setfattr -x user.dead-drop report.txt
+echo '--- after strip ---'
+getfattr -d -m . report.txt
+find . -type f -exec getfattr -d -m . {} +
+# file: report.txt
+user.dead-drop="GHOSTLIGHT-CANARY-020"
+
+--- after strip ---</pre>
+</div>
+              <div class="callout"><p><strong>Honest limit.</strong> Stripping destroys the payload, which is why the dump comes first; a response that strips before capturing has destroyed its own evidence. setfattr -x needs write permission on the file (ownership or root). The lab moves on after the strip for cleanliness; a real incident preserves evidence.txt and the original file for forensics instead.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>Monitor: sweep the tree on a schedule</h3>
+              <div class="prose"><p>The scheduled form of the phase-blue read: the <strong>find/getfattr one-liner</strong> walks the watched tree, and the tell is any file carrying a user.* xattr it should not have. Plus the <strong>auditd setxattr rule</strong>, stated with its dependency: it needs the audit subsystem enabled, which this lab and many containers lack. D3FEND <a href="https://d3fend.mitre.org/technique/d3f:FileIntegrityMonitoring/" rel="noopener">D3-FIM: File Integrity Monitoring</a> is the production form of the baseline. Honest note: default FIM and hash configs cover file bytes only; the config must explicitly include xattrs, because a hash of the bytes never sees them.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="find . -type f -exec getfattr -d -m . {} +"><span data-label>COPY</span></button></div>
+<pre>$ find . -type f -exec getfattr -d -m . {} +
+# file: ./report.txt
+user.dead-drop="GHOSTLIGHT-CANARY-020"</pre>
+</div>
+              <div class="callout"><p><strong>Honest limit.</strong> The sweep trusts the kernel to list xattrs honestly; a kernel-level rootkit can lie to getfattr, the GH-002 precedent, so this is one observation path, not the only one. The poll interval sets the detection floor: a plant that lands and is stripped between sweeps leaves no xattr behind, only the audit log, if auditd was watching. And the sweep watches the xattr hiding place, not the other T1564 variants.</p></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>Prevent: the baseline diff as a control</h3>
+              <div class="prose"><p>The demonstrated control: <strong>xattr-baseline.sh</strong> snapshots the xattr list of the whole tree, and the <strong>diff</strong> against the known-clean snapshot flags any new xattr, naming the file and the attribute. Run on a schedule, the next plant is caught by the diff, as the blue phase proved against this lab.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="./xattr-baseline.sh baseline.txt
+setfattr -n user.note -v GHOSTLIGHT-CANARY-020-B notes.txt
+./xattr-baseline.sh current.txt
+diff baseline.txt current.txt"><span data-label>COPY</span></button></div>
+<pre>$ ./xattr-baseline.sh baseline.txt
+setfattr -n user.note -v GHOSTLIGHT-CANARY-020-B notes.txt
+./xattr-baseline.sh current.txt
+diff baseline.txt current.txt
+0a1,2
+&gt; # file: ./notes.txt
+&gt; user.note="GHOSTLIGHT-CANARY-020-B"</pre>
+</div>
+              <div class="callout"><p><strong>Honest limit.</strong> The baseline must be taken on a known-clean tree: a snapshot of a dirty tree bakes the attacker's xattrs into "clean". Production copies of the baseline live off the watched tree, where the attacker cannot rewrite them. And the diff catches the xattr variant only; hidden files, hidden users, and the other T1564 hiding places need their own watches.</p></div>
+              <div class="verdict green">
+                <span class="mlabel">Countermeasures verified</span>
+                <p>The payload was captured before the strip, the strip removed the data with the xattr, the tree sweep confirmed clean; the scheduled sweep names its tell; the baseline diff flagged a newly planted canary on a different file. Every control names its bypass: the sweep trusts the kernel, the poll interval sets the floor, the baseline needs a known-clean start, and default FIM configs miss xattrs unless told to look.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="debrief">
+          <div class="phase-head"><span class="phase-num">06</span><h2>Debrief</h2><span class="phase-tag neutral">TAKEAWAY</span></div>
+          <p class="takeaway">When the listing and the bytes both say clean, ask the inode's second namespace: the xattr list is storage the default tools never inventory.</p>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">IOC checklist: signs this technique was used</span></p></div>
+          <ul class="checklist">
+            <li><span>A file carrying a <strong>user.* extended attribute</strong> it should not have, especially names that read like dead drops</span></li>
+            <li><span><strong>setxattr syscalls from unknown processes</strong> (the auditd xattr-write key), on hosts where the audit subsystem is enabled</span></li>
+            <li><span><strong>Baseline diffs flagging new xattrs</strong> on previously clean files</span></li>
+            <li><span><strong>Xattr values holding tokens, URLs, or encoded blobs</strong> on ordinary documents</span></li>
+            <li><span><strong>No xattr checks in the existing playbooks</strong>: the absence of the question is itself the gap</span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Reproducibility checklist</span></p></div>
+          <ul class="checklist">
+            <li><span>Verified on <strong>Ubuntu 24.04.5 LTS</strong>, x86-64, on 2026-09-24</span></li>
+            <li><span>Both recordings are real executions on that platform, not simulations</span></li>
+            <li><span>Runs as root in a disposable namespace (the lab plants its own canary; the assumed breach: something on the box set the xattr)</span></li>
+            <li><span>Cleanup: <strong>rm -rf /tmp/gh020</strong>; verify with <strong>ls /tmp</strong></span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Sources</span></p></div>
+          <div class="prose"><p><a href="https://attack.mitre.org/techniques/T1564/014/" rel="noopener">MITRE ATT&amp;CK T1564.014: Hide Artifacts: Extended Attributes</a><br>
+          <a href="https://attack.mitre.org/techniques/T1564/" rel="noopener">MITRE ATT&amp;CK T1564: Hide Artifacts</a> (the parent technique)<br>
+          <a href="https://man7.org/linux/man-pages/man5/attr.5.html" rel="noopener">attr(5)</a>, <a href="https://man7.org/linux/man-pages/man1/setfattr.1.html" rel="noopener">setfattr(1)</a>, <a href="https://man7.org/linux/man-pages/man1/getfattr.1.html" rel="noopener">getfattr(1)</a><br>
+          <a href="https://d3fend.mitre.org/technique/d3f:FileIntegrityMonitoring/" rel="noopener">D3FEND D3-FIM: File Integrity Monitoring</a></p></div>
+        </section>
+
+        <a class="next-file" href="../019-open-permissions/index.html">
+          <span class="mlabel">Next file</span>
+          <h3>GH-019 The Open Door</h3>
+          <p>The next file loosens a permission bit and walks through what changes.</p>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <div>
+      <div class="footer-brand">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+        <span class="brand-name" style="font-size:17px">GHOSTLIGHT</span>
+      </div>
+      <p class="footer-note">An independent adversary-stealth research publication. Every command verified on the named OS before publishing. No trackers, no frameworks, no autoplay.</p>
+    </div>
+    <nav class="footer-links">
+      <a href="../../method.html">METHOD</a>
+      <a href="../../index.html">FILES</a>
+      <a href="https://attack.mitre.org/tactics/TA0005/" rel="noopener">MITRE TA0005</a>
+    </nav>
+    <div class="footer-elsewhere">
+      <span class="mlabel">Elsewhere</span><a href="https://dillingerstaffing.github.io/portfolio/" target="_blank" rel="noopener">Portfolio</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/proving-ground/" target="_blank" rel="noopener">Proving Ground</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/tapeout/" target="_blank" rel="noopener">Tapeout</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/old-iron/" target="_blank" rel="noopener">Old Iron</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/unstuck/" target="_blank" rel="noopener">Unstuck</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../../assets/site.js?v=512f8825"></script>
+</body>
+</html>

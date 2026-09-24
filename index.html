@@ -33,7 +33,7 @@
   }
 })();
 </script>
-<link rel="stylesheet" href="assets/site.css?v=36a0084f">
+<link rel="stylesheet" href="assets/site.css?v=bca2bb86">
 <meta property="og:title" content="GHOSTLIGHT: adversary stealth, demonstrated then shut down">
 <meta property="og:description" content="Every MITRE ATT&CK Stealth technique reproduced in the open, then shut down one way among many. Lab-run commands, reproducible steps.">
 <meta property="og:type" content="website">
@@ -77,7 +77,7 @@
   <section class="hero">
       <div class="wrap">
         <div class="doc-head reveal">
-          <span>Field dossier</span><span>TA0005 // Stealth</span><span>File 018 of 030</span>
+          <span>Field dossier</span><span>TA0005 // Stealth</span><span>File 020 of 030</span>
           <span class="doc-status">Status: active</span>
         </div>
         <h1 class="reveal">Every stealth<br>technique has<br><span class="ember">a tell.</span></h1>
@@ -87,7 +87,7 @@
           <a class="btn" href="method.html">The method</a>
         </div>
         <dl class="hero-specs reveal">
-          <div><dt>Case files open</dt><dd class="hot">018</dd></div>
+          <div><dt>Case files open</dt><dd class="hot">019</dd></div>
           <div><dt>Techniques in scope</dt><dd>030</dd></div>
           <div><dt>Phases per file</dt><dd>006</dd></div>
           <div><dt>Adversary steps lab-run</dt><dd>100%</dd></div>
@@ -541,6 +541,30 @@
           <span class="file-arrow">&rarr;</span>
         </span>
       </article>
+      <article class="mission-card reveal" data-op="020" data-platform="linux"
+         data-search="GH-020 T1564.014 extended attributes xattr invisible ink getfattr setfattr baseline diff file integrity monitoring linux ubuntu">
+        <a class="card-open" href="ops/020-invisible-ink/index.html" aria-label="Open file GH-020: The Invisible Ink">
+        <span class="file-index">020</span>
+        <span class="file-main">
+          <span class="file-top">
+            <span class="case-no">GH-020</span>
+            <span class="tech-id">T1564.014</span>
+          </span>
+          <span class="file-title">The Invisible Ink</span>
+          <span class="file-desc">A canary planted in a file's extended attributes is invisible to ls, cat, file, stat, and grep. The defender asks the second namespace with getfattr, sweeps the tree with one command, and installs the baseline diff that flags the next plant.</span>
+          <span class="file-meta">
+            <span class="meta-item"><span class="mlabel">Target</span><span class="mvalue">Ubuntu 24.04</span></span>
+            <span class="meta-item"><span class="mlabel">Level</span><span class="mvalue">Beginner</span></span>
+            <span class="meta-item"><span class="mlabel">Time</span><span class="mvalue">20 min</span></span>
+          </span>
+        </span>
+        </a>
+        <span class="file-side">
+          <span class="status-chip">Unread</span>
+          <a class="resume-chip" href="ops/020-invisible-ink/index.html#resume">Resume</a>
+          <span class="file-arrow">&rarr;</span>
+        </span>
+      </article>
       <div class="empty-state" role="status">
         <p class="mlabel" style="margin-bottom:12px">No files match</p>
         <p>Nothing in the archive matches that query. New case files land regularly.</p>
@@ -577,7 +601,7 @@
   </div>
 </footer>
 
-<script src="assets/site.js?v=512f8825"></script>
+<script src="assets/site.js?v=78fb8790"></script>
 <script>
 document.getElementById("clear-filters").addEventListener("click", function () {
   var input = document.querySelector("[data-search-input]");
