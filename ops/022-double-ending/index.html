@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>GH-022 The Double Ending (T1036.007): GHOSTLIGHT</title>
+<meta name="description" content="T1036.007 Double File Extension, reproduced on Ubuntu 24.04: an attacker names a benign shell script quarterly-report.pdf.sh and it runs as code while dressed as a document; file(1) reads the bytes and says script. The defender hunts the name/bytes mismatch with one grep one-liner, captures evidence before stripping the execute bit, and installs the scheduled sweep that flags the next deceptive name.">
+<link rel="canonical" href="https://dillingerstaffing.github.io/ghostlight/ops/022-double-ending/">
+<meta property="og:title" content="GH-022 The Double Ending (T1036.007): GHOSTLIGHT">
+<meta property="og:description" content="T1036.007 Double File Extension, reproduced on Ubuntu 24.04: an attacker names a benign shell script quarterly-report.pdf.sh and it runs as code while dressed as a document; file(1) reads the bytes and says script. The defender hunts the name/bytes mismatch with one grep one-liner, captures evidence before stripping the execute bit, and installs the scheduled sweep that flags the next deceptive name.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dillingerstaffing.github.io/ghostlight/ops/022-double-ending/">
+<meta property="og:site_name" content="GHOSTLIGHT">
+<meta property="og:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="GH-022 The Double Ending (T1036.007): GHOSTLIGHT">
+<meta name="twitter:description" content="T1036.007 Double File Extension, reproduced on Ubuntu 24.04: an attacker names a benign shell script quarterly-report.pdf.sh and it runs as code while dressed as a document; file(1) reads the bytes and says script. The defender hunts the name/bytes mismatch with one grep one-liner, captures evidence before stripping the execute bit, and installs the scheduled sweep that flags the next deceptive name.">
+<meta name="twitter:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23ece6d5'/%3E%3Ccircle cx='256' cy='196' r='104' fill='none' stroke='%23241f17' stroke-width='20'/%3E%3Cline x1='256' y1='152' x2='256' y2='240' stroke='%238c3f22' stroke-width='16'/%3E%3Cline x1='256' y1='300' x2='256' y2='424' stroke='%23241f17' stroke-width='14'/%3E%3Cline x1='200' y1='424' x2='312' y2='424' stroke='%23241f17' stroke-width='18'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+<link rel="manifest" href="../../assets/manifest.webmanifest">
+<meta name="theme-color" content="#0a0c0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GHOSTLIGHT">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<script>
+(function () {
+  // Theme: notebook is the default; a stored visitor choice wins.
+  // Runs before the stylesheet is parsed so the first paint is already
+  // the right theme (no flash of the wrong one).
+  try {
+    var t = localStorage.getItem('emi-site-theme');
+    var theme = t === 'classic' ? 'classic' : 'notebook';
+    document.documentElement.dataset.theme = theme;
+    var m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute('content', theme === 'classic' ? '#0a0c0f' : '#ece6d5');
+  } catch (e) {
+    document.documentElement.dataset.theme = 'notebook';
+  }
+})();
+</script>
+<link rel="stylesheet" href="../../assets/site.css?v=36a0084f">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"GH-022 The Double Ending (T1036.007): GHOSTLIGHT",
+"url":"https://dillingerstaffing.github.io/ghostlight/ops/022-double-ending/","description":"T1036.007 Double File Extension, reproduced on Ubuntu 24.04: an attacker names a benign shell script quarterly-report.pdf.sh and it runs as code while dressed as a document; file(1) reads the bytes and says script. The defender hunts the name/bytes mismatch with one grep one-liner, captures evidence before stripping the execute bit, and installs the scheduled sweep that flags the next deceptive name.",
+"author":{"@type":"Person","name":"Chris Dillinger","url":"https://www.linkedin.com/in/christopherdillinger/"},
+"inLanguage":"en"}
+</script>
+</head>
+<body>
+
+<header class="site-header">
+  <a class="brand" href="../../index.html" aria-label="GHOSTLIGHT home">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+    <span class="brand-name">GHOSTLIGHT</span>
+  </a>
+  <nav class="site-nav">
+    <a href="../../method.html">METHOD</a>
+    <a href="../../index.html">FILES</a>
+    <button class="theme-toggle" type="button" aria-label="Switch to dark field dossier theme" title="Switch theme">
+      <span class="theme-toggle-mark" aria-hidden="true"><i></i><i></i></span>
+    </button>
+  </nav>
+</header>
+
+<div class="onboard" data-onboard hidden>
+  <span><strong>How to read a file:</strong> every file follows the six-phase structure below. <span class="k-green">Green</span> is verified, <span class="k-red">red</span> is hostile.</span>
+  <button aria-label="Dismiss">GOT IT</button>
+</div>
+
+<div class="page" data-op="022">
+  <div class="wrap">
+    <section class="op-hero">
+      <div class="op-kicker">
+        <span class="case-no">GH-022</span>
+        <a class="tech-id" href="https://attack.mitre.org/techniques/T1036/007/" rel="noopener">T1036.007</a>
+        <span class="phase-tag red">PHASE RED INSIDE</span>
+      </div>
+      <h1>The Double Ending</h1>
+      <p class="lede">A filename is the only part of a file most people ever read. This file plants a benign canary in a script named quarterly-report.pdf.sh, watches the listing read it as a document while the kernel executes the bytes as a script, then the defense asks the bytes with file, hunts the mismatch with one command, captures evidence before closing the execution path, and installs the sweep that flags the next double extension.</p>
+      <div class="op-meta-grid">
+        <div class="op-meta"><span class="mlabel">Technique</span><span class="mvalue">Double File Extension (T1036.007)</span></div>
+        <div class="op-meta"><span class="mlabel">Target OS</span><span class="mvalue">Ubuntu 24.04.5 LTS</span></div>
+        <div class="op-meta"><span class="mlabel">Toolchain</span><span class="mvalue">coreutils, file(1)</span></div>
+        <div class="op-meta"><span class="mlabel">Level</span><span class="mvalue">Beginner</span></div>
+        <div class="op-meta"><span class="mlabel">Time</span><span class="mvalue">20 min</span></div>
+      </div>
+      <div class="objectives">
+        <h2>OBJECTIVES</h2>
+        <ol>
+          <li data-phase="phase-red"><span class="box"></span>Name a benign script quarterly-report.pdf.sh and confirm the listing reads document while the kernel runs code</li>
+          <li data-phase="phase-blue"><span class="box"></span>Ask the bytes with file, hunt the mismatch with one grep one-liner, capture evidence, and strip the execute bit</li>
+          <li data-phase="countermeasures"><span class="box"></span>Install the scheduled sweep as the durable control, and state every control's bypass honestly</li>
+          <li data-phase="debrief"><span class="box"></span>Take the IOC checklist and the one-sentence lesson</li>
+        </ol>
+      </div>
+    </section>
+
+    <div class="op-layout">
+      <nav class="rail" aria-label="Phases">
+        <span class="mlabel">Phases</span>
+        <ol>
+          <li><a href="#intel-brief"><span class="pnum">01</span>INTEL BRIEF<span class="tick"></span></a></li>
+          <li><a href="#target-environment"><span class="pnum">02</span>TARGET ENV<span class="tick"></span></a></li>
+          <li><a href="#phase-red"><span class="pnum">03</span>PHASE RED<span class="tick"></span></a></li>
+          <li><a href="#phase-blue"><span class="pnum">04</span>PHASE BLUE<span class="tick"></span></a></li>
+          <li><a href="#countermeasures"><span class="pnum">05</span>COUNTERMEASURES<span class="tick"></span></a></li>
+          <li><a href="#debrief"><span class="pnum">06</span>DEBRIEF<span class="tick"></span></a></li>
+        </ol>
+      </nav>
+
+      <div class="op-content">
+        <section class="phase" id="intel-brief">
+          <div class="phase-head"><span class="phase-num">01</span><h2>Intel Brief</h2><span class="phase-tag neutral">CONTEXT</span></div>
+          <p class="lede">MITRE ATT&amp;CK <a href="https://attack.mitre.org/techniques/T1036/007/" rel="noopener">T1036.007</a>: adversaries deceive by giving a hostile file a double extension, so the name claims one type while the bytes are another. This file names a benign shell script quarterly-report.pdf.sh, watches a directory listing read it as a document, watches file(1) read the bytes and say script, and runs the script to prove the kernel executes the bytes, not the name. Then the defense: ask the bytes, hunt the name/bytes mismatch across the tree with one command, capture evidence before stripping the execute bit, and install the scheduled sweep that flags the next plant. Two actors: the attacker, who owns the deceptive name and the execution; and the defender, who owns the file reads, the mismatch hunt, the evidence-first mitigation, and the sweep in the blue phase.</p>
+          <div class="prose">
+            <p><strong>Why this technique.</strong> People read names left to right and stop at the first familiar extension. The kernel does not read names at all: it resolves execution from the file's bytes, starting with the shebang line. A name that claims PDF on a file whose bytes say shell script deceives exactly the reader who never checks the bytes, which is most readers, most of the time. The hiding place is not a tool bug; it is the gap between human reading order and kernel execution order.</p>
+            <p><strong>Why not the honest name.</strong> The obvious alternative is notes.sh: same 37 bytes, one truthful extension. Break it on the concrete input: file says POSIX shell script, cat shows the script body, the name says script. Name, bytes, and content all agree, so there is no divergence for a deception to live in. The recording shows the measurement: the honest name leaves anyone reading the listing fully informed before anything runs. The double extension fixes exactly that failure: it makes the name disagree with the bytes, and the disagreement is what the eye skips.</p>
+            <p><strong>The mechanism, in one line.</strong> A <strong>file extension</strong> is the suffix after the last dot, a naming convention, not a property of the file: nothing in the bytes changes when the name changes. <strong>Magic bytes</strong> are the file's first bytes, which <strong>file(1)</strong> reads to identify the real type. The <strong>shebang</strong> is the #! first line, which tells the kernel which interpreter runs the file. The double extension exploits the reader, not the kernel: the eye lands on "quarterly-report.pdf" and stops, while the kernel reads #!/bin/sh and executes. Terms earned, no borrowing.</p>
+            <p><strong>The concrete case, before the abstraction.</strong> In /tmp/gh022: quarterly-report.pdf.sh, 37 bytes. ls -1 prints two names, and the attacker's name reads as a PDF report. file quarterly-report.pdf.sh: POSIX shell script, ASCII text executable. ./quarterly-report.pdf.sh prints GHOSTLIGHT-CANARY-022. Named as a document, ran as code. That gap, between what the name claims and what the bytes are, is the whole technique.</p>
+          </div>
+          <div class="callout"><p><strong>Scope.</strong> T1036 covers masquerading broadly: matching legitimate names or locations, right-to-left override, fake icons, double extensions, faked magic bytes. This file works the double-extension case end to end: the plant, the listing deception, the bytes check, the mismatch hunt, the evidence-first mitigation, and the scheduled sweep. The canary is a benign token: it proves execution and touches nothing else. The lab runs in a disposable namespace under /tmp because the blue phase plants, strips, and sweeps for real.</p></div>
+        </section>
+
+        <section class="phase" id="target-environment">
+          <div class="phase-head"><span class="phase-num">02</span><h2>Target Environment</h2><span class="phase-tag neutral">LOADOUT</span></div>
+          <p class="lede">Ubuntu 24.04.5 LTS, x86-64, in a disposable namespace used only for this lab. Runs as root: the lab plants its own files, and every blue-phase read targets the live lab. Everything the lab touches lives inside /tmp/gh022, so cleanup is a single rm. file(1) ships in the file package; everything else is coreutils.</p>
+<div class="step">
+<div class="step-num">1</div>
+<div>
+<h3>Build the lab</h3>
+<div class="prose"><p>One disposable directory, built from scratch. The attacker's file and the honest control are written in full below, each line glossed after it. <strong>rm -rf /tmp/gh022</strong> starts clean; <strong>mkdir -p</strong> and <strong>cd</strong> set up the lab. <strong>printf</strong> writes each script: the <strong>shebang</strong> line plus <strong>echo GHOSTLIGHT-CANARY-022</strong>; <strong>\n</strong> is printf's newline escape, which is why each file lands as two lines. <strong>chmod +x</strong> makes both executable; <strong>ls -l</strong> shows the lab.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">quarterly-report.pdf.sh</span></div>
+<pre>#!/bin/sh
+echo GHOSTLIGHT-CANARY-022</pre>
+</div>
+<div class="prose"><p><strong>#!/bin/sh</strong>: the shebang, the #! first line that tells the kernel to run this file with /bin/sh. <strong>echo GHOSTLIGHT-CANARY-022</strong>: prints the benign canary, a token that proves the file executed and does nothing else. Thirty-seven bytes, identical in both files: the only difference between the attacker's file and the control is the name.</p></div>
+</div>
+</div>
+</section>
+
+        <section class="phase" id="phase-red">
+          <div class="phase-head"><span class="phase-num">03</span><h2>Phase Red: the document that runs</h2><span class="phase-tag red">ATTACK</span></div>
+          <p class="lede">The attacker names a script like a document, watches the listing agree, and runs the bytes.</p>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">46.3s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/double-red.jpg" aria-label="Screen recording: DOUBLE RED, operator@lab">
+              <source src="../../assets/vid/double-red.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> A script named quarterly-report.pdf.sh reads as a document in the listing and runs as code. Every command below is copy-pasteable.</figcaption>
+          </figure>
+<div class="step">
+<div class="step-num">1</div>
+<div>
+<h3>Build the lab</h3>
+<div class="prose"><p><strong>rm -rf /tmp/gh022</strong> starts clean; <strong>mkdir -p</strong> and <strong>cd</strong> set up the lab directory. <strong>printf</strong> writes both scripts, the shebang plus the canary echo; <strong>chmod +x</strong> makes both executable; <strong>ls -l</strong> shows the lab: two 37-byte scripts. Everything the page shows is built here.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="rm -rf /tmp/gh022; mkdir -p /tmp/gh022; cd /tmp/gh022
+printf &#x27;#!/bin/sh\necho GHOSTLIGHT-CANARY-022\n&#x27; &gt; quarterly-report.pdf.sh
+printf &#x27;#!/bin/sh\necho GHOSTLIGHT-CANARY-022\n&#x27; &gt; notes.sh
+chmod +x quarterly-report.pdf.sh notes.sh
+ls -l"><span data-label>COPY</span></button></div>
+<pre>$ rm -rf /tmp/gh022; mkdir -p /tmp/gh022; cd /tmp/gh022
+printf '#!/bin/sh\necho GHOSTLIGHT-CANARY-022\n' &gt; quarterly-report.pdf.sh
+printf '#!/bin/sh\necho GHOSTLIGHT-CANARY-022\n' &gt; notes.sh
+chmod +x quarterly-report.pdf.sh notes.sh
+ls -l
+total 8
+-rwxrwx--- 1 root root 37 Sep 25 12:34 notes.sh
+-rwxrwx--- 1 root root 37 Sep 25 12:34 quarterly-report.pdf.sh</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">2</div>
+<div>
+<h3>The honest control: name, bytes, and content agree</h3>
+<div class="prose"><p><strong>file notes.sh</strong>: POSIX shell script, ASCII text executable. <strong>cat notes.sh</strong>: the shebang and the echo, the script body in plain sight. The name says script, the bytes say script, the content is a script. There is no name/bytes divergence here, so the stealth property is absent: anyone reading the listing sees a script before running it.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="file notes.sh
+cat notes.sh"><span data-label>COPY</span></button></div>
+<pre>$ file notes.sh
+cat notes.sh
+notes.sh: POSIX shell script, ASCII text executable
+#!/bin/sh
+echo GHOSTLIGHT-CANARY-022</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">3</div>
+<div>
+<h3>The attack, the listing</h3>
+<div class="prose"><p><strong>ls -1</strong>: two names, one column. Read left to right, the eye lands on "quarterly-report.pdf" and stops: the trailing ".sh" is three characters at the end of a twenty-four-character name. Nothing in the listing marks the file as code.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="ls -1"><span data-label>COPY</span></button></div>
+<pre>$ ls -1
+notes.sh
+quarterly-report.pdf.sh</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">4</div>
+<div>
+<h3>Ask the bytes</h3>
+<div class="prose"><p><strong>file quarterly-report.pdf.sh</strong>: POSIX shell script, ASCII text executable. The name claims PDF; the bytes say script. This is the divergence the honest name lacked.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="file quarterly-report.pdf.sh"><span data-label>COPY</span></button></div>
+<pre>$ file quarterly-report.pdf.sh
+quarterly-report.pdf.sh: POSIX shell script, ASCII text executable</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">5</div>
+<div>
+<h3>Execute</h3>
+<div class="prose"><p><strong>./quarterly-report.pdf.sh</strong> prints GHOSTLIGHT-CANARY-022. The kernel read the shebang and ran the script. It ran as code while dressed as a document.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="./quarterly-report.pdf.sh"><span data-label>COPY</span></button></div>
+<pre>$ ./quarterly-report.pdf.sh
+GHOSTLIGHT-CANARY-022</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">6</div>
+<div>
+<h3>Stealth confirmed</h3>
+<div class="prose"><p>One echo line, the attacker's summary: ran as code, named as document. The deception lived entirely in the name; no byte was hidden, no privilege was touched.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &#x27;stealth confirmed: ran as code, named as document&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ echo 'stealth confirmed: ran as code, named as document'
+stealth confirmed: ran as code, named as document</pre>
+</div>
+<div class="verdict red">
+<span class="mlabel">Stealth confirmed</span>
+<p>The script ran as code under a document's name. ls read the name left to right and stopped at .pdf; file read the bytes and said shell script; the kernel executed the shebang. The deception lived entirely in the name: no byte was hidden, no privilege was touched.</p>
+</div></div>
+</div>
+
+        </section>
+
+        <section class="phase" id="phase-blue">
+          <div class="phase-head"><span class="phase-num">04</span><h2>Phase Blue: ask the bytes</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">The defender does not trust the name. The defender reads the bytes, hunts the mismatch across the tree, captures evidence before closing the execution path, and installs the sweep that flags the next plant.</p>
+          <div class="prose">
+            <p>Here is the trap: reading the listing, seeing a PDF report, and moving on. That is trusting the name the attacker chose. The detection starts by asking the bytes, which the attacker did not choose.</p>
+          </div>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot blue" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">84.2s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/double-blue.jpg" aria-label="Screen recording: DOUBLE BLUE, operator@lab">
+              <source src="../../assets/vid/double-blue.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> The defender exposes the script with file, hunts the mismatch with one command, captures evidence before stripping the execute bit, and proves the sweep flags the next plant. Every command below is copy-pasteable.</figcaption>
+          </figure>
+<div class="step">
+<div class="step-num">1</div>
+<div>
+<h3>DETECTION: the naive view</h3>
+<div class="prose"><p><strong>cd /tmp/gh022 &amp;&amp; ls -l</strong>: a clean lab, two 37-byte scripts, nothing hidden. Stopping here is the attacker's win: the listing was never checking the bytes, so a clean listing proves nothing.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="cd /tmp/gh022 &amp;&amp; ls -l"><span data-label>COPY</span></button></div>
+<pre>$ cd /tmp/gh022 &amp;&amp; ls -l
+total 8
+-rwxrwx--- 1 root root 37 Sep 25 12:34 notes.sh
+-rwxrwx--- 1 root root 37 Sep 25 12:34 quarterly-report.pdf.sh</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">2</div>
+<div>
+<h3>DETECTION: ask the bytes</h3>
+<div class="prose"><p><strong>file quarterly-report.pdf.sh</strong> reveals the shell script behind the PDF name. The name is a claim; the bytes are evidence. No prior knowledge of the trick is needed: file reads the bytes, not the name.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="file quarterly-report.pdf.sh"><span data-label>COPY</span></button></div>
+<pre>$ file quarterly-report.pdf.sh
+quarterly-report.pdf.sh: POSIX shell script, ASCII text executable</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">3</div>
+<div>
+<h3>DETECTION: the mismatch hunt, the runbook one-liner</h3>
+<div class="prose"><p><strong>ls -1 | grep -E '\..*\.'</strong> flags every name carrying two or more dots and passes over notes.sh, the single-dot control. One command, the whole directory. The tell, concrete: good is a name with one truthful extension; bad is a name whose extensions disagree with the bytes.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="ls -1 | grep -E &#x27;\..*\.&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ ls -1 | grep -E '\..*\.'
+quarterly-report.pdf.sh</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">4</div>
+<div>
+<h3>DETECTION: the audit question</h3>
+<div class="prose"><p><strong>command -v auditctl</strong> answers /usr/sbin/auditctl: the audit tools are present in this lab. The rule for a real host is stated with its dependency, not demonstrated: <strong>auditctl -a always,exit -F arch=b64 -S execve -k execs</strong> records what actually executed regardless of the name, but it needs the audit subsystem enabled and its rules loaded. Where it runs, the good-versus-bad is concrete: good is an execve of a known deployment path; bad is an execve whose path contradicts the name the user saw.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="command -v auditctl || echo &#x27;no auditd in this lab&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ command -v auditctl || echo 'no auditd in this lab'
+/usr/sbin/auditctl</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">5</div>
+<div>
+<h3>MITIGATION: evidence first, then strip</h3>
+<div class="prose"><p><strong>mkdir -p evidence &amp;&amp; sha256sum quarterly-report.pdf.sh | tee evidence/hash.txt &amp;&amp; cp quarterly-report.pdf.sh evidence/</strong> captures the hash and the file BEFORE the strip, because closing the execution path comes next. <strong>chmod -x quarterly-report.pdf.sh</strong> strips the execute bit. Verify: <strong>./quarterly-report.pdf.sh</strong> fails with Permission denied, rc 126, recorded honestly. The execution path is closed; the evidence is preserved. Scope: the mismatch hunt covered the directory.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="mkdir -p evidence &amp;&amp; sha256sum quarterly-report.pdf.sh | tee evidence/hash.txt &amp;&amp; cp quarterly-report.pdf.sh evidence/
+chmod -x quarterly-report.pdf.sh
+./quarterly-report.pdf.sh"><span data-label>COPY</span></button></div>
+<pre>$ mkdir -p evidence &amp;&amp; sha256sum quarterly-report.pdf.sh | tee evidence/hash.txt &amp;&amp; cp quarterly-report.pdf.sh evidence/
+chmod -x quarterly-report.pdf.sh
+./quarterly-report.pdf.sh
+eb4f11ff28e29dd873ab052d324811c77d44c625e0bb03302c31f4b213482a30  quarterly-report.pdf.sh
+bash: ./quarterly-report.pdf.sh: Permission denied</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">6</div>
+<div>
+<h3>PREVENTION: the scheduled sweep</h3>
+<div class="prose"><p>The heredoc writes <strong>sweep.sh</strong>: <strong>ls -1 "${1:-.}"</strong> lists the target directory, defaulting to the current one, and <strong>grep -E '\..*\.'</strong> keeps only the names carrying two or more dots. <strong>chmod +x</strong>; <strong>./sweep.sh .</strong> flags quarterly-report.pdf.sh. Honest note, shown live: the attacker's file lost its +x but keeps its name, so it still flags. The name is still deceptive; the execution is closed. The sweep watches names, not permissions.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="cat &gt; sweep.sh &lt;&lt;&#x27;EOF&#x27;
+#!/bin/sh
+# mismatch-sweep: flag names carrying two or more extensions.
+# Run on arrival and download trees; any hit gets file(1) before it gets executed.
+ls -1 &quot;${1:-.}&quot; | grep -E &#x27;\..*\.&#x27;
+EOF
+chmod +x sweep.sh
+./sweep.sh ."><span data-label>COPY</span></button></div>
+<pre>$ cat &gt; sweep.sh &lt;&lt;'EOF'
+#!/bin/sh
+# mismatch-sweep: flag names carrying two or more extensions.
+# Run on arrival and download trees; any hit gets file(1) before it gets executed.
+ls -1 "${1:-.}" | grep -E '\..*\.'
+EOF
+chmod +x sweep.sh
+./sweep.sh .
+quarterly-report.pdf.sh</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">7</div>
+<div>
+<h3>PREVENTION: the next plant, demonstrated live</h3>
+<div class="prose"><p><strong>printf</strong> plants a NEW arrival, invoice.pdf.sh, and <strong>chmod +x</strong> arms it. <strong>./sweep.sh .</strong> flags both deceptive names. The next plant is caught by the sweep, demonstrated live against this lab. Honest limit: this catches the naive double extension, not T1036.008 (faked magic bytes) or a single-extension lie; the poll interval sets the detection floor.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="printf &#x27;#!/bin/sh\necho GHOSTLIGHT-CANARY-022\n&#x27; &gt; invoice.pdf.sh &amp;&amp; chmod +x invoice.pdf.sh
+./sweep.sh ."><span data-label>COPY</span></button></div>
+<pre>$ printf '#!/bin/sh\necho GHOSTLIGHT-CANARY-022\n' &gt; invoice.pdf.sh &amp;&amp; chmod +x invoice.pdf.sh
+./sweep.sh .
+invoice.pdf.sh
+quarterly-report.pdf.sh</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">8</div>
+<div>
+<h3>Verdict and cleanup</h3>
+<div class="prose"><p>The summary, in the defender's own words: the name is a claim, the bytes are evidence. <strong>rm -rf /tmp/gh022</strong> removes the lab.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &#x27;detection verified: the name is a claim, the bytes are evidence&#x27;
+cd /tmp &amp;&amp; rm -rf /tmp/gh022 &amp;&amp; ls /tmp"><span data-label>COPY</span></button></div>
+<pre>$ echo 'detection verified: the name is a claim, the bytes are evidence'
+cd /tmp &amp;&amp; rm -rf /tmp/gh022 &amp;&amp; ls /tmp
+detection verified: the name is a claim, the bytes are evidence</pre>
+</div>
+<div class="verdict green">
+<span class="mlabel">Detection verified</span>
+<p>file exposed the shell script behind the PDF name; the one-line mismatch hunt flagged every two-dot name in the tree; evidence was hashed and copied before the execute bit was stripped; the stripped file failed with Permission denied; the sweep flagged the decommissioned plant and a newly planted arrival. The name is a claim; the bytes are evidence.</p>
+</div></div>
+</div>
+
+        </section>
+
+        <section class="phase" id="countermeasures">
+          <div class="phase-head"><span class="phase-num">05</span><h2>Countermeasures</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">Three moves, in order: close execution with evidence first, sweep on a schedule, enforce an execution policy. Each is one way, not the way.</p>
+<div class="step">
+<div class="step-num">1</div>
+<div>
+<h3>Mitigate: capture, strip, re-sweep</h3>
+<div class="prose"><p>Proven first against the live plant: <strong>sha256sum | tee</strong> and <strong>cp</strong> capture the hash and the file into evidence/ BEFORE the strip; <strong>chmod -x</strong> closes the execution path; the failed re-execution (Permission denied, rc 126) and the mismatch hunt confirm scope. A real response then hunts the delivery vector: how the file arrived is the incident's open question.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="mkdir -p evidence &amp;&amp; sha256sum quarterly-report.pdf.sh | tee evidence/hash.txt &amp;&amp; cp quarterly-report.pdf.sh evidence/
+chmod -x quarterly-report.pdf.sh
+./quarterly-report.pdf.sh"><span data-label>COPY</span></button></div>
+<pre>$ mkdir -p evidence &amp;&amp; sha256sum quarterly-report.pdf.sh | tee evidence/hash.txt &amp;&amp; cp quarterly-report.pdf.sh evidence/
+chmod -x quarterly-report.pdf.sh
+./quarterly-report.pdf.sh
+eb4f11ff28e29dd873ab052d324811c77d44c625e0bb03302c31f4b213482a30  quarterly-report.pdf.sh
+bash: ./quarterly-report.pdf.sh: Permission denied</pre>
+</div>
+<div class="callout"><p><strong>Honest limit.</strong> Closing execution is not the same as understanding arrival: a second copy elsewhere with +x still runs, which is why the hunt covers the whole tree. chmod -x needs write permission on the file. The lab removes the tree for cleanliness; a real incident preserves evidence/ and the original file for forensics instead.</p></div></div>
+</div>
+<div class="step">
+<div class="step-num">2</div>
+<div>
+<h3>Monitor: sweep the tree on a schedule</h3>
+<div class="prose"><p>The scheduled form of the phase-blue read: <strong>sweep.sh</strong> runs the one-liner over arrival and download trees, and the tell is any name carrying two or more extensions with an executable last one. Plus the <strong>execve auditd rule</strong>, stated with its dependency: it needs the audit subsystem enabled and its rules loaded, which this lab has (auditctl is present) but many containers lack. D3FEND <a href="https://d3fend.mitre.org/technique/d3f:FileMagicByteVerification/" rel="noopener">D3-FMBV: File Magic Byte Verification</a> is the production form of "ask the bytes".</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="ls -1 &quot;${1:-.}&quot; | grep -E &#x27;\..*\.&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ ls -1 "${1:-.}" | grep -E '\..*\.'
+quarterly-report.pdf.sh</pre>
+</div>
+<div class="callout"><p><strong>Honest limit.</strong> The sweep catches the naive double extension only; magic bytes can be faked too (T1036.008 Masquerade File Type), and a single-extension lie needs the file check, not the name check. The poll interval sets the detection floor: a file that lands and is removed between sweeps leaves no name behind, only the audit log, if auditd was watching.</p></div></div>
+</div>
+<div class="step">
+<div class="step-num">3</div>
+<div>
+<h3>Prevent: the execution policy</h3>
+<div class="prose"><p>The demonstrated sweep detects; only an execution policy prevents. D3FEND <a href="https://d3fend.mitre.org/technique/d3f:ExecutableAllowlisting/" rel="noopener">D3-EAL: Executable Allowlisting</a> is the durable control; in its production form it needs fleet control. Mail and gateway stripping of double extensions is the chokepoint form, stated with its dependency on the mail and gateway stack. Honest note, repeated because it matters: the sweep detects; only the execution policy prevents.</p></div>
+<div class="callout"><p><strong>Honest limit.</strong> Allowlisting is the strongest control here and the heaviest to operate: every legitimate script needs a rule, and the rule set needs ownership. Gateway stripping only covers the mail and download paths it sits on; a file arriving by USB or a shared drive never passes the chokepoint.</p></div><div class="verdict green">
+<span class="mlabel">Countermeasures verified</span>
+<p>The payload was hashed and copied before the strip, the strip closed execution (Permission denied on re-run), the scheduled sweep names its tell and flagged a newly planted arrival live, and the prevention control is stated with its dependency. Every control names its bypass: the sweep sees names, not bytes; the poll interval sets the floor; allowlisting needs fleet control; and only an execution policy prevents.</p>
+</div></div>
+</div>
+
+        </section>
+
+        <section class="phase" id="debrief">
+          <div class="phase-head"><span class="phase-num">06</span><h2>Debrief</h2><span class="phase-tag neutral">TAKEAWAY</span></div>
+          <p class="takeaway">The name is a claim the eye reads left to right; the bytes are evidence the kernel executes. Ask the bytes before you run the name.</p>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">IOC checklist: signs this technique was used</span></p></div>
+          <ul class="checklist">
+            <li><span>A file whose name carries <strong>two or more extensions</strong>, especially with an executable last one</span></li>
+            <li><span><strong>file(1) output contradicting the name's implied type</strong> (script bytes under a document name)</span></li>
+            <li><span><strong>execve audit lines whose path contradicts the name</strong> the user saw (the auditd execs key)</span></li>
+            <li><span><strong>New arrivals in download or mail trees</strong> with double extensions</span></li>
+            <li><span><strong>No name/bytes mismatch check in the existing playbooks</strong>: the absence of the question is itself the gap</span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Reproducibility checklist</span></p></div>
+          <ul class="checklist">
+            <li><span>Verified on <strong>Ubuntu 24.04.5 LTS</strong>, x86-64, on 2026-09-25</span></li>
+            <li><span>Both recordings are real executions on that platform, not simulations</span></li>
+            <li><span>Runs as root in a disposable namespace (the lab plants its own files; the assumed breach: something on the box wrote the deceptive name)</span></li>
+            <li><span>Cleanup: <strong>rm -rf /tmp/gh022</strong>; verify with <strong>ls /tmp</strong></span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Sources</span></p></div>
+          <div class="prose"><p><a href="https://attack.mitre.org/techniques/T1036/007/" rel="noopener">MITRE ATT&amp;CK T1036.007: Masquerading: Double File Extension</a><br>
+          <a href="https://attack.mitre.org/techniques/T1036/" rel="noopener">MITRE ATT&amp;CK T1036: Masquerading</a> (the parent technique)<br>
+          <a href="https://man7.org/linux/man-pages/man1/file.1.html" rel="noopener">file(1)</a>, <a href="https://man7.org/linux/man-pages/man1/ls.1.html" rel="noopener">ls(1)</a>, <a href="https://man7.org/linux/man-pages/man1/grep.1.html" rel="noopener">grep(1)</a><br>
+          <a href="https://d3fend.mitre.org/technique/d3f:FileMagicByteVerification/" rel="noopener">D3FEND D3-FMBV: File Magic Byte Verification</a><br>
+          <a href="https://d3fend.mitre.org/technique/d3f:ExecutableAllowlisting/" rel="noopener">D3FEND D3-EAL: Executable Allowlisting</a></p></div>
+        </section>
+
+        <a class="next-file" href="../019-open-permissions/">
+          <span class="mlabel">Next file</span>
+          <h3>GH-019 The Open Door</h3>
+          <p>The next file loosens a permission bit and walks through what changes.</p>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <div>
+      <div class="footer-brand">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+        <span class="brand-name" style="font-size:17px">GHOSTLIGHT</span>
+      </div>
+      <p class="footer-note">An independent adversary-stealth research publication. Every command verified on the named OS before publishing. No trackers, no frameworks, no autoplay.</p>
+    </div>
+    <nav class="footer-links">
+      <a href="../../method.html">METHOD</a>
+      <a href="../../index.html">FILES</a>
+      <a href="https://attack.mitre.org/tactics/TA0005/" rel="noopener">MITRE TA0005</a>
+    </nav>
+    <div class="footer-elsewhere">
+      <span class="mlabel">Elsewhere</span><a href="https://dillingerstaffing.github.io/portfolio/" target="_blank" rel="noopener">Portfolio</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/proving-ground/" target="_blank" rel="noopener">Proving Ground</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/tapeout/" target="_blank" rel="noopener">Tapeout</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/old-iron/" target="_blank" rel="noopener">Old Iron</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/unstuck/" target="_blank" rel="noopener">Unstuck</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../../assets/site.js?v=512f8825"></script>
+</body>
+</html>
