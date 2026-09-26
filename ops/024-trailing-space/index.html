@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>GH-024 The Trailing Space (T1036.006): GHOSTLIGHT</title>
+<meta name="description" content="T1036.006 Space after Filename, reproduced on Ubuntu 24.04: an attacker plants a second file named &quot;report.txt &quot;, one trailing space beside the real report.txt, and a plain listing reads the two as one name while a routine read touches only the real file; ls -b and a byte-exact find expose the impostor, the hashes prove they differ, and the defense quarantines with evidence first, then installs the deploy gate that rejects deceptive names.">
+<link rel="canonical" href="https://dillingerstaffing.github.io/ghostlight/ops/024-trailing-space/">
+<meta property="og:title" content="GH-024 The Trailing Space (T1036.006): GHOSTLIGHT">
+<meta property="og:description" content="T1036.006 Space after Filename, reproduced on Ubuntu 24.04: an attacker plants a second file named &quot;report.txt &quot;, one trailing space beside the real report.txt, and a plain listing reads the two as one name while a routine read touches only the real file; ls -b and a byte-exact find expose the impostor, the hashes prove they differ, and the defense quarantines with evidence first, then installs the deploy gate that rejects deceptive names.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dillingerstaffing.github.io/ghostlight/ops/024-trailing-space/">
+<meta property="og:site_name" content="GHOSTLIGHT">
+<meta property="og:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="GH-024 The Trailing Space (T1036.006): GHOSTLIGHT">
+<meta name="twitter:description" content="T1036.006 Space after Filename, reproduced on Ubuntu 24.04: an attacker plants a second file named &quot;report.txt &quot;, one trailing space beside the real report.txt, and a plain listing reads the two as one name while a routine read touches only the real file; ls -b and a byte-exact find expose the impostor, the hashes prove they differ, and the defense quarantines with evidence first, then installs the deploy gate that rejects deceptive names.">
+<meta name="twitter:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23ece6d5'/%3E%3Ccircle cx='256' cy='196' r='104' fill='none' stroke='%23241f17' stroke-width='20'/%3E%3Cline x1='256' y1='152' x2='256' y2='240' stroke='%238c3f22' stroke-width='16'/%3E%3Cline x1='256' y1='300' x2='256' y2='424' stroke='%23241f17' stroke-width='14'/%3E%3Cline x1='200' y1='424' x2='312' y2='424' stroke='%23241f17' stroke-width='18'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+<link rel="manifest" href="../../assets/manifest.webmanifest">
+<meta name="theme-color" content="#0a0c0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GHOSTLIGHT">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<script>
+(function () {
+  // Theme: notebook is the default; a stored visitor choice wins.
+  // Runs before the stylesheet is parsed so the first paint is already
+  // the right theme (no flash of the wrong one).
+  try {
+    var t = localStorage.getItem('emi-site-theme');
+    var theme = t === 'classic' ? 'classic' : 'notebook';
+    document.documentElement.dataset.theme = theme;
+    var m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute('content', theme === 'classic' ? '#0a0c0f' : '#ece6d5');
+  } catch (e) {
+    document.documentElement.dataset.theme = 'notebook';
+  }
+})();
+</script>
+<link rel="stylesheet" href="../../assets/site.css?v=36a0084f">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"GH-024 The Trailing Space (T1036.006): GHOSTLIGHT",
+"url":"https://dillingerstaffing.github.io/ghostlight/ops/024-trailing-space/","description":"T1036.006 Space after Filename, reproduced on Ubuntu 24.04: an attacker plants a second file named \"report.txt \", one trailing space beside the real report.txt, and a plain listing reads the two as one name while a routine read touches only the real file; ls -b and a byte-exact find expose the impostor, the hashes prove they differ, and the defense quarantines with evidence first, then installs the deploy gate that rejects deceptive names.",
+"author":{"@type":"Person","name":"Chris Dillinger","url":"https://www.linkedin.com/in/christopherdillinger/"},
+"inLanguage":"en"}
+</script>
+</head>
+<body>
+
+<header class="site-header">
+  <a class="brand" href="../../index.html" aria-label="GHOSTLIGHT home">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+    <span class="brand-name">GHOSTLIGHT</span>
+  </a>
+  <nav class="site-nav">
+    <a href="../../method.html">METHOD</a>
+    <a href="../../index.html">FILES</a>
+    <button class="theme-toggle" type="button" aria-label="Switch to dark field dossier theme" title="Switch theme">
+      <span class="theme-toggle-mark" aria-hidden="true"><i></i><i></i></span>
+    </button>
+  </nav>
+</header>
+
+<div class="onboard" data-onboard hidden>
+  <span><strong>How to read a file:</strong> every file follows the six-phase structure below. <span class="k-green">Green</span> is verified, <span class="k-red">red</span> is hostile.</span>
+  <button aria-label="Dismiss">GOT IT</button>
+</div>
+
+<div class="page" data-op="024">
+  <div class="wrap">
+    <section class="op-hero">
+      <div class="op-kicker">
+        <span class="case-no">GH-024</span>
+        <a class="tech-id" href="https://attack.mitre.org/techniques/T1036/006/" rel="noopener">T1036.006</a>
+        <span class="phase-tag red">PHASE RED INSIDE</span>
+      </div>
+      <h1>The Trailing Space</h1>
+      <p class="lede">Two files sit in this directory. The listing shows one name. One space, invisible at the end of a line, is the whole difference between them, and the defense is to stop reading names with eyes and start measuring them byte by byte.</p>
+      <div class="op-meta-grid">
+        <div class="op-meta"><span class="mlabel">Technique</span><span class="mvalue">Space after Filename (T1036.006)</span></div>
+        <div class="op-meta"><span class="mlabel">Target OS</span><span class="mvalue">Ubuntu 24.04.5 LTS</span></div>
+        <div class="op-meta"><span class="mlabel">Toolchain</span><span class="mvalue">coreutils, bash</span></div>
+        <div class="op-meta"><span class="mlabel">Level</span><span class="mvalue">Beginner</span></div>
+        <div class="op-meta"><span class="mlabel">Time</span><span class="mvalue">20 min</span></div>
+      </div>
+      <div class="objectives">
+        <h2>OBJECTIVES</h2>
+        <ol>
+          <li data-phase="phase-red"><span class="box"></span>Plant a file named "report.txt " beside the real report.txt and watch a plain listing read them as one name</li>
+          <li data-phase="phase-blue"><span class="box"></span>Expose the second file with ls -b and a byte-exact find, and prove the two hashes differ</li>
+          <li data-phase="countermeasures"><span class="box"></span>Quarantine the impostor with evidence first, then install the deploy gate that rejects deceptive names</li>
+          <li data-phase="debrief"><span class="box"></span>Take the IOC checklist and the one-sentence lesson</li>
+        </ol>
+      </div>
+    </section>
+
+    <div class="op-layout">
+      <nav class="rail" aria-label="Phases">
+        <span class="mlabel">Phases</span>
+        <ol>
+          <li><a href="#intel-brief"><span class="pnum">01</span>INTEL BRIEF<span class="tick"></span></a></li>
+          <li><a href="#target-environment"><span class="pnum">02</span>TARGET ENV<span class="tick"></span></a></li>
+          <li><a href="#phase-red"><span class="pnum">03</span>PHASE RED<span class="tick"></span></a></li>
+          <li><a href="#phase-blue"><span class="pnum">04</span>PHASE BLUE<span class="tick"></span></a></li>
+          <li><a href="#countermeasures"><span class="pnum">05</span>COUNTERMEASURES<span class="tick"></span></a></li>
+          <li><a href="#debrief"><span class="pnum">06</span>DEBRIEF<span class="tick"></span></a></li>
+        </ol>
+      </nav>
+
+      <div class="op-content">
+        <section class="phase" id="intel-brief">
+          <div class="phase-head"><span class="phase-num">01</span><h2>Intel Brief</h2><span class="phase-tag neutral">CONTEXT</span></div>
+          <p class="lede">MITRE ATT&amp;CK <a href="https://attack.mitre.org/techniques/T1036/006/" rel="noopener">T1036.006</a>: adversaries add a space to the end of a filename, so the deceptive name renders identically to the real one in listings and defeats exact-match checks. This file plants "report.txt " beside the real report.txt, watches a plain ls read them as one name, watches a routine cat confirm the real file and miss the impostor, then measures the names byte by byte until the second file has nowhere left to hide. Two actors: the attacker, who owns the deceptive name and the planted content; and the defender, who owns every read, hunt, quarantine, and gate in the blue phases.</p>
+          <div class="prose">
+            <p><strong>Why this technique.</strong> A filename is a byte string, but nobody reads bytes: operators read the listing, and the listing renders the bytes for human eyes. A space at the end of a line is the one byte that renders as nothing. Two different byte strings, report.txt and "report.txt ", produce one visible name, so the operator counting files by eye counts one. The hiding place is not a tool bug; it is the gap between the bytes the system stores and the picture the listing paints.</p>
+            <p><strong>Why not just trust ls.</strong> The obvious alternative is the plain listing: run <strong>ls -1</strong>, read the names, move on. Break it on the concrete input from this file: ls prints <strong>report.txt</strong> and <strong>'report.txt '</strong>. Modern ls quotes the trailing blank, so the tell is technically on screen: two single-quote characters. The eye still reads one name twice, because quotes are typography and the operator came to read names. The listing was never checking the bytes, so a listing that looks clean proves nothing. That is the failure the byte-exact checks below are built to fix.</p>
+            <p><strong>The mechanism, in one line.</strong> A <strong>filename</strong> is the exact byte string the filesystem stores in the directory entry. The <strong>displayed name</strong> is what ls renders from those bytes, and rendering is lossy: trailing blanks collapse into nothing visible. <strong>ls -b</strong> prints non-graphic and trailing characters as backslash escapes, so the invisible byte becomes the visible two characters <strong>\ </strong>. <strong>find -name '* '</strong> matches the stored bytes exactly, with no rendering at all. The <strong>inode</strong> is the file itself: two directory entries with two different byte strings point at two different inodes, no matter how alike they render.</p>
+            <p><strong>The concrete case, before the abstraction.</strong> In /tmp/gh024: report.txt, 61 bytes of quarterly figures; and "report.txt ", 66 bytes, holding GHOSTLIGHT-CANARY-024. <strong>ls -1</strong> prints two lines the eye reads as one name. <strong>cat report.txt</strong> prints the real figures. <strong>ls -b</strong> prints <strong>report.txt\ </strong>: the escaped space. <strong>find . -name '* '</strong> prints <strong>[./report.txt ]</strong>: the exact bytes, bracketed so the space shows. The two <strong>sha256sum</strong> hashes differ. Same-looking name, two files, two contents.</p>
+            <p><strong>Terms, earned.</strong> The <strong>trailing space</strong> is the literal 0x20 byte at the end of the filename, the whole payload. A <strong>byte-exact</strong> check compares the stored bytes, never the rendered picture. <strong>Quoting</strong> is ls wrapping an odd name in single quotes; it marks the name as unusual without saying why. <strong>Quarantine</strong> is moving the suspect file aside with its evidence, not deleting it.</p>
+          </div>
+          <div class="callout"><p><strong>Scope.</strong> T1036 covers masquerading broadly: matched names or locations, right-to-left override, fake icons, double extensions, faked magic bytes. This file works the space-after-filename case end to end: the plant, the listing deception, the routine read that misses, the byte-exact reveal, the evidence-first quarantine, and the deploy gate. The canary is a benign token: it proves which file got read and touches nothing else. The lab runs in a disposable namespace under /tmp because the blue phase plants, quarantines, and sweeps for real.</p></div>
+        </section>
+
+        <section class="phase" id="target-environment">
+          <div class="phase-head"><span class="phase-num">02</span><h2>Target Environment</h2><span class="phase-tag neutral">LOADOUT</span></div>
+          <p class="lede">Ubuntu 24.04.5 LTS, x86-64, in a disposable namespace used only for this lab. Runs as root: the lab plants its own files, and every blue-phase read targets the live lab. Everything the lab touches lives inside /tmp/gh024, so cleanup is a single rm. No compiler, no packages: the whole technique is one byte in a filename, so the toolchain is coreutils and bash.</p>
+<div class="step">
+<div class="step-num">1</div>
+<div>
+<h3>Build the lab</h3>
+<div class="prose"><p>The recording starts from an empty private /tmp inside its own mount namespace, so every take begins identical. <strong>rm -rf /tmp/gh024</strong> starts clean; <strong>mkdir -p</strong> and <strong>cd</strong> set up the lab directory. The two <strong>printf</strong> lines below write the real report and the impostor; <strong>ls -l</strong> shows the lab. The attacker needs no privilege: any user who can write to a directory can plant a trailing-space twin of any file in it.</p></div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">2</div>
+<div>
+<h3>The payload: two printf lines</h3>
+<div class="prose"><p>The whole attack is the second line's quoted filename. <strong>printf</strong> writes the three-line quarterly report into <strong>report.txt</strong>; the second printf writes the canary into <strong>"report.txt "</strong>, the quotes protecting the trailing space from the shell. <strong>\n</strong> is printf's newline escape. The only difference between the two files is one 0x20 byte in the name, and the file contents differ too, so the hash measurement later has something real to catch.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash: the plant</span></div>
+<pre>printf 'Q3 revenue: $1.4M (draft)\nReviewed by: finance\nStatus: final\n' &gt; report.txt
+printf 'GHOSTLIGHT-CANARY-024\nDo not trust this file. It is the impostor.\n' &gt; "report.txt "</pre>
+</div>
+</div>
+</div>
+</section>
+
+        <section class="phase" id="phase-red">
+          <div class="phase-head"><span class="phase-num">03</span><h2>Phase Red: the twin report</h2><span class="phase-tag red">ATTACK</span></div>
+          <p class="lede">The attacker plants the twin, watches the listing read two files as one name, and lets the operator's routine read confirm the real file and walk away satisfied, the impostor untouched.</p>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">50.2s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/trailing-space-red.jpg" aria-label="Screen recording: TRAILING SPACE RED, operator@lab">
+              <source src="../../assets/vid/trailing-space-red.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> A file named "report.txt " sits beside the real report.txt. The plain listing reads them as one name, and the routine read touches only the real file. Every command below is copy-pasteable.</figcaption>
+          </figure>
+<div class="step">
+<div class="step-num">1</div>
+<div>
+<h3>Build the lab</h3>
+<div class="prose"><p><strong>rm -rf /tmp/gh024</strong> starts clean; <strong>mkdir -p</strong> and <strong>cd</strong> set up the lab. The two <strong>printf</strong> lines write the real report and the impostor; the quotes around <strong>"report.txt "</strong> protect the trailing space. <strong>ls -l</strong> shows the lab: two rows, 61 and 66 bytes, with near-identical names. The size difference is already a lead, if anyone is reading closely.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="rm -rf /tmp/gh024; mkdir -p /tmp/gh024; cd /tmp/gh024
+printf &#x27;Q3 revenue: $1.4M (draft)\nReviewed by: finance\nStatus: final\n&#x27; &gt; report.txt
+printf &#x27;GHOSTLIGHT-CANARY-024\nDo not trust this file. It is the impostor.\n&#x27; &gt; &quot;report.txt &quot;
+ls -l"><span data-label>COPY</span></button></div>
+<pre>$ rm -rf /tmp/gh024; mkdir -p /tmp/gh024; cd /tmp/gh024
+printf 'Q3 revenue: $1.4M (draft)\nReviewed by: finance\nStatus: final\n' &gt; report.txt
+printf 'GHOSTLIGHT-CANARY-024\nDo not trust this file. It is the impostor.\n' &gt; "report.txt "
+ls -l
+total 8
+-rw-rw---- 1 root root 61 Sep 26 12:21  report.txt
+-rw-rw---- 1 root root 66 Sep 26 12:21 'report.txt '</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">2</div>
+<div>
+<h3>The naive listing</h3>
+<div class="prose"><p><strong>ls -1</strong>: two lines. The second is wrapped in single quotes, the only mark ls puts on the trailing blank, and the eye reads one name twice. This is the concrete breakage of the trust-ls alternative from the intel brief: the tell is on screen and still missed.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="ls -1"><span data-label>COPY</span></button></div>
+<pre>$ ls -1
+report.txt
+'report.txt '</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">3</div>
+<div>
+<h3>The routine read that misses everything</h3>
+<div class="prose"><p><strong>cat report.txt</strong> prints the legitimate quarterly figures. The operator asked for the report, got the report, and concludes all is well. The shell resolved the bare name to the real file; the impostor was never opened, never hashed, never counted. This is the moment the technique wins: not by hiding from the read, but by making the read unnecessary.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="cat report.txt"><span data-label>COPY</span></button></div>
+<pre>$ cat report.txt
+Q3 revenue: $1.4M (draft)
+Reviewed by: finance
+Status: final</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">4</div>
+<div>
+<h3>The first tell: ls -b</h3>
+<div class="prose"><p><strong>ls -b</strong> prints trailing blanks as backslash escapes: <strong>report.txt\ </strong>. The invisible byte is now two visible characters. No new tool, no new privilege, just the flag that refuses to render.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="ls -b"><span data-label>COPY</span></button></div>
+<pre>$ ls -b
+report.txt  report.txt\</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">5</div>
+<div>
+<h3>The byte-exact hunt</h3>
+<div class="prose"><p><strong>find . -name '* '</strong> matches the stored bytes exactly, no rendering involved; <strong>-printf '[%p]\n'</strong> brackets the path so the trailing space shows inside the brackets: <strong>[./report.txt ]</strong>. This is the runbook form: match bytes, display bytes.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="find . -name &#x27;* &#x27; -printf &#x27;[%p]\n&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ find . -name '* ' -printf '[%p]\n'
+[./report.txt ]</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">6</div>
+<div>
+<h3>The measurement</h3>
+<div class="prose"><p><strong>sha256sum</strong> over both files: the hashes differ (5f9d2f49... vs 87247e7c...), while the displayed names look the same. <strong>cat "report.txt "</strong> prints the impostor's content: GHOSTLIGHT-CANARY-024, the benign token proving which file was read. One visible name, two files, two contents: the measurement says what the listing could not.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="sha256sum report.txt &quot;report.txt &quot;
+cat &quot;report.txt &quot;
+echo &#x27;stealth confirmed: one visible name, two files&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ sha256sum report.txt "report.txt "
+cat "report.txt "
+echo 'stealth confirmed: one visible name, two files'
+5f9d2f49eaf615aae8472078e78da19c3850b28d590337eeed7927d1059b4869  report.txt
+87247e7c7e4bb7c6a1415fc14f53146b6ed3ab3703491cd38781e9923d4686df  report.txt
+GHOSTLIGHT-CANARY-024
+Do not trust this file. It is the impostor.
+stealth confirmed: one visible name, two files</pre>
+</div>
+<div class="verdict red">
+<span class="mlabel">Stealth confirmed</span>
+<p>One trailing space made two files read as one name. The plain listing showed the quotes and the eye skipped them; the routine read confirmed the real file and never touched the impostor; ls -b and the byte-exact find exposed the second file, and the hashes proved the contents differ. The deception lived entirely in one 0x20 byte: no privilege was touched, no byte was hidden.</p>
+</div></div>
+</div>
+
+        </section>
+
+        <section class="phase" id="phase-blue">
+          <div class="phase-head"><span class="phase-num">04</span><h2>Phase Blue: measure the name</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">The defender stops reading names with eyes and starts measuring them byte by byte: the escape, the inode, the hash, the audit log. Then the impostor is quarantined with its evidence preserved, and the gate goes in where files arrive.</p>
+          <div class="prose">
+            <p>Here is the trap: reading the listing, seeing the report, and moving on. That is trusting the rendered picture the attacker chose. The detection starts by asking the stored bytes, which the attacker did not choose.</p>
+          </div>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot blue" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">106.4s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/trailing-space-blue.jpg" aria-label="Screen recording: TRAILING SPACE BLUE, operator@lab">
+              <source src="../../assets/vid/trailing-space-blue.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> The defender exposes the twin with ls -b and a byte-exact find, proves two inodes and two hashes, quarantines the impostor with evidence first, and proves the deploy gate rejects the next deceptive name. Every command below is copy-pasteable.</figcaption>
+          </figure>
+<div class="step">
+<div class="step-num">1</div>
+<div>
+<h3>DETECTION: the naive view</h3>
+<div class="prose"><p><strong>cd /tmp/gh024 &amp;&amp; ls -l</strong>: the defender's starting view. Two rows, near-identical names, 61 vs 66 bytes. The size difference is the lead; the quotes around the second name are the mark. Stopping here is the attacker's win: the listing was never checking the bytes, so a quick glance proves nothing.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="cd /tmp/gh024 &amp;&amp; ls -l"><span data-label>COPY</span></button></div>
+<pre>$ cd /tmp/gh024 &amp;&amp; ls -l
+total 8
+-rw-rw---- 1 root root 61 Sep 26 12:21  report.txt
+-rw-rw---- 1 root root 66 Sep 26 12:21 'report.txt '</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">2</div>
+<div>
+<h3>DETECTION: the byte-exact hunt, the runbook one-liner</h3>
+<div class="prose"><p><strong>ls -b</strong> shows the escaped space: <strong>report.txt\ </strong>. The one-liner <strong>find . \( -name '* ' -o -name ' *' \) -printf '[%p]\n'</strong> matches leading or trailing spaces in the stored bytes and brackets every hit: <strong>[./report.txt ]</strong>. One command, the whole tree. The tell, concrete: good is a name whose displayed form equals its stored bytes; bad is a name carrying invisible bytes.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="ls -b
+find . \( -name &#x27;* &#x27; -o -name &#x27; *&#x27; \) -printf &#x27;[%p]\n&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ ls -b
+find . \( -name '* ' -o -name ' *' \) -printf '[%p]\n'
+report.txt  report.txt\
+[./report.txt ]</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">3</div>
+<div>
+<h3>DETECTION: two inodes, two hashes</h3>
+<div class="prose"><p><strong>ls -li</strong>: inodes 3 and 4. Two directory entries, two inodes, two files, whatever the names look like. <strong>sha256sum</strong> over both: 5f9d2f49... vs 87247e7c..., different contents behind the same-looking name. The name is a label; the inode is the file; the hash is the content. All three get checked, because the technique forges only the first.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="ls -li
+sha256sum report.txt &quot;report.txt &quot;"><span data-label>COPY</span></button></div>
+<pre>$ ls -li
+sha256sum report.txt "report.txt "
+total 8
+3 -rw-rw---- 1 root root 61 Sep 26 12:21  report.txt
+4 -rw-rw---- 1 root root 66 Sep 26 12:21 'report.txt '
+5f9d2f49eaf615aae8472078e78da19c3850b28d590337eeed7927d1059b4869  report.txt
+87247e7c7e4bb7c6a1415fc14f53146b6ed3ab3703491cd38781e9923d4686df  report.txt</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">4</div>
+<div>
+<h3>DETECTION: the audit question</h3>
+<div class="prose"><p><strong>command -v auditctl</strong> answers /usr/sbin/auditctl: the audit tools are present in this lab. The rule for a real host is stated with its dependency, not demonstrated: <strong>auditctl -a always,exit -F arch=b64 -S openat -k fileopens</strong> records the exact path bytes of every file open, trailing space included, but it needs the audit subsystem enabled and its rules loaded. Where it runs, the good-versus-bad is concrete: good is an openat path whose bytes match the displayed name; bad is a path carrying bytes the listing never showed.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="command -v auditctl || echo &#x27;no auditd in this lab&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ command -v auditctl || echo 'no auditd in this lab'
+/usr/sbin/auditctl</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">5</div>
+<div>
+<h3>MITIGATION: evidence first, then quarantine</h3>
+<div class="prose"><p><strong>mkdir -p evidence quarantine</strong>; <strong>sha256sum "report.txt " | tee evidence/hash.txt</strong> and <strong>cp "report.txt " evidence/impostor.txt</strong> capture the hash and the bytes BEFORE the move, because quarantine comes next. <strong>mv "report.txt " quarantine/</strong> moves the impostor aside; it is not deleted, it is preserved with its original name for forensics. D3FEND calls this <a href="https://d3fend.mitre.org/technique/d3f:ContentQuarantine/" rel="noopener">D3-CQ: Content Quarantine</a>. Verify: the hunt now returns <strong>1</strong>, not 0, because the deceptive name still exists exactly where the defender put it, inside quarantine/; the working tree holds none. <strong>cat report.txt</strong> confirms the real file is untouched.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="mkdir -p evidence quarantine
+sha256sum &quot;report.txt &quot; | tee evidence/hash.txt
+cp &quot;report.txt &quot; evidence/impostor.txt
+mv &quot;report.txt &quot; quarantine/
+find . -name &#x27;* &#x27; -o -name &#x27; *&#x27; | wc -l
+cat report.txt"><span data-label>COPY</span></button></div>
+<pre>$ mkdir -p evidence quarantine
+sha256sum "report.txt " | tee evidence/hash.txt
+cp "report.txt " evidence/impostor.txt
+mv "report.txt " quarantine/
+find . -name '* ' -o -name ' *' | wc -l
+cat report.txt
+87247e7c7e4bb7c6a1415fc14f53146b6ed3ab3703491cd38781e9923d4686df  report.txt
+1
+Q3 revenue: $1.4M (draft)
+Reviewed by: finance
+Status: final</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">6</div>
+<div>
+<h3>PREVENTION: the deploy gate, demonstrated live</h3>
+<div class="prose"><p>The heredoc writes <strong>gate.sh</strong>: <strong>find "${1:-.}"</strong> searches the target tree, defaulting to the current directory, and the <strong>\( -name '* ' -o -name ' *' \)</strong> test keeps only names with leading or trailing spaces; any hit prints and exits 1. <strong>chmod +x</strong>; a fresh impostor <strong>"staging/invoice.pdf "</strong> is planted; <strong>./gate.sh staging</strong> fails with <strong>GATE FAIL</strong>, demonstrated live; <strong>./gate.sh clean</strong> passes. D3FEND calls the policy form <a href="https://d3fend.mitre.org/technique/d3f:ContentValidation/" rel="noopener">D3-CV: Content Validation</a>: verify the name complies before the file lands.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="cat &gt; gate.sh &lt;&lt;&#x27;EOF&#x27;
+#!/bin/sh
+# deploy gate: reject filenames with leading or trailing spaces
+bad=$(find &quot;${1:-.}&quot; \( -name &#x27;* &#x27; -o -name &#x27; *&#x27; \) -printf &#x27;[%p]\n&#x27;)
+if [ -n &quot;$bad&quot; ]; then echo &#x27;GATE FAIL: deceptive names:&#x27;; echo &quot;$bad&quot;; exit 1; fi
+echo &#x27;GATE PASS&#x27;
+EOF
+chmod +x gate.sh
+mkdir -p staging clean
+printf &#x27;GHOSTLIGHT-CANARY-024\n&#x27; &gt; &quot;staging/invoice.pdf &quot;
+printf &#x27;ok\n&#x27; &gt; clean/notes.txt
+./gate.sh staging
+./gate.sh clean"><span data-label>COPY</span></button></div>
+<pre>$ cat &gt; gate.sh &lt;&lt;'EOF'
+#!/bin/sh
+# deploy gate: reject filenames with leading or trailing spaces
+bad=$(find "${1:-.}" \( -name '* ' -o -name ' *' \) -printf '[%p]\n')
+if [ -n "$bad" ]; then echo 'GATE FAIL: deceptive names:'; echo "$bad"; exit 1; fi
+echo 'GATE PASS'
+EOF
+chmod +x gate.sh
+mkdir -p staging clean
+printf 'GHOSTLIGHT-CANARY-024\n' &gt; "staging/invoice.pdf "
+printf 'ok\n' &gt; clean/notes.txt
+./gate.sh staging
+./gate.sh clean
+GATE FAIL: deceptive names:
+[staging/invoice.pdf ]
+GATE PASS</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">7</div>
+<div>
+<h3>PREVENTION: the integrity baseline, stated with its dependency</h3>
+<div class="prose"><p><strong>command -v aide</strong> answers honestly: no AIDE in this lab. The production control is stated with its dependency, not demonstrated: an <a href="https://d3fend.mitre.org/technique/d3f:FileIntegrityMonitoring/" rel="noopener">D3-FIM: File Integrity Monitoring</a> baseline (AIDE, or OSQuery scheduled) records exact filenames, so "report.txt " appears as an unknown new file, never as the known report.txt. It needs a baseline taken before the incident and a scheduled run; the poll interval sets the detection floor.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="command -v aide || echo &#x27;no aide in this lab: integrity baseline needs a scheduled AIDE or OSQuery run&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ command -v aide || echo 'no aide in this lab: integrity baseline needs a scheduled AIDE or OSQuery run'
+no aide in this lab: integrity baseline needs a scheduled AIDE or OSQuery run</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">8</div>
+<div>
+<h3>Verdict and cleanup</h3>
+<div class="prose"><p>The summary, in the defender's own words: the name is a claim, the bytes are evidence. <strong>rm -rf /tmp/gh024</strong> removes the lab.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &#x27;detection verified: the name is a claim, the bytes are evidence&#x27;
+cd /tmp &amp;&amp; rm -rf /tmp/gh024 &amp;&amp; ls /tmp"><span data-label>COPY</span></button></div>
+<pre>$ echo 'detection verified: the name is a claim, the bytes are evidence'
+cd /tmp &amp;&amp; rm -rf /tmp/gh024 &amp;&amp; ls /tmp
+detection verified: the name is a claim, the bytes are evidence</pre>
+</div>
+<div class="verdict green">
+<span class="mlabel">Detection verified</span>
+<p>ls -b exposed the escaped space; the byte-exact find bracketed the impostor; ls -li showed two inodes and sha256sum showed two hashes; the impostor was hashed and copied before quarantine, and the working tree verified clean; the deploy gate failed the planted arrival live and passed the clean tree; the integrity baseline is stated with its dependency. The name is a claim; the bytes are evidence.</p>
+</div></div>
+</div>
+
+        </section>
+
+        <section class="phase" id="countermeasures">
+          <div class="phase-head"><span class="phase-num">05</span><h2>Countermeasures</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">Three moves, in order: quarantine with evidence first, hunt on a schedule, reject deceptive names where files arrive. Each is one way, not the way.</p>
+<div class="step">
+<div class="step-num">1</div>
+<div>
+<h3>Mitigate: capture, quarantine, re-sweep</h3>
+<div class="prose"><p>Proven first against the live twin: <strong>sha256sum | tee</strong> and <strong>cp</strong> capture the hash and the bytes into evidence/ BEFORE the move; <strong>mv</strong> quarantines the impostor with its original name intact for forensics; the re-sweep returns 1 because the deceptive name now lives in quarantine/, and the working tree holds none; <strong>cat report.txt</strong> proves the real file untouched. A real response then hunts the delivery vector: how the twin arrived is the incident's open question.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="mkdir -p evidence quarantine
+sha256sum &quot;report.txt &quot; | tee evidence/hash.txt
+cp &quot;report.txt &quot; evidence/impostor.txt
+mv &quot;report.txt &quot; quarantine/
+find . -name &#x27;* &#x27; -o -name &#x27; *&#x27; | wc -l
+cat report.txt"><span data-label>COPY</span></button></div>
+<pre>$ mkdir -p evidence quarantine
+sha256sum "report.txt " | tee evidence/hash.txt
+cp "report.txt " evidence/impostor.txt
+mv "report.txt " quarantine/
+find . -name '* ' -o -name ' *' | wc -l
+cat report.txt
+87247e7c7e4bb7c6a1415fc14f53146b6ed3ab3703491cd38781e9923d4686df  report.txt
+1
+Q3 revenue: $1.4M (draft)
+Reviewed by: finance
+Status: final</pre>
+</div>
+<div class="callout"><p><strong>Honest limit.</strong> Quarantine is not understanding arrival: a second twin elsewhere still hides, which is why the hunt covers the whole tree. mv needs write permission on the directory. The lab removes the tree for cleanliness; a real incident preserves evidence/ and quarantine/ for forensics instead of deleting them.</p></div></div>
+</div>
+<div class="step">
+<div class="step-num">2</div>
+<div>
+<h3>Monitor: hunt the tree on a schedule</h3>
+<div class="prose"><p>The scheduled form of the phase-blue read: the one-liner runs over arrival, download, and staging trees, and the tell is any name whose stored bytes carry leading or trailing spaces. Plus the <strong>openat auditd rule</strong>, stated with its dependency: it needs the audit subsystem enabled and its rules loaded, which this lab has (auditctl is present) but many containers lack. The heavier production form is D3FEND <a href="https://d3fend.mitre.org/technique/d3f:FileIntegrityMonitoring/" rel="noopener">D3-FIM: File Integrity Monitoring</a>: an exact-filename baseline that reports the twin as an unknown new file.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="find . \( -name &#x27;* &#x27; -o -name &#x27; *&#x27; \) -printf &#x27;[%p]\n&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ find . \( -name '* ' -o -name ' *' \) -printf '[%p]\n'
+[./report.txt ]</pre>
+</div>
+<div class="callout"><p><strong>Honest limit.</strong> The hunt matches ASCII space only; a trailing tab or a non-breaking space slips past, and the poll interval sets the detection floor: a twin that lands and is removed between sweeps leaves no name behind, only the audit log, if auditd was watching. The baseline needs to predate the incident; a baseline taken after the plant bakes the twin in as known-good.</p></div></div>
+</div>
+<div class="step">
+<div class="step-num">3</div>
+<div>
+<h3>Prevent: the deploy gate</h3>
+<div class="prose"><p>The demonstrated gate detects at arrival time; the durable form is the same test enforced as policy where files land: the deployment pipeline, the upload handler, the mail gateway. D3FEND <a href="https://d3fend.mitre.org/technique/d3f:ContentValidation/" rel="noopener">D3-CV: Content Validation</a> is the policy name for it: verify the name complies before the file is accepted. Honest note, repeated because it matters: the gate rejects deceptive names; only the integrity baseline plus the hash check proves the accepted files are the right ones.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="cat &gt; gate.sh &lt;&lt;&#x27;EOF&#x27;
+#!/bin/sh
+# deploy gate: reject filenames with leading or trailing spaces
+bad=$(find &quot;${1:-.}&quot; \( -name &#x27;* &#x27; -o -name &#x27; *&#x27; \) -printf &#x27;[%p]\n&#x27;)
+if [ -n &quot;$bad&quot; ]; then echo &#x27;GATE FAIL: deceptive names:&#x27;; echo &quot;$bad&quot;; exit 1; fi
+echo &#x27;GATE PASS&#x27;
+EOF
+chmod +x gate.sh
+mkdir -p staging clean
+printf &#x27;GHOSTLIGHT-CANARY-024\n&#x27; &gt; &quot;staging/invoice.pdf &quot;
+printf &#x27;ok\n&#x27; &gt; clean/notes.txt
+./gate.sh staging
+./gate.sh clean"><span data-label>COPY</span></button></div>
+<pre>$ cat &gt; gate.sh &lt;&lt;'EOF'
+#!/bin/sh
+# deploy gate: reject filenames with leading or trailing spaces
+bad=$(find "${1:-.}" \( -name '* ' -o -name ' *' \) -printf '[%p]\n')
+if [ -n "$bad" ]; then echo 'GATE FAIL: deceptive names:'; echo "$bad"; exit 1; fi
+echo 'GATE PASS'
+EOF
+chmod +x gate.sh
+mkdir -p staging clean
+printf 'GHOSTLIGHT-CANARY-024\n' &gt; "staging/invoice.pdf "
+printf 'ok\n' &gt; clean/notes.txt
+./gate.sh staging
+./gate.sh clean
+GATE FAIL: deceptive names:
+[staging/invoice.pdf ]
+GATE PASS</pre>
+</div>
+<div class="callout"><p><strong>Honest limit.</strong> The gate as written matches the ASCII space; an attacker who reads the rule switches to a trailing tab, a non-breaking space, or drops the space for a homoglyph, which is T1036.005 territory and a different file's problem. The gate is also a point-in-time check: it says nothing about files that arrive by paths it does not guard. This control raises the cost of the trick; it does not remove the trick. The byte-exact hunt in Phase Blue works regardless of which invisible byte the attacker chose, which is why detection outlives prevention here.</p></div><div class="verdict green">
+<span class="mlabel">Countermeasures verified</span>
+<p>The twin was hashed and copied before quarantine, the quarantine preserved the original name, the working tree verified clean, the scheduled hunt names its tell and its floor, and the deploy gate failed the planted arrival live while passing the clean tree. Every control names its bypass: the hunt sees ASCII spaces only, the poll interval sets the floor, the baseline must predate the plant, and only detection at the byte level outlives the attacker's choice of invisible byte.</p>
+</div></div>
+</div>
+
+        </section>
+
+        <section class="phase" id="debrief">
+          <div class="phase-head"><span class="phase-num">06</span><h2>Debrief</h2><span class="phase-tag neutral">TAKEAWAY</span></div>
+          <p class="takeaway">The listing shows you what the name looks like; only a byte-exact comparison shows you what the name is.</p>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">IOC checklist: signs this technique was used</span></p></div>
+          <ul class="checklist">
+            <li><span><strong>Two directory entries with the same displayed name</strong> but different sizes or inodes</span></li>
+            <li><span><strong>ls quoting a name in single quotes</strong> for no visible reason ('report.txt ')</span></li>
+            <li><span><strong>ls -b showing a backslash-escaped trailing space</strong> (report.txt\ )</span></li>
+            <li><span><strong>find -name '* ' hits</strong> in arrival, staging, or working trees</span></li>
+            <li><span><strong>Hash mismatches between same-displayed-name files</strong>: one name, two contents</span></li>
+            <li><span><strong>No byte-exact filename check in the deploy pipeline</strong>: the absence of the question is itself the gap</span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Reproducibility checklist</span></p></div>
+          <ul class="checklist">
+            <li><span>Verified on <strong>Ubuntu 24.04.5 LTS</strong>, x86-64, on 2026-09-26</span></li>
+            <li><span>Both recordings are real executions on that platform, not simulations</span></li>
+            <li><span>Runs as root in a disposable namespace (the lab plants its own files; the assumed breach: something on the box wrote the deceptive name)</span></li>
+            <li><span>Cleanup: <strong>rm -rf /tmp/gh024</strong>; verify with <strong>ls /tmp</strong></span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Sources</span></p></div>
+          <div class="prose"><p><a href="https://attack.mitre.org/techniques/T1036/006/" rel="noopener">MITRE ATT&amp;CK T1036.006: Masquerading: Space after Filename</a><br>
+          <a href="https://attack.mitre.org/techniques/T1036/" rel="noopener">MITRE ATT&amp;CK T1036: Masquerading</a> (the parent technique)<br>
+          <a href="https://man7.org/linux/man-pages/man1/ls.1.html" rel="noopener">ls(1)</a>, <a href="https://man7.org/linux/man-pages/man1/find.1.html" rel="noopener">find(1)</a>, <a href="https://man7.org/linux/man-pages/man1/sha256sum.1.html" rel="noopener">sha256sum(1)</a><br>
+          <a href="https://d3fend.mitre.org/technique/d3f:ContentQuarantine/" rel="noopener">D3FEND D3-CQ: Content Quarantine</a><br>
+          <a href="https://d3fend.mitre.org/technique/d3f:ContentValidation/" rel="noopener">D3FEND D3-CV: Content Validation</a><br>
+          <a href="https://d3fend.mitre.org/technique/d3f:FileIntegrityMonitoring/" rel="noopener">D3FEND D3-FIM: File Integrity Monitoring</a></p></div>
+        </section>
+
+        <a class="next-file" href="../019-open-permissions/">
+          <span class="mlabel">Next file</span>
+          <h3>GH-019 The Open Door</h3>
+          <p>The next file loosens a permission bit and walks through what changes.</p>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <div>
+      <div class="footer-brand">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+        <span class="brand-name" style="font-size:17px">GHOSTLIGHT</span>
+      </div>
+      <p class="footer-note">An independent adversary-stealth research publication. Every command verified on the named OS before publishing. No trackers, no frameworks, no autoplay.</p>
+    </div>
+    <nav class="footer-links">
+      <a href="../../method.html">METHOD</a>
+      <a href="../../index.html">FILES</a>
+      <a href="https://attack.mitre.org/tactics/TA0005/" rel="noopener">MITRE TA0005</a>
+    </nav>
+    <div class="footer-elsewhere">
+      <span class="mlabel">Elsewhere</span><a href="https://dillingerstaffing.github.io/portfolio/" target="_blank" rel="noopener">Portfolio</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/proving-ground/" target="_blank" rel="noopener">Proving Ground</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/tapeout/" target="_blank" rel="noopener">Tapeout</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/old-iron/" target="_blank" rel="noopener">Old Iron</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/unstuck/" target="_blank" rel="noopener">Unstuck</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../../assets/site.js?v=512f8825"></script>
+</body>
+</html>
