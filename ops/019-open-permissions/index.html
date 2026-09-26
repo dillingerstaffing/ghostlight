@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>GH-019 The Open Door (T1222.002): GHOSTLIGHT</title>
+<meta name="description" content="T1222.002 Linux and Mac File and Directory Permissions Modification, reproduced on Ubuntu 24.04: one chmod by the file&#x27;s owner hands a locked-out second user the key to a secret, with no copy, no new process, and no changed bytes; the only signal is the mode column. The defender hunts the permission drift with one find one-liner, captures evidence before restoring the lock, and installs the scheduled sweep that flags the next drift.">
+<link rel="canonical" href="https://dillingerstaffing.github.io/ghostlight/ops/019-open-permissions/">
+<meta property="og:title" content="GH-019 The Open Door (T1222.002): GHOSTLIGHT">
+<meta property="og:description" content="T1222.002 Linux and Mac File and Directory Permissions Modification, reproduced on Ubuntu 24.04: one chmod by the file&#x27;s owner hands a locked-out second user the key to a secret, with no copy, no new process, and no changed bytes; the only signal is the mode column. The defender hunts the permission drift with one find one-liner, captures evidence before restoring the lock, and installs the scheduled sweep that flags the next drift.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dillingerstaffing.github.io/ghostlight/ops/019-open-permissions/">
+<meta property="og:site_name" content="GHOSTLIGHT">
+<meta property="og:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="GH-019 The Open Door (T1222.002): GHOSTLIGHT">
+<meta name="twitter:description" content="T1222.002 Linux and Mac File and Directory Permissions Modification, reproduced on Ubuntu 24.04: one chmod by the file&#x27;s owner hands a locked-out second user the key to a secret, with no copy, no new process, and no changed bytes; the only signal is the mode column. The defender hunts the permission drift with one find one-liner, captures evidence before restoring the lock, and installs the scheduled sweep that flags the next drift.">
+<meta name="twitter:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23ece6d5'/%3E%3Ccircle cx='256' cy='196' r='104' fill='none' stroke='%23241f17' stroke-width='20'/%3E%3Cline x1='256' y1='152' x2='256' y2='240' stroke='%238c3f22' stroke-width='16'/%3E%3Cline x1='256' y1='300' x2='256' y2='424' stroke='%23241f17' stroke-width='14'/%3E%3Cline x1='200' y1='424' x2='312' y2='424' stroke='%23241f17' stroke-width='18'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+<link rel="manifest" href="../../assets/manifest.webmanifest">
+<meta name="theme-color" content="#0a0c0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GHOSTLIGHT">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<script>
+(function () {
+  // Theme: notebook is the default; a stored visitor choice wins.
+  // Runs before the stylesheet is parsed so the first paint is already
+  // the right theme (no flash of the wrong one).
+  try {
+    var t = localStorage.getItem('emi-site-theme');
+    var theme = t === 'classic' ? 'classic' : 'notebook';
+    document.documentElement.dataset.theme = theme;
+    var m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute('content', theme === 'classic' ? '#0a0c0f' : '#ece6d5');
+  } catch (e) {
+    document.documentElement.dataset.theme = 'notebook';
+  }
+})();
+</script>
+<link rel="stylesheet" href="../../assets/site.css?v=36a0084f">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"GH-019 The Open Door (T1222.002): GHOSTLIGHT",
+"url":"https://dillingerstaffing.github.io/ghostlight/ops/019-open-permissions/","description":"T1222.002 Linux and Mac File and Directory Permissions Modification, reproduced on Ubuntu 24.04: one chmod by the file's owner hands a locked-out second user the key to a secret, with no copy, no new process, and no changed bytes; the only signal is the mode column. The defender hunts the permission drift with one find one-liner, captures evidence before restoring the lock, and installs the scheduled sweep that flags the next drift.",
+"author":{"@type":"Person","name":"Chris Dillinger","url":"https://www.linkedin.com/in/christopherdillinger/"},
+"inLanguage":"en"}
+</script>
+</head>
+<body>
+
+<header class="site-header">
+  <a class="brand" href="../../index.html" aria-label="GHOSTLIGHT home">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+    <span class="brand-name">GHOSTLIGHT</span>
+  </a>
+  <nav class="site-nav">
+    <a href="../../method.html">METHOD</a>
+    <a href="../../index.html">FILES</a>
+    <button class="theme-toggle" type="button" aria-label="Switch to dark field dossier theme" title="Switch theme">
+      <span class="theme-toggle-mark" aria-hidden="true"><i></i><i></i></span>
+    </button>
+  </nav>
+</header>
+
+<div class="onboard" data-onboard hidden>
+  <span><strong>How to read a file:</strong> every file follows the six-phase structure below. <span class="k-green">Green</span> is verified, <span class="k-red">red</span> is hostile.</span>
+  <button aria-label="Dismiss">GOT IT</button>
+</div>
+
+<div class="page" data-op="019">
+  <div class="wrap">
+    <section class="op-hero">
+      <div class="op-kicker">
+        <span class="case-no">GH-019</span>
+        <a class="tech-id" href="https://attack.mitre.org/techniques/T1222/002/" rel="noopener">T1222.002</a>
+        <span class="phase-tag red">PHASE RED INSIDE</span>
+      </div>
+      <h1>The Open Door</h1>
+      <p class="lede">Permission bits are the door, not the file. This file plants a benign canary in a secret readable only by its owner, watches a second user get denied, watches one chmod hand that user the key with no copy and no changed bytes, then the defense hunts the single changed mode column, captures evidence before restoring the lock, and installs the sweep that flags the next permission drift.</p>
+      <div class="op-meta-grid">
+        <div class="op-meta"><span class="mlabel">Technique</span><span class="mvalue">File and Directory Permissions Modification (T1222.002)</span></div>
+        <div class="op-meta"><span class="mlabel">Target OS</span><span class="mvalue">Ubuntu 24.04.5 LTS</span></div>
+        <div class="op-meta"><span class="mlabel">Toolchain</span><span class="mvalue">coreutils, findutils</span></div>
+        <div class="op-meta"><span class="mlabel">Level</span><span class="mvalue">Beginner</span></div>
+        <div class="op-meta"><span class="mlabel">Time</span><span class="mvalue">20 min</span></div>
+      </div>
+      <div class="objectives">
+        <h2>OBJECTIVES</h2>
+        <ol>
+          <li data-phase="phase-red"><span class="box"></span>Lock a canary file to its owner, confirm a second user is denied, then open it with one chmod</li>
+          <li data-phase="phase-blue"><span class="box"></span>Read the mode column, hunt the drift with one find one-liner, capture evidence, and restore the lock</li>
+          <li data-phase="countermeasures"><span class="box"></span>Install the scheduled sweep as the durable control, and state every control's bypass honestly</li>
+          <li data-phase="debrief"><span class="box"></span>Take the IOC checklist and the one-sentence lesson</li>
+        </ol>
+      </div>
+    </section>
+
+    <div class="op-layout">
+      <nav class="rail" aria-label="Phases">
+        <span class="mlabel">Phases</span>
+        <ol>
+          <li><a href="#intel-brief"><span class="pnum">01</span>INTEL BRIEF<span class="tick"></span></a></li>
+          <li><a href="#target-environment"><span class="pnum">02</span>TARGET ENV<span class="tick"></span></a></li>
+          <li><a href="#phase-red"><span class="pnum">03</span>PHASE RED<span class="tick"></span></a></li>
+          <li><a href="#phase-blue"><span class="pnum">04</span>PHASE BLUE<span class="tick"></span></a></li>
+          <li><a href="#countermeasures"><span class="pnum">05</span>COUNTERMEASURES<span class="tick"></span></a></li>
+          <li><a href="#debrief"><span class="pnum">06</span>DEBRIEF<span class="tick"></span></a></li>
+        </ol>
+      </nav>
+
+      <div class="op-content">
+        <section class="phase" id="intel-brief">
+          <div class="phase-head"><span class="phase-num">01</span><h2>Intel Brief</h2><span class="phase-tag neutral">CONTEXT</span></div>
+          <p class="lede">MITRE ATT&amp;CK <a href="https://attack.mitre.org/techniques/T1222/002/" rel="noopener">T1222.002</a>: adversaries modify file and directory permissions to grant a second identity access it should not have. This file locks a benign canary to its owner with mode 600, watches a second user get Permission denied, flips one bit with chmod o+r, and watches the same user read the secret. No copy, no new process, no changed bytes. Then the defense: read the mode column, hunt the drift across the tree with one find command, capture evidence before restoring the lock, and install the scheduled sweep that flags the next drift. Two actors: the attacker, who owns the file and the chmod; and the defender, who owns the reads, the drift hunt, the evidence-first mitigation, and the sweep in the blue phase.</p>
+          <div class="prose">
+            <p><strong>Why this technique.</strong> Access control lives in metadata, not in the file. The kernel checks the permission bits before it ever reads a byte, so changing who may read a secret does not require touching the secret. An attacker who already owns a file, or has write access to its metadata, can hand it to a partner identity quietly: no new file to find, no content change for integrity monitoring to flag. The hiding place is not a hidden file; it is the assumption that a file that was locked yesterday is locked today.</p>
+            <p><strong>Why not the copy.</strong> The obvious alternative is copying the secret somewhere world-readable. Break it on the concrete check: the copy is a new artifact with a new name, visible to any listing and any integrity baseline, and it doubles the places the secret lives. The chmod leaves the file in place, same name, same bytes, same size. The attack surface is exactly one metadata column, and that column is the whole story.</p>
+            <p><strong>The mechanism, in one line.</strong> <strong>Permission bits</strong> are the rwx triple for user, group, and other, stored with the file, not in it. The <strong>octal mode</strong> is the compact number: 600 means the owner reads and writes and nobody else does anything; 604 adds read for everyone else. <strong>chmod o+r</strong> sets that other-read bit. The <strong>second identity</strong> here is the nobody user, uid 65534, standing in for a compromised low-privilege account: the kernel checks its access against the same bits. Terms earned, no borrowing.</p>
+            <p><strong>The concrete case, before the abstraction.</strong> In /tmp/gh019: backup.key, 22 bytes, mode 600. runuser -u nobody -- cat: Permission denied. chmod o+r: mode 604. runuser -u nobody -- cat: GHOSTLIGHT-CANARY-019. Same file, same user, same command, a different answer. That one changed column is the whole technique.</p>
+          </div>
+          <div class="callout"><p><strong>Scope.</strong> T1222.002 covers permission modification on Linux and macOS: widening access as shown here, and the harder slice of setuid/setgid bits, which let an executed binary run with the file owner's privileges. This file works the widening-access case end to end: the lock, the denial, the chmod, the read, the drift hunt, the evidence-first mitigation, and the scheduled sweep. The setuid/setgid slice is named as the harder case, and the blue drift hunt already flags -perm -4000/-2000 for it. The canary is a benign token: it proves the read and does nothing else. The lab runs in a disposable namespace under /tmp because the blue phase plants, sweeps, and cleans for real.</p></div>
+        </section>
+
+        <section class="phase" id="target-environment">
+          <div class="phase-head"><span class="phase-num">02</span><h2>Target Environment</h2><span class="phase-tag neutral">LOADOUT</span></div>
+          <p class="lede">Ubuntu 24.04.5 LTS, x86-64, in a disposable namespace used only for this lab. Runs as root: the lab plants its own files, and every blue-phase read targets the live lab. Everything the lab touches lives inside /tmp/gh019, so cleanup is a single rm. The second identity is the nobody user, uid 65534, present on every standard Linux install. Everything else is coreutils and findutils.</p>
+<div class="step">
+<div class="step-num">1</div>
+<div>
+<h3>Build the lab</h3>
+<div class="prose"><p>One disposable directory, built from scratch. <strong>rm -rf /tmp/gh019</strong> starts clean; <strong>mkdir -p</strong> and <strong>cd</strong> set up the lab; <strong>chmod 755 /tmp/gh019</strong> keeps the directory traversable so the denial below proves the file's own bits did the work. <strong>printf</strong> writes the canary: <strong>\n</strong> is printf's newline escape, which is why the 21-character token lands as 22 bytes. <strong>chmod 600 backup.key</strong> locks the file to its owner: read and write for root, nothing for anyone else; <strong>ls -l</strong> shows the locked door: <strong>-rw-------</strong>.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">backup.key, 22 bytes</span></div>
+<pre>GHOSTLIGHT-CANARY-019</pre>
+</div>
+<div class="prose"><p><strong>GHOSTLIGHT-CANARY-019</strong>: the benign canary, a token that proves a read happened and does nothing else. One file, one lock, one secret. Everything below measures this file's bits.</p></div>
+</div>
+</div>
+</section>
+
+        <section class="phase" id="phase-red">
+          <div class="phase-head"><span class="phase-num">03</span><h2>Phase Red: the open door</h2><span class="phase-tag red">ATTACK</span></div>
+          <p class="lede">The attacker locks a secret to its owner, confirms the second user is denied, then opens the door with one chmod.</p>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">40.3s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/open-red.jpg" aria-label="Screen recording: OPEN RED, operator@lab">
+              <source src="../../assets/vid/open-red.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> A locked file denies the second user, one chmod opens the door, and the same user reads the secret with no copy and no changed bytes. Every command below is copy-pasteable.</figcaption>
+          </figure>
+<div class="step">
+<div class="step-num">1</div>
+<div>
+<h3>Lock the file to its owner</h3>
+<div class="prose"><p><strong>rm -rf /tmp/gh019; mkdir -p /tmp/gh019; chmod 755 /tmp/gh019; cd /tmp/gh019</strong> rebuilds the lab. <strong>printf</strong> writes the canary; <strong>chmod 600 backup.key</strong> locks it to the owner. <strong>ls -l</strong> shows the locked door: <strong>-rw-------</strong>, read and write for the owner, nothing for anyone else. The directory stays traversable on purpose: whatever happens next is the file's own bits doing the work.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="rm -rf /tmp/gh019; mkdir -p /tmp/gh019; chmod 755 /tmp/gh019; cd /tmp/gh019
+printf &#x27;GHOSTLIGHT-CANARY-019\n&#x27; &gt; backup.key; chmod 600 backup.key; ls -l"><span data-label>COPY</span></button></div>
+<pre>$ rm -rf /tmp/gh019; mkdir -p /tmp/gh019; chmod 755 /tmp/gh019; cd /tmp/gh019
+printf 'GHOSTLIGHT-CANARY-019\n' &gt; backup.key; chmod 600 backup.key; ls -l
+total 4
+-rw------- 1 root root 22 Sep 26 23:19 backup.key</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">2</div>
+<div>
+<h3>The lock holds: the second user is denied</h3>
+<div class="prose"><p><strong>runuser -u nobody -- cat /tmp/gh019/backup.key</strong>: <strong>cat: /tmp/gh019/backup.key: Permission denied</strong>, recorded honestly with rc 1. The nobody user, uid 65534, stands in for a compromised low-privilege account: the kernel checked its access against the file's bits and said no. The denial is the baseline; everything after it measures what one chmod changes.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="runuser -u nobody -- cat /tmp/gh019/backup.key"><span data-label>COPY</span></button></div>
+<pre>$ runuser -u nobody -- cat /tmp/gh019/backup.key
+cat: /tmp/gh019/backup.key: Permission denied</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">3</div>
+<div>
+<h3>One chmod opens the door</h3>
+<div class="prose"><p><strong>chmod o+r backup.key</strong> sets the other-read bit: the one metadata column flips. <strong>ls -l</strong> shows the open door: <strong>-rw----r--</strong>, mode 604. Same name, same size, same bytes; the only thing that changed is the third character of the mode.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="chmod o+r backup.key; ls -l"><span data-label>COPY</span></button></div>
+<pre>$ chmod o+r backup.key; ls -l
+total 4
+-rw----r-- 1 root root 22 Sep 26 23:19 backup.key</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">4</div>
+<div>
+<h3>The second user reads the secret</h3>
+<div class="prose"><p>The same user, the same command, a different answer: <strong>runuser -u nobody -- cat /tmp/gh019/backup.key</strong> prints <strong>GHOSTLIGHT-CANARY-019</strong>. The secret crossed the boundary without a copy, without a new process, without a changed byte. The canary is benign: it proves the read and does nothing else.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="runuser -u nobody -- cat /tmp/gh019/backup.key"><span data-label>COPY</span></button></div>
+<pre>$ runuser -u nobody -- cat /tmp/gh019/backup.key
+GHOSTLIGHT-CANARY-019</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">5</div>
+<div>
+<h3>Stealth confirmed</h3>
+<div class="prose"><p>One echo line, the attacker's summary: one chmod, the file is everyone's. The attack left no new artifact for a listing to find and no content change for integrity monitoring to flag: the only signal is the mode column.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;stealth confirmed: one chmod, the file is everyone&#x27;s&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo "stealth confirmed: one chmod, the file is everyone's"
+stealth confirmed: one chmod, the file is everyone's</pre>
+</div>
+<div class="verdict red">
+<span class="mlabel">Stealth confirmed</span>
+<p>The locked file denied the second user; one chmod opened it. Same name, same size, same bytes; the second user read the secret with no copy and no new process. The whole attack lived in one permission bit.</p>
+</div></div>
+</div>
+
+        </section>
+
+        <section class="phase" id="phase-blue">
+          <div class="phase-head"><span class="phase-num">04</span><h2>Phase Blue: the mode is the evidence</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">The defender reads the mode column the attacker changed, hunts the drift across the tree, captures evidence before restoring the lock, and installs the sweep that flags the next drift.</p>
+          <div class="prose">
+            <p>Here is the trap: reading the listing, seeing backup.key sitting where it always sat, and moving on. The name, the size, and the bytes are all unchanged, so a content-based check finds nothing. The detection starts in the one column the attacker touched.</p>
+          </div>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot blue" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">76.7s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/open-blue.jpg" aria-label="Screen recording: OPEN BLUE, operator@lab">
+              <source src="../../assets/vid/open-blue.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> The defender reads the changed mode, hunts permission drift with one find command, captures evidence before restoring the lock, and proves the sweep reports clean. Every command below is copy-pasteable.</figcaption>
+          </figure>
+<div class="step">
+<div class="step-num">1</div>
+<div>
+<h3>DETECTION: the listing, the naive view</h3>
+<div class="prose"><p><strong>cd /tmp/gh019 &amp;&amp; ls -l</strong>: backup.key, 22 bytes, sitting where the red phase left it. Stopping here is the attacker's win: the name, size, and date are all innocent. The tell is one column left of the name.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="cd /tmp/gh019 &amp;&amp; ls -l"><span data-label>COPY</span></button></div>
+<pre>$ cd /tmp/gh019 &amp;&amp; ls -l
+total 4
+-rw----r-- 1 root root 22 Sep 26 23:19 backup.key</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">2</div>
+<div>
+<h3>DETECTION: the mode in full</h3>
+<div class="prose"><p><strong>stat -c '%a %U %G %n' backup.key</strong> reads the file's metadata, not its bytes: <strong>604 root root backup.key</strong>. Six: read and write for the owner. Zero: nothing for the group. Four: read for everyone else. The number is the evidence: the baseline was 600, and the last column is the whole incident.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="stat -c &#x27;%a %U %G %n&#x27; backup.key"><span data-label>COPY</span></button></div>
+<pre>$ stat -c '%a %U %G %n' backup.key
+604 root root backup.key</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">3</div>
+<div>
+<h3>DETECTION: the drift hunt, the runbook one-liner</h3>
+<div class="prose"><p><strong>find /tmp/gh019 -type f \( -perm -4000 -o -perm -2000 -o -perm -o+r -o -perm -o+w \) -ls</strong> flags every file carrying drift: setuid, setgid, world-readable, world-writable. It catches backup.key by its world-read bit, and it also catches the harder slice, the -perm -4000/-2000 setuid/setgid bits that turn execution into the owner's privileges. One command, the whole tree.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="find /tmp/gh019 -type f \( -perm -4000 -o -perm -2000 -o -perm -o+r -o -perm -o+w \) -ls"><span data-label>COPY</span></button></div>
+<pre>$ find /tmp/gh019 -type f \( -perm -4000 -o -perm -2000 -o -perm -o+r -o -perm -o+w \) -ls
+        3      4 -rw----r--   1 root     root           22 Sep 26 23:19 /tmp/gh019/backup.key</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">4</div>
+<div>
+<h3>DETECTION: the audit question</h3>
+<div class="prose"><p><strong>command -v auditctl</strong> answers with an empty line, recorded honestly with rc 1: no auditd in this lab. The rule for a real host is stated with its dependency, not demonstrated: <strong>auditctl -w /path/to/backup.key -p wa -k perm-change</strong> records who flipped the bit, but it needs the audit subsystem enabled and its rules loaded, which this lab and many containers lack. Where it runs, the good-versus-bad is concrete: good is the owner changing their own file; bad is a mode flip nobody announced.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="command -v auditctl"><span data-label>COPY</span></button></div>
+<pre>$ command -v auditctl</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">5</div>
+<div>
+<h3>PREVENTION: the scheduled sweep</h3>
+<div class="prose"><p>The heredoc writes <strong>sweep.sh</strong>: the drift one-liner wrapped in a script, running over a directory given as an argument and defaulting to the current one. <strong>chmod +x</strong>; <strong>./sweep.sh /tmp/gh019</strong> flags backup.key. The sweep watches metadata, not names or bytes: it catches the attack class the content checks miss.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="cat &gt; sweep.sh &lt;&lt;&#x27;EOF&#x27;
+#!/bin/sh
+# flag permission drift: setuid/setgid bits, world read/write on files
+find &quot;${1:-.}&quot; -type f \( -perm -4000 -o -perm -2000 -o -perm -o+r -o -perm -o+w \) -ls
+EOF
+chmod +x sweep.sh &amp;&amp; ./sweep.sh /tmp/gh019"><span data-label>COPY</span></button></div>
+<pre>$ cat &gt; sweep.sh &lt;&lt;'EOF'
+#!/bin/sh
+# flag permission drift: setuid/setgid bits, world read/write on files
+find "${1:-.}" -type f \( -perm -4000 -o -perm -2000 -o -perm -o+r -o -perm -o+w \) -ls
+EOF
+chmod +x sweep.sh &amp;&amp; ./sweep.sh /tmp/gh019
+        3      4 -rw----r--   1 root     root           22 Sep 26 23:19 /tmp/gh019/backup.key</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">6</div>
+<div>
+<h3>MITIGATION: evidence first, then restore the lock</h3>
+<div class="prose"><p><strong>mkdir -p evidence &amp;&amp; sha256sum backup.key | tee evidence/hash.txt &amp;&amp; cp backup.key evidence/</strong> captures the hash (<strong style="word-break:break-all;overflow-wrap:anywhere">044d04c9fc2247165b1f01a504d021bea81264fe9812020107d3e11e02c326ad</strong>) and the file BEFORE the fix, because restoring the lock comes next. <strong>chmod o-r backup.key</strong> takes the other-read bit back off. Verify: <strong>ls -l</strong> shows <strong>-rw-------</strong> again. The drift is closed; the evidence is preserved. Scope: the drift hunt covered the tree.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="mkdir -p evidence &amp;&amp; sha256sum backup.key | tee evidence/hash.txt &amp;&amp; cp backup.key evidence/ &amp;&amp; chmod o-r backup.key &amp;&amp; ls -l"><span data-label>COPY</span></button></div>
+<pre>$ mkdir -p evidence &amp;&amp; sha256sum backup.key | tee evidence/hash.txt &amp;&amp; cp backup.key evidence/ &amp;&amp; chmod o-r backup.key &amp;&amp; ls -l
+044d04c9fc2247165b1f01a504d021bea81264fe9812020107d3e11e02c326ad  backup.key
+total 8
+-rw------- 1 root root  22 Sep 26 23:19 backup.key
+drwxrwx--- 2 root root  80 Sep 26 23:19 evidence
+-rwxrwx--- 1 root root 169 Sep 26 23:19 sweep.sh</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">7</div>
+<div>
+<h3>Verify the denial, verify the sweep</h3>
+<div class="prose"><p>The same user, the same command, the baseline answer: <strong>runuser -u nobody -- cat /tmp/gh019/backup.key</strong> fails with <strong>cat: /tmp/gh019/backup.key: Permission denied</strong>, recorded honestly. <strong>./sweep.sh /tmp/gh019</strong> runs clean, printing nothing: the drift is gone, and the sweep agrees.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="runuser -u nobody -- cat /tmp/gh019/backup.key; ./sweep.sh /tmp/gh019"><span data-label>COPY</span></button></div>
+<pre>$ runuser -u nobody -- cat /tmp/gh019/backup.key; ./sweep.sh /tmp/gh019
+cat: /tmp/gh019/backup.key: Permission denied</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">8</div>
+<div>
+<h3>Verdict and cleanup</h3>
+<div class="prose"><p>The summary, in the defender's own words: the mode is the evidence. <strong>rm -rf /tmp/gh019</strong> removes the lab.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;detection verified: the mode is the evidence&quot;; rm -rf /tmp/gh019"><span data-label>COPY</span></button></div>
+<pre>$ echo "detection verified: the mode is the evidence"; rm -rf /tmp/gh019
+detection verified: the mode is the evidence</pre>
+</div>
+<div class="verdict green">
+<span class="mlabel">Detection verified</span>
+<p>stat read the changed mode, 604 against the 600 baseline; the one-line drift hunt flagged the file and covers setuid/setgid; evidence was hashed and copied before the lock was restored; the second user was denied again; the sweep ran clean. The mode is the evidence.</p>
+</div></div>
+</div>
+
+        </section>
+
+        <section class="phase" id="countermeasures">
+          <div class="phase-head"><span class="phase-num">05</span><h2>Countermeasures</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">Three moves, in order: restore the lock with evidence first, sweep on a schedule, deny by default. Each is one way, not the way.</p>
+<div class="step">
+<div class="step-num">1</div>
+<div>
+<h3>Mitigate: capture, restore, re-sweep</h3>
+<div class="prose"><p>Proven first against the live plant: <strong>sha256sum | tee</strong> and <strong>cp</strong> capture the hash and the file into evidence/ BEFORE the fix; <strong>chmod o-r</strong> restores the 600 lock; the denied re-read (Permission denied, rc 1 on the read itself) and the clean sweep confirm scope. A real response then asks how the bit got flipped: the chmod is the incident's open question.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="mkdir -p evidence &amp;&amp; sha256sum backup.key | tee evidence/hash.txt &amp;&amp; cp backup.key evidence/ &amp;&amp; chmod o-r backup.key &amp;&amp; ls -l"><span data-label>COPY</span></button></div>
+<pre>$ mkdir -p evidence &amp;&amp; sha256sum backup.key | tee evidence/hash.txt &amp;&amp; cp backup.key evidence/ &amp;&amp; chmod o-r backup.key &amp;&amp; ls -l
+044d04c9fc2247165b1f01a504d021bea81264fe9812020107d3e11e02c326ad  backup.key
+total 8
+-rw------- 1 root root  22 Sep 26 23:19 backup.key
+drwxrwx--- 2 root root  80 Sep 26 23:19 evidence
+-rwxrwx--- 1 root root 169 Sep 26 23:19 sweep.sh</pre>
+</div>
+<div class="callout"><p><strong>Honest limit.</strong> Restoring the lock is not the same as understanding the flip: anyone who could chmod once can chmod again, which is why the hunt covers the whole tree and the sweep runs on a schedule. The lab removes the tree for cleanliness; a real incident preserves evidence/ and the original file for forensics instead.</p></div></div>
+</div>
+<div class="step">
+<div class="step-num">2</div>
+<div>
+<h3>Monitor: sweep the tree on a schedule</h3>
+<div class="prose"><p>The scheduled form of the phase-blue read: <strong>sweep.sh</strong> runs the drift one-liner over sensitive trees, and the tell is any mode that widened since the baseline: world-read, world-write, setuid, setgid. Plus the <strong>file-watch auditd rule</strong>, stated with its dependency: it needs the audit subsystem enabled and its rules loaded, which this lab lacks but production hosts can have. D3FEND <a href="https://d3fend.mitre.org/technique/d3f:LocalFilePermissions/" rel="noopener">D3-LFP: Local File Permissions</a> is the production form of "the lock is the policy", and D3FEND <a href="https://d3fend.mitre.org/technique/d3f:FileAccessPatternAnalysis/" rel="noopener">D3-FAPA: File Access Pattern Analysis</a> covers the odd read after the drift. Honest note: these are the natural defensive coverage for this attack, not a claimed direct mapping to T1222.002.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="find &quot;${1:-.}&quot; -type f \( -perm -4000 -o -perm -2000 -o -perm -o+r -o -perm -o+w \) -ls"><span data-label>COPY</span></button></div>
+<pre>$ find "${1:-.}" -type f \( -perm -4000 -o -perm -2000 -o -perm -o+r -o -perm -o+w \) -ls
+        3      4 -rw----r--   1 root     root           22 Sep 26 23:19 /tmp/gh019/backup.key</pre>
+</div>
+<div class="callout"><p><strong>Honest limit.</strong> The sweep catches drift against a known baseline only; a file that was born world-readable never trips it. The poll interval sets the detection floor: a bit flipped and flipped back between sweeps leaves no trace, only the audit log, if auditd was watching. The sweep reports the mode; it does not know whether the owner meant it.</p></div></div>
+</div>
+<div class="step">
+<div class="step-num">3</div>
+<div>
+<h3>Prevent: deny by default</h3>
+<div class="prose"><p>The demonstrated sweep detects; only the ownership policy prevents. The durable control is a default-deny permission posture on sensitive files, 600 or 640, enforced at creation by umask and verified by the scheduled sweep: a file that can never be world-readable cannot be opened this way. Honest note, repeated because it matters: the sweep detects; only the deny-by-default posture prevents.</p></div>
+<div class="callout"><p><strong>Honest limit.</strong> A strict umask is the strongest control here and the heaviest to operate: every legitimate shared file needs an explicit grant, and the grants need ownership. The audit rule only covers paths it watches; a file arriving outside the watched tree flips its bits unwatched.</p></div><div class="verdict green">
+<span class="mlabel">Countermeasures verified</span>
+<p>The file was hashed and copied before the lock was restored, the restore closed the drift (Permission denied on re-read), the scheduled sweep names its tell and ran clean after the fix, and the prevention control is stated with its dependency. Every control names its bypass: the sweep needs a baseline; the poll interval sets the floor; the audit rule needs auditd; and only a deny-by-default posture prevents.</p>
+</div></div>
+</div>
+
+        </section>
+
+        <section class="phase" id="debrief">
+          <div class="phase-head"><span class="phase-num">06</span><h2>Debrief</h2><span class="phase-tag neutral">TAKEAWAY</span></div>
+          <p class="takeaway">The bytes never changed; the lock did. Read the mode column, not just the content.</p>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">IOC checklist: signs this technique was used</span></p></div>
+          <ul class="checklist">
+            <li><span>A sensitive file whose <strong>mode widened without a recorded change</strong>, especially group or other read/write bits</span></li>
+            <li><span><strong>stat output disagreeing with the deployment baseline</strong> for the file's permissions</span></li>
+            <li><span><strong>Read audit lines from an unexpected identity</strong> after a mode flip (the auditd perm-change key)</span></li>
+            <li><span><strong>setuid/setgid bits appearing</strong> on files that never had them (-perm -4000/-2000 in the drift hunt)</span></li>
+            <li><span><strong>No permission-baseline check in the existing playbooks</strong>: the absence of the question is itself the gap</span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Reproducibility checklist</span></p></div>
+          <ul class="checklist">
+            <li><span>Verified on <strong>Ubuntu 24.04.5 LTS</strong>, x86-64, on 2026-09-26</span></li>
+            <li><span>Both recordings are real executions on that platform, not simulations</span></li>
+            <li><span>Runs as root in a disposable namespace (the lab plants its own files; the assumed breach: something on the box can chmod the file)</span></li>
+            <li><span>Cleanup: <strong>rm -rf /tmp/gh019</strong>; verify with <strong>ls /tmp</strong></span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Sources</span></p></div>
+          <div class="prose"><p><a href="https://attack.mitre.org/techniques/T1222/002/" rel="noopener">MITRE ATT&amp;CK T1222.002: File and Directory Permissions Modification: Linux and Mac File and Directory Permissions Modification</a><br>
+          <a href="https://attack.mitre.org/techniques/T1222/" rel="noopener">MITRE ATT&amp;CK T1222: File and Directory Permissions Modification</a> (the parent technique)<br>
+          <a href="https://man7.org/linux/man-pages/man1/chmod.1.html" rel="noopener">chmod(1)</a>, <a href="https://man7.org/linux/man-pages/man1/stat.1.html" rel="noopener">stat(1)</a>, <a href="https://man7.org/linux/man-pages/man1/find.1.html" rel="noopener">find(1)</a>, <a href="https://man7.org/linux/man-pages/man8/runuser.8.html" rel="noopener">runuser(8)</a><br>
+          <a href="https://d3fend.mitre.org/technique/d3f:LocalFilePermissions/" rel="noopener">D3FEND D3-LFP: Local File Permissions</a><br>
+          <a href="https://d3fend.mitre.org/technique/d3f:FileAccessPatternAnalysis/" rel="noopener">D3FEND D3-FAPA: File Access Pattern Analysis</a></p></div>
+        </section>
+
+        <a class="next-file" href="../020-invisible-ink/">
+          <span class="mlabel">Next file</span>
+          <h3>GH-020 The Invisible Ink</h3>
+          <p>The next file hides a payload where the listing never looks.</p>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <div>
+      <div class="footer-brand">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+        <span class="brand-name" style="font-size:17px">GHOSTLIGHT</span>
+      </div>
+      <p class="footer-note">An independent adversary-stealth research publication. Every command verified on the named OS before publishing. No trackers, no frameworks, no autoplay.</p>
+    </div>
+    <nav class="footer-links">
+      <a href="../../method.html">METHOD</a>
+      <a href="../../index.html">FILES</a>
+      <a href="https://attack.mitre.org/tactics/TA0005/" rel="noopener">MITRE TA0005</a>
+    </nav>
+    <div class="footer-elsewhere">
+      <span class="mlabel">Elsewhere</span><a href="https://dillingerstaffing.github.io/portfolio/" target="_blank" rel="noopener">Portfolio</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/proving-ground/" target="_blank" rel="noopener">Proving Ground</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/tapeout/" target="_blank" rel="noopener">Tapeout</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/old-iron/" target="_blank" rel="noopener">Old Iron</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/unstuck/" target="_blank" rel="noopener">Unstuck</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../../assets/site.js?v=512f8825"></script>
+</body>
+</html>
