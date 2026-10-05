@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>GH-023 The Second Root (T1564.002): GHOSTLIGHT</title>
+<meta name="description" content="T1564.002 Hide Artifacts: Hidden Users, reproduced on Ubuntu 24.04: two lines appended to the user database create a second UID-0 account that resolves as root yet never appears in the human-user listing; the defender hunts the duplicate UID 0, diffs the database against its baseline, removes the entry with evidence first, and stages the audit watch on /etc/passwd and /etc/shadow.">
+<link rel="canonical" href="https://dillingerstaffing.github.io/ghostlight/ops/023-second-root/">
+<meta property="og:title" content="GH-023 The Second Root (T1564.002): GHOSTLIGHT">
+<meta property="og:description" content="T1564.002 Hide Artifacts: Hidden Users, reproduced on Ubuntu 24.04: two lines appended to the user database create a second UID-0 account that resolves as root yet never appears in the human-user listing; the defender hunts the duplicate UID 0, diffs the database against its baseline, removes the entry with evidence first, and stages the audit watch on /etc/passwd and /etc/shadow.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dillingerstaffing.github.io/ghostlight/ops/023-second-root/">
+<meta property="og:site_name" content="GHOSTLIGHT">
+<meta property="og:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="GH-023 The Second Root (T1564.002): GHOSTLIGHT">
+<meta name="twitter:description" content="T1564.002 Hide Artifacts: Hidden Users, reproduced on Ubuntu 24.04: two lines appended to the user database create a second UID-0 account that resolves as root yet never appears in the human-user listing; the defender hunts the duplicate UID 0, diffs the database against its baseline, removes the entry with evidence first, and stages the audit watch on /etc/passwd and /etc/shadow.">
+<meta name="twitter:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23ece6d5'/%3E%3Ccircle cx='256' cy='196' r='104' fill='none' stroke='%23241f17' stroke-width='20'/%3E%3Cline x1='256' y1='152' x2='256' y2='240' stroke='%238c3f22' stroke-width='16'/%3E%3Cline x1='256' y1='300' x2='256' y2='424' stroke='%23241f17' stroke-width='14'/%3E%3Cline x1='200' y1='424' x2='312' y2='424' stroke='%23241f17' stroke-width='18'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+<link rel="manifest" href="../../assets/manifest.webmanifest">
+<meta name="theme-color" content="#0a0c0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GHOSTLIGHT">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<script>
+(function () {
+  // Theme: notebook is the default; a stored visitor choice wins.
+  // Runs before the stylesheet is parsed so the first paint is already
+  // the right theme (no flash of the wrong one).
+  try {
+    var t = localStorage.getItem('emi-site-theme');
+    var theme = t === 'classic' ? 'classic' : 'notebook';
+    document.documentElement.dataset.theme = theme;
+    var m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute('content', theme === 'classic' ? '#0a0c0f' : '#ece6d5');
+  } catch (e) {
+    document.documentElement.dataset.theme = 'notebook';
+  }
+})();
+</script>
+<link rel="stylesheet" href="../../assets/site.css?v=00000000">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"GH-023 The Second Root (T1564.002): GHOSTLIGHT",
+"url":"https://dillingerstaffing.github.io/ghostlight/ops/023-second-root/","description":"T1564.002 Hide Artifacts: Hidden Users, reproduced on Ubuntu 24.04: two lines appended to the user database create a second UID-0 account that resolves as root yet never appears in the human-user listing; the defender hunts the duplicate UID 0, diffs the database against its baseline, removes the entry with evidence first, and stages the audit watch on /etc/passwd and /etc/shadow.",
+"author":{"@type":"Person","name":"Chris Dillinger","url":"https://www.linkedin.com/in/christopherdillinger/"},
+"inLanguage":"en"}
+</script>
+</head>
+<body>
+
+<header class="site-header">
+  <a class="brand" href="../../index.html" aria-label="GHOSTLIGHT home">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+    <span class="brand-name">GHOSTLIGHT</span>
+  </a>
+  <nav class="site-nav">
+    <a href="../../method.html">METHOD</a>
+    <a href="../../index.html">FILES</a>
+    <button class="theme-toggle" type="button" aria-label="Switch to dark field dossier theme" title="Switch theme">
+      <span class="theme-toggle-mark" aria-hidden="true"><i></i><i></i></span>
+    </button>
+  </nav>
+</header>
+
+<div class="onboard" data-onboard hidden>
+  <span><strong>How to read a file:</strong> every file follows the six-phase structure below. <span class="k-green">Green</span> is verified, <span class="k-red">red</span> is hostile.</span>
+  <button aria-label="Dismiss">GOT IT</button>
+</div>
+
+<div class="page" data-op="023">
+  <div class="wrap">
+    <section class="op-hero">
+      <div class="op-kicker">
+        <span class="case-no">GH-023</span>
+        <a class="tech-id" href="https://attack.mitre.org/techniques/T1564/002/" rel="noopener">T1564.002</a>
+        <span class="phase-tag red">PHASE RED INSIDE</span>
+      </div>
+      <h1>The Second Root</h1>
+      <p class="lede">The user list shows every human on this machine. It does not show the second root. Two lines in the user database put it there; one read of the database finds it. This file runs both.</p>
+      <div class="op-meta-grid">
+        <div class="op-meta"><span class="mlabel">Technique</span><span class="mvalue">Hide Artifacts: Hidden Users (T1564.002)</span></div>
+        <div class="op-meta"><span class="mlabel">Target OS</span><span class="mvalue">Ubuntu 24.04.5 LTS</span></div>
+        <div class="op-meta"><span class="mlabel">Toolchain</span><span class="mvalue">coreutils + util-linux</span></div>
+        <div class="op-meta"><span class="mlabel">Level</span><span class="mvalue">Intermediate</span></div>
+        <div class="op-meta"><span class="mlabel">Time</span><span class="mvalue">25 min</span></div>
+      </div>
+      <div class="objectives">
+        <h2>OBJECTIVES</h2>
+        <ol>
+          <li data-phase="phase-red"><span class="box"></span>Append a second UID-0 account to the user database and watch the human-user listing miss it</li>
+          <li data-phase="phase-blue"><span class="box"></span>Expose it with the duplicate-UID-0 hunt and a baseline diff of /etc/passwd</li>
+          <li data-phase="countermeasures"><span class="box"></span>Remove the entry with evidence first and stage the audit watch on the identity files</li>
+          <li data-phase="debrief"><span class="box"></span>Take the IOC checklist and the one-sentence lesson</li>
+        </ol>
+      </div>
+    </section>
+
+    <div class="op-layout">
+      <nav class="rail" aria-label="Phases">
+        <span class="mlabel">Phases</span>
+        <ol>
+          <li><a href="#intel-brief"><span class="pnum">01</span>INTEL BRIEF<span class="tick"></span></a></li>
+          <li><a href="#target-environment"><span class="pnum">02</span>TARGET ENV<span class="tick"></span></a></li>
+          <li><a href="#phase-red"><span class="pnum">03</span>PHASE RED<span class="tick"></span></a></li>
+          <li><a href="#phase-blue"><span class="pnum">04</span>PHASE BLUE<span class="tick"></span></a></li>
+          <li><a href="#countermeasures"><span class="pnum">05</span>COUNTERMEASURES<span class="tick"></span></a></li>
+          <li><a href="#debrief"><span class="pnum">06</span>DEBRIEF<span class="tick"></span></a></li>
+        </ol>
+      </nav>
+
+      <div class="op-content">
+        <section class="phase" id="intel-brief">
+          <div class="phase-head"><span class="phase-num">01</span><h2>Intel Brief</h2><span class="phase-tag neutral">CONTEXT</span></div>
+          <p class="lede">MITRE ATT&amp;CK <a href="https://attack.mitre.org/techniques/T1564/002/" rel="noopener">T1564.002</a>: adversaries create user accounts that hide from administrative view, keeping a way back in that survives password rotations and casual inspection. This file creates the account by writing the database directly, then finds it by reading the database directly. Two actors: the attacker, who owns the appended lines and every write in the red phase; and the defender, who owns every read, hunt, removal, and rule in the blue phases.</p>
+          <div class="prose">
+            <p><strong>Why this technique.</strong> The user list is the most-read identity text on the system: login screens, graphical user managers, and the <strong>awk '$3&gt;=1000'</strong> human-user listing every hardening guide teaches. Operators audit the list, not the database, because the list is short and the database is thirty-odd lines of system accounts nobody memorized. Two lines appended to <strong>/etc/passwd</strong> and <strong>/etc/shadow</strong> create an account that resolves as UID 0, and the list never shows it, because the list is a filtered view and the filter is a convention, not a control.</p>
+            <p><strong>Why not just use useradd.</strong> The obvious alternative is the proper tooling: <strong>useradd -u 0 GHOSTLIGHT-NOISY-023</strong>. Break it on the concrete input <strong>-u 0</strong>: useradd refuses, <strong>useradd: UID 0 is not unique</strong>, exit code 4, and <strong>getent</strong> confirms nothing was created. The tooling has a guardrail for exactly this. The attacker answers the guardrail by skipping the tooling: two <strong>echo</strong> appends straight to the database files. useradd would also have built a home directory, a mail spool, and a log entry; the direct edit builds none of those, and there is no tool left to object.</p>
+            <p><strong>The mechanism, in one line.</strong> <strong>/etc/passwd</strong> is the user database: each line maps a name to a UID in the third field, a GID in the fourth, a home directory in the sixth, and a shell in the seventh. <strong>getpwnam</strong>, the call behind <strong>getent</strong>, <strong>id</strong>, and <strong>su</strong>, reads the file top to bottom. UID 0 is root: the kernel checks the number, never the name, so any name mapped to 0 <em>is</em> root. <strong>/etc/login.defs</strong> sets <strong>UID_MIN=1000</strong>, the boundary between system accounts and human accounts, and every list-the-users habit filters on it. A UID-0 line sits below the boundary the listings respect, beside thirty system accounts nobody reads twice.</p>
+            <p><strong>The concrete case, before the abstraction.</strong> In /tmp/ghlab, private copies of the identity files are bind-mounted over /etc/passwd, /etc/shadow, and /etc/group inside the lab's mount namespace, so the host's real user database is never written. Two appended lines. <strong>id GHOSTLIGHT-CANARY-023</strong> prints <strong>uid=0(root) gid=0(root) groups=0(root)</strong>: the name resolves, and the system calls it root. The human-user listing answers <strong>NOT in the human-user listing (UID&gt;=1000)</strong>. The duplicate-UID hunt prints two names: <strong>root</strong>, <strong>GHOSTLIGHT-CANARY-023</strong>. Same database, two views, two answers.</p>
+            <p><strong>Terms, earned.</strong> <strong>UID</strong> is the user ID: the number the kernel actually checks; names are labels for humans. <strong>/etc/passwd</strong> is the user database both humans and programs read. <strong>/etc/shadow</strong> holds the password field the world must not read, including the lock marker. <strong>UID_MIN</strong> is the login.defs boundary (1000 here) between system and human accounts. <strong>NSS</strong>, the name service switch, is the layer <strong>getent</strong> resolves through; reading /etc/passwd directly bypasses it. A <strong>hidden user</strong> is T1564.002: an account present in the identity database but absent from administrative view.</p>
+          </div>
+          <div class="callout"><p><strong>Scope.</strong> T1564 covers hiding artifacts broadly: hidden files, hidden users, and more. This file works the hidden-user case end to end: the quiet creation, the listing that misses it, the duplicate-UID hunt, the baseline diff, the evidence-first removal, and the staged audit watch. The canary is a benign token: it marks the lab account and nothing else. The lab runs in a disposable mount and PID namespace with private copies of the identity files bind-mounted over the real paths; teardown unmounts the copies and deletes the lab, and the host's user database is never written.</p></div>
+        </section>
+
+        <section class="phase" id="target-environment">
+          <div class="phase-head"><span class="phase-num">02</span><h2>Target Environment</h2><span class="phase-tag neutral">LOADOUT</span></div>
+          <p class="lede">Ubuntu 24.04.5 LTS, x86-64, root inside a disposable mount and PID namespace used only for this lab. The attack needs root: writing /etc/passwd is the whole technique. The detection needs only read access to /etc/passwd.</p>
+<div class="step">
+<div class="step-num">1</div>
+<div>
+<h3>Build the isolated lab</h3>
+<div class="prose"><p>The recording starts with a private /tmp inside its own mount namespace, so every take begins identical. <strong>rm -rf /tmp/ghlab</strong> starts clean; <strong>mkdir -p</strong> and the three <strong>cp -a</strong> copies stage private identity files, and one more copy saves <strong>passwd.baseline</strong>, the before photo the blue phase diffs against. The three <strong>mount --bind</strong> commands lay the lab copies over /etc/passwd, /etc/shadow, and /etc/group: every lookup inside this namespace now reads the lab database, while the host keeps its own. <strong>grep /proc/mounts</strong> shows the three mounts (they read as tmpfs because the copies live on the namespace's private tmpfs /tmp), and <strong>wc -l</strong> counts the 22 baseline users.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="rm -rf /tmp/ghlab; mkdir -p /tmp/ghlab
+cp -a /etc/passwd /etc/shadow /etc/group /tmp/ghlab/
+cp -a /etc/passwd /tmp/ghlab/passwd.baseline
+mount --bind /tmp/ghlab/passwd /etc/passwd
+mount --bind /tmp/ghlab/shadow /etc/shadow
+mount --bind /tmp/ghlab/group /etc/group
+grep -E &#x27; /etc/(passwd|shadow|group) &#x27; /proc/mounts
+echo &quot;baseline:&quot;; wc -l &lt; /etc/passwd"><span data-label>COPY</span></button></div>
+<pre>$ rm -rf /tmp/ghlab; mkdir -p /tmp/ghlab
+cp -a /etc/passwd /etc/shadow /etc/group /tmp/ghlab/
+cp -a /etc/passwd /tmp/ghlab/passwd.baseline
+mount --bind /tmp/ghlab/passwd /etc/passwd
+mount --bind /tmp/ghlab/shadow /etc/shadow
+mount --bind /tmp/ghlab/group /etc/group
+grep -E ' /etc/(passwd|shadow|group) ' /proc/mounts
+echo "baseline:"; wc -l &lt; /etc/passwd
+tmpfs /etc/passwd tmpfs rw,relatime,uid=131072,gid=131072,inode64 0 0
+tmpfs /etc/shadow tmpfs rw,relatime,uid=131072,gid=131072,inode64 0 0
+tmpfs /etc/group tmpfs rw,relatime,uid=131072,gid=131072,inode64 0 0
+baseline:
+22</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">2</div>
+<div>
+<h3>The payload: two database lines</h3>
+<div class="prose"><p>There is no binary in this file; the payload is two lines of text. The passwd line: the name <strong>GHOSTLIGHT-CANARY-023</strong> (the benign canary, the mark of the lab); <strong>x</strong> in the password field (meaning "look in /etc/shadow"); <strong>0</strong> as UID and <strong>0</strong> as GID (this is what makes it the second root); the GECOS comment; <strong>/nonexistent</strong> as home (no home directory is ever created, so there is nothing in /home to find); <strong>/bin/bash</strong> as shell. The shadow line: the same name; <strong>!</strong> (locked: no password login is possible); then the aging fields. On a real host these two lines are the entire attack.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">text: the two appended lines</span><button class="copy-btn" data-copy="GHOSTLIGHT-CANARY-023:x:0:0:GHOSTLIGHT lab canary:/nonexistent:/bin/bash
+GHOSTLIGHT-CANARY-023:!:20200:0:99999:7:::"><span data-label>COPY</span></button></div>
+<pre>GHOSTLIGHT-CANARY-023:x:0:0:GHOSTLIGHT lab canary:/nonexistent:/bin/bash
+GHOSTLIGHT-CANARY-023:!:20200:0:99999:7:::</pre>
+</div>
+</div>
+</div>
+</section>
+
+        <section class="phase" id="phase-red">
+          <div class="phase-head"><span class="phase-num">03</span><h2>Phase Red: the second root</h2><span class="phase-tag red">ATTACK</span></div>
+          <p class="lede">The attacker skips the account tooling, writes the database directly, and proves the account both works and hides.</p>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">114.1s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/second-root-red.jpg" aria-label="Screen recording: SECOND ROOT RED, operator@lab">
+              <source src="../../assets/vid/second-root-red.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> The lab database is isolated, the tooling refuses the duplicate UID, and two appended lines create a working UID-0 account the human-user listing never shows. Every command below is copy-pasteable.</figcaption>
+          </figure>
+<div class="step">
+<div class="step-num">1</div>
+<div>
+<h3>Isolate the lab</h3>
+<div class="prose"><p>Private copies of the identity files, one baseline saved, three bind mounts over the real paths. <strong>/proc/mounts</strong> confirms the namespace now reads the lab database; <strong>wc -l</strong> counts 22 baseline users. The host's /etc/passwd is untouched throughout: the teardown step proves it.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="rm -rf /tmp/ghlab; mkdir -p /tmp/ghlab
+cp -a /etc/passwd /etc/shadow /etc/group /tmp/ghlab/
+cp -a /etc/passwd /tmp/ghlab/passwd.baseline
+mount --bind /tmp/ghlab/passwd /etc/passwd
+mount --bind /tmp/ghlab/shadow /etc/shadow
+mount --bind /tmp/ghlab/group /etc/group
+grep -E &#x27; /etc/(passwd|shadow|group) &#x27; /proc/mounts
+echo &quot;baseline:&quot;; wc -l &lt; /etc/passwd"><span data-label>COPY</span></button></div>
+<pre>$ rm -rf /tmp/ghlab; mkdir -p /tmp/ghlab
+cp -a /etc/passwd /etc/shadow /etc/group /tmp/ghlab/
+cp -a /etc/passwd /tmp/ghlab/passwd.baseline
+mount --bind /tmp/ghlab/passwd /etc/passwd
+mount --bind /tmp/ghlab/shadow /etc/shadow
+mount --bind /tmp/ghlab/group /etc/group
+grep -E ' /etc/(passwd|shadow|group) ' /proc/mounts
+echo "baseline:"; wc -l &lt; /etc/passwd
+tmpfs /etc/passwd tmpfs rw,relatime,uid=131072,gid=131072,inode64 0 0
+tmpfs /etc/shadow tmpfs rw,relatime,uid=131072,gid=131072,inode64 0 0
+tmpfs /etc/group tmpfs rw,relatime,uid=131072,gid=131072,inode64 0 0
+baseline:
+22</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">2</div>
+<div>
+<h3>The noisy alternative, refused</h3>
+<div class="prose"><p><strong>useradd -u 0 GHOSTLIGHT-NOISY-023</strong> hits the guardrail: <strong>useradd: UID 0 is not unique</strong>, exit code 4. <strong>getent</strong> confirms nothing was created. The proper tooling refuses to make a second root, which is exactly why the attacker does not use the proper tooling.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="useradd -u 0 GHOSTLIGHT-NOISY-023; echo &quot;useradd rc=$?&quot;
+getent passwd GHOSTLIGHT-NOISY-023 || echo &#x27;not created: useradd refused the duplicate UID&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ useradd -u 0 GHOSTLIGHT-NOISY-023; echo "useradd rc=$?"
+getent passwd GHOSTLIGHT-NOISY-023 || echo 'not created: useradd refused the duplicate UID'
+useradd: UID 0 is not unique
+useradd rc=4
+not created: useradd refused the duplicate UID</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">3</div>
+<div>
+<h3>The quiet creation</h3>
+<div class="prose"><p>Two <strong>echo</strong> appends, one per database file, and <strong>getent</strong> resolves the account instantly: the line shown is the account, live in the database. The footprint is the whole point: useradd would have built a home directory, a mail spool, and a log entry; the direct edit built none of those. The <strong>ls</strong> fallback proves the first. The <strong>/var/log</strong> sweep finds no creation record from the account tooling (the journal does record the <strong>su</strong> session from the next step's functional proof; su always logs via PAM, and that is the noisiest thing the attacker does in this file, after the account already exists).</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &#x27;GHOSTLIGHT-CANARY-023:x:0:0:GHOSTLIGHT lab canary:/nonexistent:/bin/bash&#x27; &gt;&gt; /etc/passwd
+echo &#x27;GHOSTLIGHT-CANARY-023:!:20200:0:99999:7:::&#x27; &gt;&gt; /etc/shadow
+getent passwd GHOSTLIGHT-CANARY-023
+grep -ri &#x27;GHOSTLIGHT-CANARY-023&#x27; /var/log/ 2&gt;/dev/null || echo &#x27;no trace in /var/log: the database changed with no audit trail&#x27;
+ls -d /home/GHOSTLIGHT-CANARY-023 2&gt;/dev/null || echo &#x27;no home directory created&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ echo 'GHOSTLIGHT-CANARY-023:x:0:0:GHOSTLIGHT lab canary:/nonexistent:/bin/bash' &gt;&gt; /etc/passwd
+echo 'GHOSTLIGHT-CANARY-023:!:20200:0:99999:7:::' &gt;&gt; /etc/shadow
+getent passwd GHOSTLIGHT-CANARY-023
+grep -ri 'GHOSTLIGHT-CANARY-023' /var/log/ 2&gt;/dev/null || echo 'no trace in /var/log: the database changed with no audit trail'
+ls -d /home/GHOSTLIGHT-CANARY-023 2&gt;/dev/null || echo 'no home directory created'
+GHOSTLIGHT-CANARY-023:x:0:0:GHOSTLIGHT lab canary:/nonexistent:/bin/bash
+no home directory created</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">4</div>
+<div>
+<h3>The account works</h3>
+<div class="prose"><p><strong>id GHOSTLIGHT-CANARY-023</strong> prints <strong>uid=0(root) gid=0(root) groups=0(root)</strong>: the name resolves to UID 0, and the system reports the canonical name, root. <strong>su -s /bin/bash</strong> switches to the account and the shell reports UID <strong>0</strong>. The kernel checked the number, never the name.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="id GHOSTLIGHT-CANARY-023
+su -s /bin/bash GHOSTLIGHT-CANARY-023 -c &#x27;id -u&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ id GHOSTLIGHT-CANARY-023
+su -s /bin/bash GHOSTLIGHT-CANARY-023 -c 'id -u'
+uid=0(root) gid=0(root) groups=0(root)
+0</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">5</div>
+<div>
+<h3>The listing hides it</h3>
+<div class="prose"><p>The human-user listing, the <strong>awk '$3&gt;=1000'</strong> filter every hardening guide teaches: <strong>NOT in the human-user listing</strong>. <strong>ls /home</strong> shows only the existing user. The account is fully functional and administratively invisible, which is the entire technique.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="awk -F: &#x27;($3&gt;=1000)&amp;&amp;($3&lt;60000){print $1}&#x27; /etc/passwd | grep -i &#x27;ghostlight&#x27; || echo &#x27;NOT in the human-user listing (UID&gt;=1000)&#x27;
+ls /home
+echo &#x27;stealth confirmed: uid 0 resolves, the human-user listing shows nothing&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ awk -F: '($3&gt;=1000)&amp;&amp;($3&lt;60000){print $1}' /etc/passwd | grep -i 'ghostlight' || echo 'NOT in the human-user listing (UID&gt;=1000)'
+ls /home
+echo 'stealth confirmed: uid 0 resolves, the human-user listing shows nothing'
+NOT in the human-user listing (UID&gt;=1000)
+hatch
+stealth confirmed: uid 0 resolves, the human-user listing shows nothing</pre>
+</div>
+<div class="verdict red">
+<span class="mlabel">Stealth confirmed</span>
+<p>Two appended lines created a second UID 0 that resolves as root and answers to su. The human-user listing the admin checks shows nothing, because the listing filters on the UID_MIN convention and the account sits below it, beside thirty system accounts nobody reads twice. The database was written with no tooling, no home directory, and no creation log entry.</p>
+</div></div>
+</div>
+
+        </section>
+
+        <section class="phase" id="phase-blue">
+          <div class="phase-head"><span class="phase-num">04</span><h2>Phase Blue: read the database, not the list</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">The defender stops trusting the filtered view and starts reading the database: the naive listing, the duplicate-UID hunt, the baseline diff, the cross-checks. Then the entry is removed with evidence first, and the watch goes on the identity files.</p>
+          <div class="prose">
+            <p>Here is the trap: running the human-user listing, seeing it clean, and moving on. That is trusting the testimony of the filter. The check that works never asks the listing who exists; it reads the database the listing was filtered from.</p>
+          </div>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot blue" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">158.4s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/second-root-blue.jpg" aria-label="Screen recording: SECOND ROOT BLUE, operator@lab">
+              <source src="../../assets/vid/second-root-blue.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> The defender finds the clean listing, hunts the duplicate UID 0, diffs the database against its baseline, removes the entry with evidence first, and stages the audit watch. Every command below is copy-pasteable.</figcaption>
+          </figure>
+<div class="step">
+<div class="step-num">1</div>
+<div>
+<h3>DETECTION: the naive view</h3>
+<div class="prose"><p>The defender starts where the admin starts: the human-user listing counts <strong>0</strong> canary matches, <strong>human-user listing: clean</strong>, and <strong>ls /home</strong> shows only the existing user. Nothing about this view looks wrong, because nothing about the filter is wrong: it is doing its job, listing humans. Stopping here is the attacker's win.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="awk -F: &#x27;($3&gt;=1000)&amp;&amp;($3&lt;60000){print $1}&#x27; /etc/passwd | grep -ci &#x27;ghostlight&#x27; || echo &#x27;human-user listing: clean&#x27;
+ls /home
+echo &#x27;--- the listing the admin checks shows nothing ---&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ awk -F: '($3&gt;=1000)&amp;&amp;($3&lt;60000){print $1}' /etc/passwd | grep -ci 'ghostlight' || echo 'human-user listing: clean'
+ls /home
+echo '--- the listing the admin checks shows nothing ---'
+0
+human-user listing: clean
+hatch
+--- the listing the admin checks shows nothing ---</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">2</div>
+<div>
+<h3>DETECTION: the independent observation path</h3>
+<div class="prose"><p>Read the database, not the list. <strong>awk -F: '$3==0{print $1}'</strong> prints every name mapped to UID 0: <strong>root</strong>, <strong>GHOSTLIGHT-CANARY-023</strong>. Two names, one UID: the LEAD. Then the baseline diff: <strong>diff passwd.baseline /etc/passwd</strong> prints <strong>22a23 &gt; GHOSTLIGHT-CANARY-023:x:0:0:...</strong>, the added line, verbatim. (diff exits 1 here; that nonzero exit IS the finding: the files differ.) Two independent reads, one finding, and the tell is concrete: good is one name on UID 0; bad is two.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="awk -F: &#x27;$3==0{print $1}&#x27; /etc/passwd
+echo &#x27;--- LEAD: two names share UID 0 ---&#x27;
+diff /tmp/ghlab/passwd.baseline /etc/passwd"><span data-label>COPY</span></button></div>
+<pre>$ awk -F: '$3==0{print $1}' /etc/passwd
+echo '--- LEAD: two names share UID 0 ---'
+diff /tmp/ghlab/passwd.baseline /etc/passwd
+root
+GHOSTLIGHT-CANARY-023
+--- LEAD: two names share UID 0 ---
+22a23
+&gt; GHOSTLIGHT-CANARY-023:x:0:0:GHOSTLIGHT lab canary:/nonexistent:/bin/bash</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">3</div>
+<div>
+<h3>DETECTION: cross-checks</h3>
+<div class="prose"><p><strong>getent shadow</strong> shows the account exists in the shadow database too, with the password field locked (<strong>!</strong>): no password login is possible, which is exactly how the attacker keeps it quiet. <strong>lastlog -u</strong> looks the account up by UID, so the alias collapses to the canonical name and the record appears under <strong>root</strong>, <strong>**Never logged in**</strong>: even the login record hides inside root's own entry. The cross-checks confirm the account is real, locked, and login-quiet.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="getent shadow GHOSTLIGHT-CANARY-023
+lastlog -u GHOSTLIGHT-CANARY-023"><span data-label>COPY</span></button></div>
+<pre>$ getent shadow GHOSTLIGHT-CANARY-023
+lastlog -u GHOSTLIGHT-CANARY-023
+GHOSTLIGHT-CANARY-023:!:20200:0:99999:7:::
+Username         Port     From                                       Latest
+root                                                                **Never logged in**</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">4</div>
+<div>
+<h3>MITIGATION: evidence first, then removal</h3>
+<div class="prose"><p><strong>mkdir -p evidence</strong>; <strong>cp -a</strong> preserves both database files and <strong>sha256sum | tee evidence/hash.txt</strong> anchors their hashes. All of it BEFORE the removal, because a deleted entry takes its evidence with it. <strong>getent shadow</strong> verifies the locked state going in. The pre-removal copies are the rollback plan; the <strong>grep -v</strong> pair rewrites the database without the canary lines (on a real host this is <strong>vipw</strong> / <strong>sed -i</strong> on /etc/passwd and /etc/shadow directly; in this lab the isolation bind-mounts the files, so the removal edits the underlying copies the mounts point at). Verify: <strong>getent</strong> finds nothing, <strong>account removed from the user database</strong>, and the duplicate-UID hunt prints only <strong>root</strong>. D3FEND calls the hash anchor <a href="https://d3fend.mitre.org/technique/d3f:FileHashing/" rel="noopener">D3-FH: File Hashing</a>.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="mkdir -p evidence
+cp -a /etc/passwd /etc/shadow evidence/
+sha256sum evidence/passwd evidence/shadow | tee evidence/hash.txt
+getent shadow GHOSTLIGHT-CANARY-023
+cp -a /tmp/ghlab/passwd /tmp/ghlab/passwd.pre-removal
+cp -a /tmp/ghlab/shadow /tmp/ghlab/shadow.pre-removal
+grep -v &#x27;GHOSTLIGHT-CANARY-023&#x27; /tmp/ghlab/passwd.pre-removal &gt; /tmp/ghlab/passwd.tmp &amp;&amp; cat /tmp/ghlab/passwd.tmp &gt; /tmp/ghlab/passwd
+grep -v &#x27;GHOSTLIGHT-CANARY-023&#x27; /tmp/ghlab/shadow.pre-removal &gt; /tmp/ghlab/shadow.tmp &amp;&amp; cat /tmp/ghlab/shadow.tmp &gt; /tmp/ghlab/shadow
+rm /tmp/ghlab/passwd.tmp /tmp/ghlab/shadow.tmp
+getent passwd GHOSTLIGHT-CANARY-023 || echo &#x27;account removed from the user database&#x27;
+awk -F: &#x27;$3==0{print $1}&#x27; /etc/passwd"><span data-label>COPY</span></button></div>
+<pre>$ mkdir -p evidence
+cp -a /etc/passwd /etc/shadow evidence/
+sha256sum evidence/passwd evidence/shadow | tee evidence/hash.txt
+getent shadow GHOSTLIGHT-CANARY-023
+cp -a /tmp/ghlab/passwd /tmp/ghlab/passwd.pre-removal
+cp -a /tmp/ghlab/shadow /tmp/ghlab/shadow.pre-removal
+grep -v 'GHOSTLIGHT-CANARY-023' /tmp/ghlab/passwd.pre-removal &gt; /tmp/ghlab/passwd.tmp &amp;&amp; cat /tmp/ghlab/passwd.tmp &gt; /tmp/ghlab/passwd
+grep -v 'GHOSTLIGHT-CANARY-023' /tmp/ghlab/shadow.pre-removal &gt; /tmp/ghlab/shadow.tmp &amp;&amp; cat /tmp/ghlab/shadow.tmp &gt; /tmp/ghlab/shadow
+rm /tmp/ghlab/passwd.tmp /tmp/ghlab/shadow.tmp
+getent passwd GHOSTLIGHT-CANARY-023 || echo 'account removed from the user database'
+awk -F: '$3==0{print $1}' /etc/passwd
+e085f1076502fabcdf0c023dcd94a0d8f5de08e7c860e4e720d725fba2770428  evidence/passwd
+fa57f275489535d2bf4a6c35380ad3654d1ea2037a518a543bb92170ad062532  evidence/shadow
+GHOSTLIGHT-CANARY-023:!:20200:0:99999:7:::
+account removed from the user database
+root</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">5</div>
+<div>
+<h3>PREVENTION: watch the identity files</h3>
+<div class="prose"><p>The heredoc stages <strong>ghostlight-023.rules</strong>: a write-and-attribute watch (<strong>-p wa</strong>) on <strong>/etc/passwd</strong> and <strong>/etc/shadow</strong>, tagged <strong>gh023-identity</strong>. <strong>cat</strong> shows the staged rule; <strong>command -v auditctl</strong> confirms the tooling is installed; <strong>pgrep</strong> confirms <strong>auditd not running in this lab: rule staged, not loaded</strong>, stated with its dependency, not demonstrated. Where auditd runs, every direct edit of the user database fires an event with the process that did it. The durable control is this watch plus the scheduled duplicate-UID audit: identity anchored to the database, (<a href="https://d3fend.mitre.org/technique/d3f:FileIntegrityMonitoring/" rel="noopener">D3-FIM: File Integrity Monitoring</a>), never to the listing.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="mkdir -p /tmp/ghlab/staged
+cat &gt; /tmp/ghlab/staged/ghostlight-023.rules &lt;&lt;&#x27;EOF&#x27;
+# GH-023: watch the user database files (needs auditd running)
+-w /etc/passwd -p wa -k gh023-identity
+-w /etc/shadow -p wa -k gh023-identity
+EOF
+cat /tmp/ghlab/staged/ghostlight-023.rules
+command -v auditctl
+pgrep -a auditd || echo &#x27;auditd not running in this lab: rule staged, not loaded&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ mkdir -p /tmp/ghlab/staged
+cat &gt; /tmp/ghlab/staged/ghostlight-023.rules &lt;&lt;'EOF'
+# GH-023: watch the user database files (needs auditd running)
+-w /etc/passwd -p wa -k gh023-identity
+-w /etc/shadow -p wa -k gh023-identity
+EOF
+cat /tmp/ghlab/staged/ghostlight-023.rules
+command -v auditctl
+pgrep -a auditd || echo 'auditd not running in this lab: rule staged, not loaded'
+# GH-023: watch the user database files (needs auditd running)
+-w /etc/passwd -p wa -k gh023-identity
+-w /etc/shadow -p wa -k gh023-identity
+/usr/sbin/auditctl
+auditd not running in this lab: rule staged, not loaded</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">6</div>
+<div>
+<h3>Verdict and teardown</h3>
+<div class="prose"><p>The summary, in the defender's own words: the file is the record, the listing is the testimony. Teardown: <strong>umount</strong> the three bind mounts, <strong>rm -rf /tmp/ghlab</strong> deletes the lab, <strong>getent</strong> confirms <strong>host user database untouched: no such user</strong>, and <strong>ls /tmp</strong> shows the empty private tmp.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &#x27;detection verified: the file is the record, the listing is the testimony&#x27;
+umount /etc/passwd /etc/shadow /etc/group
+rm -rf /tmp/ghlab
+getent passwd GHOSTLIGHT-CANARY-023 || echo &#x27;host user database untouched: no such user&#x27;
+ls /tmp"><span data-label>COPY</span></button></div>
+<pre>$ echo 'detection verified: the file is the record, the listing is the testimony'
+umount /etc/passwd /etc/shadow /etc/group
+rm -rf /tmp/ghlab
+getent passwd GHOSTLIGHT-CANARY-023 || echo 'host user database untouched: no such user'
+ls /tmp
+detection verified: the file is the record, the listing is the testimony
+host user database untouched: no such user</pre>
+</div>
+<div class="verdict green">
+<span class="mlabel">Detection verified</span>
+<p>The naive listing was clean; the duplicate-UID-0 hunt named the one lead where two names share UID 0; the baseline diff printed the added line verbatim; the cross-checks confirmed a real, locked, login-quiet account; the entry's database copies and hashes were captured before removal; the audit watch is staged with its dependency stated. The listing never got a second hearing.</p>
+</div></div>
+</div>
+
+        </section>
+
+        <section class="phase" id="countermeasures">
+          <div class="phase-head"><span class="phase-num">05</span><h2>Countermeasures</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">Three moves, in order: remove with evidence first, hunt the database on a schedule, watch the identity files. Each is one way, not the way.</p>
+<div class="step">
+<div class="step-num">1</div>
+<div>
+<h3>Mitigate: capture, remove, re-sweep</h3>
+<div class="prose"><p>Proven first against the live entry: both database files and their hashes are captured into <strong>evidence/</strong> BEFORE the removal, because a deleted entry takes its evidence with it. The locked shadow state is verified going in; the pre-removal copies are the rollback plan; the <strong>grep -v</strong> pair rewrites the database without the canary lines. The re-sweep (<strong>getent</strong> finds nothing; the duplicate-UID hunt prints only root) confirms the database is clean. A real response then hunts the delivery vector: how the lines got written is the incident's open question, and the audit watch from Phase Blue is the sibling sweep.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="mkdir -p evidence
+cp -a /etc/passwd /etc/shadow evidence/
+sha256sum evidence/passwd evidence/shadow | tee evidence/hash.txt
+getent shadow GHOSTLIGHT-CANARY-023
+cp -a /tmp/ghlab/passwd /tmp/ghlab/passwd.pre-removal
+cp -a /tmp/ghlab/shadow /tmp/ghlab/shadow.pre-removal
+grep -v &#x27;GHOSTLIGHT-CANARY-023&#x27; /tmp/ghlab/passwd.pre-removal &gt; /tmp/ghlab/passwd.tmp &amp;&amp; cat /tmp/ghlab/passwd.tmp &gt; /tmp/ghlab/passwd
+grep -v &#x27;GHOSTLIGHT-CANARY-023&#x27; /tmp/ghlab/shadow.pre-removal &gt; /tmp/ghlab/shadow.tmp &amp;&amp; cat /tmp/ghlab/shadow.tmp &gt; /tmp/ghlab/shadow
+rm /tmp/ghlab/passwd.tmp /tmp/ghlab/shadow.tmp
+getent passwd GHOSTLIGHT-CANARY-023 || echo &#x27;account removed from the user database&#x27;
+awk -F: &#x27;$3==0{print $1}&#x27; /etc/passwd"><span data-label>COPY</span></button></div>
+<pre>$ mkdir -p evidence
+cp -a /etc/passwd /etc/shadow evidence/
+sha256sum evidence/passwd evidence/shadow | tee evidence/hash.txt
+getent shadow GHOSTLIGHT-CANARY-023
+cp -a /tmp/ghlab/passwd /tmp/ghlab/passwd.pre-removal
+cp -a /tmp/ghlab/shadow /tmp/ghlab/shadow.pre-removal
+grep -v 'GHOSTLIGHT-CANARY-023' /tmp/ghlab/passwd.pre-removal &gt; /tmp/ghlab/passwd.tmp &amp;&amp; cat /tmp/ghlab/passwd.tmp &gt; /tmp/ghlab/passwd
+grep -v 'GHOSTLIGHT-CANARY-023' /tmp/ghlab/shadow.pre-removal &gt; /tmp/ghlab/shadow.tmp &amp;&amp; cat /tmp/ghlab/shadow.tmp &gt; /tmp/ghlab/shadow
+rm /tmp/ghlab/passwd.tmp /tmp/ghlab/shadow.tmp
+getent passwd GHOSTLIGHT-CANARY-023 || echo 'account removed from the user database'
+awk -F: '$3==0{print $1}' /etc/passwd
+e085f1076502fabcdf0c023dcd94a0d8f5de08e7c860e4e720d725fba2770428  evidence/passwd
+fa57f275489535d2bf4a6c35380ad3654d1ea2037a518a543bb92170ad062532  evidence/shadow
+GHOSTLIGHT-CANARY-023:!:20200:0:99999:7:::
+account removed from the user database
+root</pre>
+</div>
+<div class="callout"><p><strong>Honest limit.</strong> With a duplicate UID 0 you cannot kill "the account's processes" without killing root's: every process lookup by that UID matches root too, so process-targeted containment is blind here; containment is the entry removal plus a review of how the lines were written. Removing the entry orphans nothing in this lab (the account never owned a file), but on a real host sweep <strong>find / -xdev -nouser</strong> after removal; with UID 0 that sweep is blind as well, since orphaned files still map to the name root, which is why the pre-removal evidence copies matter more than the post-removal sweep. The lab deletes evidence/ at teardown for cleanliness; a real incident preserves it for forensics instead.</p></div></div>
+</div>
+<div class="step">
+<div class="step-num">2</div>
+<div>
+<h3>Monitor: hunt the database on a schedule</h3>
+<div class="prose"><p>The scheduled form of the phase-blue reads: the duplicate-UID hunt (<strong>awk -F: '$3==0'</strong>) plus the baseline diff of /etc/passwd and /etc/shadow, run on a timer across the fleet. The tell is concrete: good is one name on UID 0; bad is two. Production versions add alerting, not new ideas.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="awk -F: &#x27;$3==0{print $1}&#x27; /etc/passwd
+echo &#x27;--- LEAD: two names share UID 0 ---&#x27;
+diff /tmp/ghlab/passwd.baseline /etc/passwd"><span data-label>COPY</span></button></div>
+<pre>$ awk -F: '$3==0{print $1}' /etc/passwd
+echo '--- LEAD: two names share UID 0 ---'
+diff /tmp/ghlab/passwd.baseline /etc/passwd
+root
+GHOSTLIGHT-CANARY-023
+--- LEAD: two names share UID 0 ---
+22a23
+&gt; GHOSTLIGHT-CANARY-023:x:0:0:GHOSTLIGHT lab canary:/nonexistent:/bin/bash</pre>
+</div>
+<div class="callout"><p><strong>Honest limit.</strong> The duplicate-UID hunt is the CIS check, and it catches exactly the second-root case; it misses a hidden user with a unique UID in the system range, which is why it ships paired with the baseline diff. The diff needs a trustworthy baseline: a baseline taken after the compromise just blesses the attacker's lines. And the poll interval sets the floor: an account created and removed between sweeps leaves no database trace behind, only the audit log, if auditd was watching.</p></div></div>
+</div>
+<div class="step">
+<div class="step-num">3</div>
+<div>
+<h3>Prevent: watch the identity files</h3>
+<div class="prose"><p>The staged rule (<strong>ghostlight-023.rules</strong>) is the telemetry half: a write-and-attribute watch on <strong>/etc/passwd</strong> and <strong>/etc/shadow</strong>, tagged <strong>gh023-identity</strong>, firing on every direct edit with the process that did it. The policy half is identity anchored to the database: the scheduled duplicate-UID audit and the baseline diff (D3-FIM), so no listing is ever trusted on its own. Only the database decides who exists; the listing is never consulted.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="mkdir -p /tmp/ghlab/staged
+cat &gt; /tmp/ghlab/staged/ghostlight-023.rules &lt;&lt;&#x27;EOF&#x27;
+# GH-023: watch the user database files (needs auditd running)
+-w /etc/passwd -p wa -k gh023-identity
+-w /etc/shadow -p wa -k gh023-identity
+EOF
+cat /tmp/ghlab/staged/ghostlight-023.rules
+command -v auditctl
+pgrep -a auditd || echo &#x27;auditd not running in this lab: rule staged, not loaded&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ mkdir -p /tmp/ghlab/staged
+cat &gt; /tmp/ghlab/staged/ghostlight-023.rules &lt;&lt;'EOF'
+# GH-023: watch the user database files (needs auditd running)
+-w /etc/passwd -p wa -k gh023-identity
+-w /etc/shadow -p wa -k gh023-identity
+EOF
+cat /tmp/ghlab/staged/ghostlight-023.rules
+command -v auditctl
+pgrep -a auditd || echo 'auditd not running in this lab: rule staged, not loaded'
+# GH-023: watch the user database files (needs auditd running)
+-w /etc/passwd -p wa -k gh023-identity
+-w /etc/shadow -p wa -k gh023-identity
+/usr/sbin/auditctl
+auditd not running in this lab: rule staged, not loaded</pre>
+</div>
+<div class="callout"><p><strong>Honest limit.</strong> The rule needs auditd running with rules loaded; this lab has the binary but no daemon, and many containers lack the subsystem entirely. The watch detects the write; it does not prevent it: no control makes /etc/passwd uneditable by root, because root owns the user database by design. This control raises the cost of the quiet path (every direct edit fires an event naming the writer); it does not remove the path. An attacker who edits the files between the baseline snapshot and the next diff still wins the interval, which is why the watch and the diff ship as a pair.</p></div><div class="verdict green">
+<span class="mlabel">Countermeasures verified</span>
+<p>The entry's database copies and hashes were captured before removal; the scheduled hunt names its tell, its blind spot, and its baseline dependency; the audit watch is staged with its dependency stated. Every control names its bypass: process-targeted containment is blind on a duplicate UID 0, the poll interval sets the floor, and no control makes the database uneditable by root.</p>
+</div></div>
+</div>
+
+        </section>
+
+        <section class="phase" id="debrief">
+          <div class="phase-head"><span class="phase-num">06</span><h2>Debrief</h2><span class="phase-tag neutral">TAKEAWAY</span></div>
+          <p class="takeaway">The user list is a filtered view; /etc/passwd is the database. A hidden user is found by reading the database, never by reading the list.</p>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">IOC checklist: signs this technique was used</span></p></div>
+          <ul class="checklist">
+            <li><span><strong>Two names sharing UID 0</strong> in /etc/passwd (the duplicate-UID hunt's LEAD)</span></li>
+            <li><span><strong>A passwd entry with no home directory, no mail spool, and no creation trail</strong> in the account tooling logs</span></li>
+            <li><span><strong>A shadow entry with a locked password field</strong> on an account absent from every human-user listing</span></li>
+            <li><span><strong>A baseline diff of /etc/passwd or /etc/shadow showing an added line</strong> outside a change window</span></li>
+            <li><span><strong>A login record that collapses to another name</strong>: UID-keyed lookups like lastlog hiding the alias inside root's entry</span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Reproducibility checklist</span></p></div>
+          <ul class="checklist">
+            <li><span>Verified on <strong>Ubuntu 24.04.5 LTS</strong>, x86-64, on 2026-10-05</span></li>
+            <li><span>Both recordings are real executions on that platform, not simulations</span></li>
+            <li><span>The attack runs as root inside a mount and PID namespace (<strong>unshare -pfm --mount-proc</strong>); the host's real /etc/passwd was never written</span></li>
+            <li><span>The detection needs only read access to /etc/passwd</span></li>
+            <li><span>Cleanup: <strong>umount /etc/passwd /etc/shadow /etc/group</strong>; <strong>rm -rf /tmp/ghlab</strong>; verify with <strong>getent passwd GHOSTLIGHT-CANARY-023</strong></span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Sources</span></p></div>
+          <div class="prose"><p><a href="https://attack.mitre.org/techniques/T1564/002/" rel="noopener">MITRE ATT&amp;CK T1564.002: Hide Artifacts: Hidden Users</a><br>
+          <a href="https://attack.mitre.org/techniques/T1564/" rel="noopener">MITRE ATT&amp;CK T1564: Hide Artifacts</a> (the parent technique)<br>
+          <a href="https://man7.org/linux/man-pages/man5/passwd.5.html" rel="noopener">passwd(5)</a> (the user database line format)<br>
+          <a href="https://man7.org/linux/man-pages/man5/shadow.5.html" rel="noopener">shadow(5)</a> (the locked password field)<br>
+          <a href="https://man7.org/linux/man-pages/man8/useradd.8.html" rel="noopener">useradd(8)</a> (the guardrail the attack bypasses)<br>
+          <a href="https://man7.org/linux/man-pages/man5/login.defs.5.html" rel="noopener">login.defs(5)</a> (UID_MIN, the boundary the listings filter on)<br>
+          <a href="https://d3fend.mitre.org/technique/d3f:FileHashing/" rel="noopener">D3FEND D3-FH: File Hashing</a><br>
+          <a href="https://d3fend.mitre.org/technique/d3f:FileIntegrityMonitoring/" rel="noopener">D3FEND D3-FIM: File Integrity Monitoring</a></p></div>
+        </section>
+
+        <a class="next-file" href="../025-severed-thread/">
+          <span class="mlabel">Next file</span>
+          <h3>GH-025 The Severed Thread</h3>
+          <p>The next file severs a process from its parent and watches where the orphan goes.</p>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <div>
+      <div class="footer-brand">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+        <span class="brand-name" style="font-size:17px">GHOSTLIGHT</span>
+      </div>
+      <p class="footer-note">An independent adversary-stealth research publication. Every command verified on the named OS before publishing. No trackers, no frameworks, no autoplay.</p>
+    </div>
+    <nav class="footer-links">
+      <a href="../../method.html">METHOD</a>
+      <a href="../../index.html">FILES</a>
+      <a href="https://attack.mitre.org/tactics/TA0005/" rel="noopener">MITRE TA0005</a>
+    </nav>
+    <div class="footer-elsewhere">
+      <span class="mlabel">Elsewhere</span><a href="https://dillingerstaffing.github.io/portfolio/" target="_blank" rel="noopener">Portfolio</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/proving-ground/" target="_blank" rel="noopener">Proving Ground</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/old-iron/" target="_blank" rel="noopener">Old Iron</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/unstuck/" target="_blank" rel="noopener">Unstuck</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../../assets/site.js?v=00000000"></script>
+</body>
+</html>
