@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>GH-028 The Deaf Ear (T1564.011): GHOSTLIGHT</title>
+<meta name="description" content="T1564.011 Ignore Process Interrupts, reproduced on Ubuntu 24.04: a lab process installs SIG_IGN for SIGINT and SIGTERM, so the polite kill and the firm kill both bounce off. The defender reads the ignored-signal mask in /proc, decodes the 0x4000 tell, and ends it the only way that works.">
+<link rel="canonical" href="https://dillingerstaffing.github.io/ghostlight/ops/028-deaf-ear/">
+<meta property="og:title" content="GH-028 The Deaf Ear (T1564.011): GHOSTLIGHT">
+<meta property="og:description" content="T1564.011 Ignore Process Interrupts, reproduced on Ubuntu 24.04: a lab process installs SIG_IGN for SIGINT and SIGTERM, so the polite kill and the firm kill both bounce off. The defender reads the ignored-signal mask in /proc, decodes the 0x4000 tell, and ends it the only way that works.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dillingerstaffing.github.io/ghostlight/ops/028-deaf-ear/">
+<meta property="og:site_name" content="GHOSTLIGHT">
+<meta property="og:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="GH-028 The Deaf Ear (T1564.011): GHOSTLIGHT">
+<meta name="twitter:description" content="T1564.011 Ignore Process Interrupts, reproduced on Ubuntu 24.04: a lab process installs SIG_IGN for SIGINT and SIGTERM, so the polite kill and the firm kill both bounce off. The defender reads the ignored-signal mask in /proc, decodes the 0x4000 tell, and ends it the only way that works.">
+<meta name="twitter:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23ece6d5'/%3E%3Ccircle cx='256' cy='196' r='104' fill='none' stroke='%23241f17' stroke-width='20'/%3E%3Cline x1='256' y1='152' x2='256' y2='240' stroke='%238c3f22' stroke-width='16'/%3E%3Cline x1='256' y1='300' x2='256' y2='424' stroke='%23241f17' stroke-width='14'/%3E%3Cline x1='200' y1='424' x2='312' y2='424' stroke='%23241f17' stroke-width='18'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+<link rel="manifest" href="../../assets/manifest.webmanifest">
+<meta name="theme-color" content="#0a0c0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GHOSTLIGHT">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<script>
+(function () {
+  // Theme: notebook is the default; a stored visitor choice wins.
+  // Runs before the stylesheet is parsed so the first paint is already
+  // the right theme (no flash of the wrong one).
+  try {
+    var t = localStorage.getItem('emi-site-theme');
+    var theme = t === 'classic' ? 'classic' : 'notebook';
+    document.documentElement.dataset.theme = theme;
+    var m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute('content', theme === 'classic' ? '#0a0c0f' : '#ece6d5');
+  } catch (e) {
+    document.documentElement.dataset.theme = 'notebook';
+  }
+})();
+</script>
+<link rel="stylesheet" href="../../assets/site.css?v=bca2bb86">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"GH-028 The Deaf Ear (T1564.011): GHOSTLIGHT",
+"url":"https://dillingerstaffing.github.io/ghostlight/ops/028-deaf-ear/","description":"T1564.011 Ignore Process Interrupts, reproduced on Ubuntu 24.04: a lab process installs SIG_IGN for SIGINT and SIGTERM, so the polite kill and the firm kill both bounce off. The defender reads the ignored-signal mask in /proc, decodes the 0x4000 tell, and ends it the only way that works.",
+"author":{"@type":"Person","name":"Chris Dillinger","url":"https://www.linkedin.com/in/christopherdillinger/"},
+"inLanguage":"en"}
+</script>
+</head>
+<body>
+
+<header class="site-header">
+  <a class="brand" href="../../index.html" aria-label="GHOSTLIGHT home">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+    <span class="brand-name">GHOSTLIGHT</span>
+  </a>
+  <nav class="site-nav">
+    <a href="../../method.html">METHOD</a>
+    <a href="../../index.html">FILES</a>
+    <button class="theme-toggle" type="button" aria-label="Switch to dark field dossier theme" title="Switch theme">
+      <span class="theme-toggle-mark" aria-hidden="true"><i></i><i></i></span>
+    </button>
+  </nav>
+</header>
+
+<div class="onboard" data-onboard hidden>
+  <span><strong>How to read a file:</strong> every file follows the six-phase structure below. <span class="k-green">Green</span> is verified, <span class="k-red">red</span> is hostile.</span>
+  <button aria-label="Dismiss">GOT IT</button>
+</div>
+
+<div class="page" data-op="028">
+  <div class="wrap">
+    <section class="op-hero">
+      <div class="op-kicker">
+        <span class="case-no">GH-028</span>
+        <a class="tech-id" href="https://attack.mitre.org/techniques/T1564/011/" rel="noopener">T1564.011</a>
+        <span class="phase-tag red">PHASE RED INSIDE</span>
+      </div>
+      <h1>The Deaf Ear</h1>
+      <p class="lede">A kill signal is a request, not a command. This file teaches a lab process to decline the two requests every operator sends, SIGINT and SIGTERM, then watches the polite kill and the firm kill bounce off. The defender stops asking and starts reading: the kernel keeps a public ledger of every signal each process ignores, and one bit in that ledger never belongs on a background job.</p>
+      <div class="op-meta-grid">
+        <div class="op-meta"><span class="mlabel">Technique</span><span class="mvalue">Ignore Process Interrupts (T1564.011)</span></div>
+        <div class="op-meta"><span class="mlabel">Target OS</span><span class="mvalue">Ubuntu 24.04.5 LTS</span></div>
+        <div class="op-meta"><span class="mlabel">Toolchain</span><span class="mvalue">gcc 13</span></div>
+        <div class="op-meta"><span class="mlabel">Level</span><span class="mvalue">Beginner</span></div>
+        <div class="op-meta"><span class="mlabel">Time</span><span class="mvalue">20 min</span></div>
+      </div>
+      <div class="objectives">
+        <h2>OBJECTIVES</h2>
+        <ol>
+          <li data-phase="phase-red"><span class="box"></span>Install SIG_IGN for SIGINT and SIGTERM and watch both kills bounce off a live process</li>
+          <li data-phase="phase-blue"><span class="box"></span>Read the SigIgn mask in /proc and decode the 0x4000 tell against a control</li>
+          <li data-phase="countermeasures"><span class="box"></span>Contain with evidence first, sweep the fleet for the tell, supervise with KILL escalation</li>
+          <li data-phase="debrief"><span class="box"></span>Take the IOC checklist and the one-sentence lesson</li>
+        </ol>
+      </div>
+    </section>
+
+    <div class="op-layout">
+      <nav class="rail" aria-label="Phases">
+        <span class="mlabel">Phases</span>
+        <ol>
+          <li><a href="#intel-brief"><span class="pnum">01</span>INTEL BRIEF<span class="tick"></span></a></li>
+          <li><a href="#target-environment"><span class="pnum">02</span>TARGET ENV<span class="tick"></span></a></li>
+          <li><a href="#phase-red"><span class="pnum">03</span>PHASE RED<span class="tick"></span></a></li>
+          <li><a href="#phase-blue"><span class="pnum">04</span>PHASE BLUE<span class="tick"></span></a></li>
+          <li><a href="#countermeasures"><span class="pnum">05</span>COUNTERMEASURES<span class="tick"></span></a></li>
+          <li><a href="#debrief"><span class="pnum">06</span>DEBRIEF<span class="tick"></span></a></li>
+        </ol>
+      </nav>
+
+      <div class="op-content">
+
+        <section class="phase" id="intel-brief">
+          <div class="phase-head"><span class="phase-num">01</span><h2>Intel Brief</h2><span class="phase-tag neutral">CONTEXT</span></div>
+          <p class="lede">MITRE ATT&amp;CK <a href="https://attack.mitre.org/techniques/T1564/011/" rel="noopener">T1564.011</a>: adversaries execute commands that hide from process interrupt signals, so the interrupt arrives and nothing happens. This file installs the ignore in twelve lines of C, then reads the kernel's public ledger to prove the ignore was installed. Two actors: the attacker, who owns the lab binary and every red action; and the defender, who owns every hunt, read, kill, and rule in the blue phases.</p>
+          <div class="prose">
+            <p><strong>Why this technique.</strong> Every operator's first response to a hostile process is <strong>kill</strong>, and kill's default signal is SIGTERM, the polite request to stop. The second response is <strong>kill -INT</strong> or Ctrl-C, the interrupt. Both are requests the process may legally decline. A <strong>signal</strong> is the kernel tapping a process on the shoulder; a <strong>disposition</strong> is what the process decided in advance to do about that tap: take the default action, run a handler, or ignore it outright (<strong>SIG_IGN</strong>). An implant that sets its disposition for SIGINT and SIGTERM to SIG_IGN survives the operator's first two responses, survives the session logout, and keeps running while the defender believes the kill landed. The signal was delivered. Nothing says the process honored it. That gap, between delivery and death, is the entire technique.</p>
+            <p><strong>Why not the obvious alternative.</strong> The obvious move is the one in every runbook: send SIGTERM, expect the process to die. Break it on this file's concrete input: a plain <strong>sleep 300</strong> dies to one <strong>kill -TERM</strong>, exactly as the runbook promises. The lab process takes six signals, three TERM and three INT, and keeps printing its heartbeat. Same signals, same sender, opposite outcomes: the runbook's promise was never a guarantee, it was a convention the process chose not to follow. The attacker's obvious alternative has the same flaw in reverse: <strong>nohup</strong> ignores only SIGHUP, the hangup signal, so it survives the logout and still dies to the admin's TERM. Ignoring INT and TERM covers the two signals operators actually send.</p>
+            <p><strong>The mechanism, in one paragraph.</strong> Signal numbers are 1-indexed: SIGINT is 2, SIGTERM is 15. The kernel publishes every process's ignored-signal set in <strong>/proc/&lt;pid&gt;/status</strong> as <strong>SigIgn</strong>, a hex bitmask with bit (n-1) set for each ignored signal n. The lab process shows <strong>0x4006</strong>: bits 1 and 2 (SIGINT, SIGQUIT) plus bit 14 (SIGTERM). SIGQUIT arrives free with backgrounding, the shell ignores it for background jobs, so a plain background job carries <strong>0x0006</strong>. The extra <strong>0x4000</strong> bit is the tell: no legitimate background job ignores SIGTERM. Two signals can never be ignored, no matter what the process asks: <strong>SIGKILL</strong> and <strong>SIGSTOP</strong> are enforced by the kernel, which is why the blue phase ends the way it does.</p>
+            <p><strong>The concrete case, before the abstraction.</strong> The BPFDoor backdoor (MITRE procedure example S1161) calls the signal function to ignore SIGHUP, SIGINT, SIGQUIT, SIGPIPE, SIGCHLD, SIGTTIN, and SIGTTOU before starting its primary logic: seven interrupts declined up front, so operator interrupts and session events pass through it like weather. The GoldMax Linux variant (S0588) took the simpler road and ran under <strong>nohup</strong>, ignoring the hangup so it survived the terminal session's death. Both are the same idea at different widths: decide in advance which taps to feel, and the taps stop working.</p>
+            <p><strong>Terms, earned.</strong> A <strong>signal</strong> is the kernel's tap on a process's shoulder. The <strong>disposition</strong> is the process's pre-decided response: default, catch, or <strong>SIG_IGN</strong> (ignore). The <strong>SigIgn mask</strong> is the kernel's public ledger of ignored signals, one bit per signal, readable by anyone in /proc. <strong>Ignore process interrupts</strong> is T1564.011: setting the disposition to ignore so the interrupt is delivered and nothing happens.</p>
+          </div>
+          <div class="callout"><p><strong>Scope.</strong> T1564.011 covers ignoring process interrupts on Linux, Windows, and macOS: nohup and disown on Unix, -ErrorAction SilentlyContinue in PowerShell, signal() in C. This file works the Linux signal() case end to end: the SIGINT plus SIGTERM ignore, the SigIgn mask tell with its control, the evidence-first containment, and the supervisor escalation that ends the next one. The canary is a benign token: it marks the lab payload and touches nothing else. The lab runs in a disposable PID and mount namespace with a private /tmp; teardown removes it and the namespace's death reaps every stray.</p></div>
+        </section>
+
+        <section class="phase" id="target-environment">
+          <div class="phase-head"><span class="phase-num">02</span><h2>Target Environment</h2><span class="phase-tag neutral">LOADOUT</span></div>
+          <p class="lede">Ubuntu 24.04.5 LTS with gcc 13, x86-64, in a disposable PID and mount namespace used only for this lab. The attack needs no privilege at all: choosing your own signal dispositions is every process's birthright. Run it on a throwaway box anyway, because you are about to practice declining your own kill signals.</p>
+<div class="step">
+<div class="step-num">1</div>
+<div>
+<h3>Build the lab</h3>
+<div class="prose"><p>The recording starts from an empty private /tmp inside its own mount namespace, so every take begins identical. <strong>rm -rf /tmp/gh028</strong> starts clean; <strong>mkdir -p</strong> and <strong>cd</strong> set up the lab directory. The heredoc writes <strong>deafear.c</strong> (quoted <strong>'EOF'</strong>, so the shell passes the source through untouched); <strong>gcc -O2</strong> builds it; <strong>ls -l</strong> shows the lab binary. The attacker needs no privilege: setting SIG_IGN is not a capability, it is a library call.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="rm -rf /tmp/gh028 &amp;&amp; mkdir -p /tmp/gh028 &amp;&amp; cd /tmp/gh028
+cat &gt; deafear.c &lt;&lt;&#x27;EOF&#x27;
+#include &lt;signal.h&gt;
+#include &lt;stdio.h&gt;
+#include &lt;unistd.h&gt;
+
+int main(void) {
+    signal(SIGINT, SIG_IGN);   /* the polite request is now a no-op */
+    signal(SIGTERM, SIG_IGN);  /* the firm request is now a no-op too */
+    printf(&quot;canary: GHOSTLIGHT-CANARY-028\n&quot;);
+    printf(&quot;SIGINT and SIGTERM are ignored; heartbeat on stderr\n&quot;);
+    fflush(stdout);
+    for (long beat = 1; ; beat++) {
+        fprintf(stderr, &quot;heartbeat %ld: still alive\n&quot;, beat);
+        fflush(stderr);
+        sleep(1);
+    }
+    return 0;
+}
+EOF
+gcc -O2 -o deafear deafear.c &amp;&amp; ls -l deafear"><span data-label>COPY</span></button></div>
+<pre>$ rm -rf /tmp/gh028 &amp;&amp; mkdir -p /tmp/gh028 &amp;&amp; cd /tmp/gh028
+cat &gt; deafear.c &lt;&lt;'EOF'
+#include &lt;signal.h&gt;
+#include &lt;stdio.h&gt;
+#include &lt;unistd.h&gt;
+
+int main(void) {
+    signal(SIGINT, SIG_IGN);   /* the polite request is now a no-op */
+    signal(SIGTERM, SIG_IGN);  /* the firm request is now a no-op too */
+    printf("canary: GHOSTLIGHT-CANARY-028\n");
+    printf("SIGINT and SIGTERM are ignored; heartbeat on stderr\n");
+    fflush(stdout);
+    for (long beat = 1; ; beat++) {
+        fprintf(stderr, "heartbeat %ld: still alive\n", beat);
+        fflush(stderr);
+        sleep(1);
+    }
+    return 0;
+}
+EOF
+gcc -O2 -o deafear deafear.c &amp;&amp; ls -l deafear
+-rwxrwx--- 1 root root 16224 Oct  5 11:44 deafear</pre>
+</div>
+</div>
+</div>
+
+<div class="step">
+<div class="step-num">2</div>
+<div>
+<h3>The payload: deafear.c</h3>
+<div class="prose"><p>Twenty lines. <strong>signal(SIGINT, SIG_IGN)</strong> declines the polite interrupt; <strong>signal(SIGTERM, SIG_IGN)</strong> declines the firm request. Both calls happen before anything else, the way BPFDoor sets its ignores before its primary logic. The process prints the benign canary <strong>GHOSTLIGHT-CANARY-028</strong> and announces its dispositions on stdout, then enters an infinite loop writing a numbered <strong>heartbeat</strong> line to stderr once per second, flushed immediately so the log is the ground truth of liveness. <strong>sleep(1)</strong> paces it; the heartbeat is what the red phase watches to prove the process outlived its signals. <strong>return 0</strong> is unreachable by design: this process does not plan to exit.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">c: deafear.c</span><button class="copy-btn" data-copy="#include &lt;signal.h&gt;
+#include &lt;stdio.h&gt;
+#include &lt;unistd.h&gt;
+
+int main(void) {
+    signal(SIGINT, SIG_IGN);   /* the polite request is now a no-op */
+    signal(SIGTERM, SIG_IGN);  /* the firm request is now a no-op too */
+    printf(&quot;canary: GHOSTLIGHT-CANARY-028\n&quot;);
+    printf(&quot;SIGINT and SIGTERM are ignored; heartbeat on stderr\n&quot;);
+    fflush(stdout);
+    for (long beat = 1; ; beat++) {
+        fprintf(stderr, &quot;heartbeat %ld: still alive\n&quot;, beat);
+        fflush(stderr);
+        sleep(1);
+    }
+    return 0;
+}"><span data-label>COPY</span></button></div>
+<pre>#include &lt;signal.h&gt;
+#include &lt;stdio.h&gt;
+#include &lt;unistd.h&gt;
+
+int main(void) {
+    signal(SIGINT, SIG_IGN);   /* the polite request is now a no-op */
+    signal(SIGTERM, SIG_IGN);  /* the firm request is now a no-op too */
+    printf("canary: GHOSTLIGHT-CANARY-028\n");
+    printf("SIGINT and SIGTERM are ignored; heartbeat on stderr\n");
+    fflush(stdout);
+    for (long beat = 1; ; beat++) {
+        fprintf(stderr, "heartbeat %ld: still alive\n", beat);
+        fflush(stderr);
+        sleep(1);
+    }
+    return 0;
+}</pre>
+</div>
+</div>
+</div>
+
+        </section>
+
+        <section class="phase" id="phase-red">
+          <div class="phase-head"><span class="phase-num">03</span><h2>Phase Red: decline the tap</h2><span class="phase-tag red">ATTACK</span></div>
+          <p class="lede">The attacker launches the payload, which declines SIGINT and SIGTERM before its first heartbeat. The operator then sends both signals and watches nothing happen. A control run proves the signals themselves work fine: the problem is the process, not the delivery.</p>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">104.8s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/deafear-red.jpg" aria-label="Screen recording: DEAF EAR RED, operator@lab">
+              <source src="../../assets/vid/deafear-red.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> The lab process declines SIGINT and SIGTERM, then survives both while a control process dies to one. Every command below is copy-pasteable.</figcaption>
+          </figure>
+<div class="step">
+<div class="step-num">1</div>
+<div>
+<h3>Launch the deaf process</h3>
+<div class="prose"><p><strong>./deafear 2&gt;heartbeat.log &amp;</strong> starts the lab binary with stderr to the heartbeat log; <strong>[1] 13</strong> is the shell's job notice and <strong>lab pid: 13</strong> saves the exact pid to lab.pid. The canary and the disposition announcement print on stdout: a benign marker and a confession, in the open. <strong>sleep 1.5</strong>, then <strong>head -3 heartbeat.log</strong> shows the first two heartbeats: the ground truth of liveness the red phase will keep checking.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="./deafear 2&gt;heartbeat.log &amp;
+P=$!
+echo $P &gt; lab.pid
+echo &quot;lab pid: $P&quot;
+sleep 1.5
+head -3 heartbeat.log"><span data-label>COPY</span></button></div>
+<pre>$ ./deafear 2&gt;heartbeat.log &amp;
+P=$!
+echo $P &gt; lab.pid
+echo "lab pid: $P"
+sleep 1.5
+head -3 heartbeat.log
+[1] 13
+lab pid: 13
+canary: GHOSTLIGHT-CANARY-028
+SIGINT and SIGTERM are ignored; heartbeat on stderr
+heartbeat 1: still alive
+heartbeat 2: still alive</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">2</div>
+<div>
+<h3>Send both signals, watch nothing happen</h3>
+<div class="prose"><p><strong>kill -INT 13</strong>, then <strong>kill -TERM 13</strong>: the two requests every operator sends, delivered to the exact pid. <strong>sleep 2</strong>, then <strong>ps -p 13 -o pid,stat,etime,cmd</strong>: still there, state S, elapsed 3 seconds, still ./deafear. <strong>tail -2 heartbeat.log</strong>: heartbeats 3 and 4, written after both signals landed. The signals were delivered. The process declined them.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="kill -INT $P
+kill -TERM $P
+sleep 2
+ps -p $P -o pid,stat,etime,cmd
+tail -2 heartbeat.log"><span data-label>COPY</span></button></div>
+<pre>$ kill -INT $P
+kill -TERM $P
+sleep 2
+ps -p $P -o pid,stat,etime,cmd
+tail -2 heartbeat.log
+    PID STAT     ELAPSED CMD
+     13 S          00:03 ./deafear
+heartbeat 3: still alive
+heartbeat 4: still alive</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">3</div>
+<div>
+<h3>Control, then the storm</h3>
+<div class="prose"><p>The control first: <strong>sleep 300 &amp;</strong>, one <strong>kill -TERM</strong>, and the plain process is dead, exactly as the runbook promises. The signals work fine. Then the storm: six signals, three TERM and three INT, to the exact lab pid. <strong>ps</strong> shows pid 13 still sleeping, elapsed 5 seconds. The runbook's promise was never a guarantee; it was a convention this process chose not to follow.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="sleep 300 &amp;
+CP=$!
+kill -TERM $CP
+sleep 0.5
+ps -p $CP &gt;/dev/null &amp;&amp; echo &#x27;plain sleep: still alive&#x27; || echo &#x27;plain sleep: dead on SIGTERM&#x27;
+for i in 1 2 3; do kill -TERM $P; kill -INT $P; done
+sleep 1
+ps -p $P -o pid,stat,etime,cmd
+echo &#x27;the same signals bounced off the deaf process six times&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ sleep 300 &amp;
+CP=$!
+kill -TERM $CP
+sleep 0.5
+ps -p $CP &gt;/dev/null &amp;&amp; echo 'plain sleep: still alive' || echo 'plain sleep: dead on SIGTERM'
+for i in 1 2 3; do kill -TERM $P; kill -INT $P; done
+sleep 1
+ps -p $P -o pid,stat,etime,cmd
+echo 'the same signals bounced off the deaf process six times'
+[2] 19
+plain sleep: dead on SIGTERM
+    PID STAT     ELAPSED CMD
+     13 S          00:05 ./deafear
+the same signals bounced off the deaf process six times</pre>
+</div>
+
+<div class="verdict red">
+<span class="mlabel">Stealth confirmed</span>
+<p>Six delivered signals, zero effect. The operator's kill proved delivery, never death: the process kept its pid, its start time, and its heartbeat straight through every request to stop.</p>
+</div>
+</div>
+</div>
+
+        </section>
+
+        <section class="phase" id="phase-blue">
+          <div class="phase-head"><span class="phase-num">04</span><h2>Phase Blue: read the ledger, not the plea</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">The defender never saw the launch; the blue take opens on the running process. The triad, at runbook quality. <strong>Detection:</strong> read the SigIgn mask in /proc, decode it against a control, and convict on the 0x4000 bit that never belongs on a background job. <strong>Mitigation:</strong> capture the evidence first (mask, exe link, binary hash, heartbeat), then end it with SIGKILL by exact PID, the one signal the kernel enforces. <strong>Prevention:</strong> the disposition itself cannot be prevented, so supervise with KILL escalation: a TERM-only supervisor stalls forever, and the recording proves it.</p>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot blue" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">147.5s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/deafear-blue.jpg" aria-label="Screen recording: DEAF EAR BLUE, operator@lab">
+              <source src="../../assets/vid/deafear-blue.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> The defender decodes the ignored-signal mask, captures evidence, ends the process with SIGKILL, and proves the supervisor lesson. Every command below is copy-pasteable.</figcaption>
+          </figure>
+<div class="step">
+<div class="step-num">1</div>
+<div>
+<h3>Hunt the 0x4000 bit</h3>
+<div class="prose"><p>The suspect's <strong>SigIgn</strong> reads <strong>0000000000004006</strong>. The control, a plain background sleep, reads <strong>0000000000000006</strong>: SIGINT and SIGQUIT, which the shell ignores for background jobs. The decode names the suspect's set: SIGINT, SIGQUIT, SIGTERM. The difference is one bit, <strong>0x4000</strong>, bit 14, SIGTERM. No legitimate background job ignores SIGTERM; nothing the shell does for you sets that bit. It can only be set deliberately, by the process itself.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="P=$(cat /tmp/gh028/lab.pid)
+echo &quot;suspect (lab pid $P):&quot;; grep -E &#x27;^(Name|SigIgn)&#x27; /proc/$P/status
+sleep 300 &amp; CP=$!
+echo &quot;control (plain background job, pid $CP):&quot;; grep -E &#x27;^(Name|SigIgn)&#x27; /proc/$CP/status
+kill -KILL $CP
+P=$P python3 - &lt;&lt;&#x27;EOF&#x27;
+import os, signal
+pid = int(os.environ[&#x27;P&#x27;])
+m = int([l for l in open(&#x27;/proc/%d/status&#x27; % pid) if l.startswith(&#x27;SigIgn&#x27;)][0].split()[1], 16)
+print(&#x27;suspect ignores:&#x27;, &#x27; &#x27;.join(sorted(s.name for s in signal.Signals if m &amp; (1 &lt;&lt; (s.value - 1)))))
+print(&#x27;tell: the 0x4000 bit (SIGTERM); a plain background job carries only 0x0006 (INT,QUIT)&#x27;)
+EOF
+"><span data-label>COPY</span></button></div>
+<pre>$ P=$(cat /tmp/gh028/lab.pid)
+echo "suspect (lab pid $P):"; grep -E '^(Name|SigIgn)' /proc/$P/status
+sleep 300 &amp; CP=$!
+echo "control (plain background job, pid $CP):"; grep -E '^(Name|SigIgn)' /proc/$CP/status
+kill -KILL $CP
+P=$P python3 - &lt;&lt;'EOF'
+import os, signal
+pid = int(os.environ['P'])
+m = int([l for l in open('/proc/%d/status' % pid) if l.startswith('SigIgn')][0].split()[1], 16)
+print('suspect ignores:', ' '.join(sorted(s.name for s in signal.Signals if m &amp; (1 &lt;&lt; (s.value - 1)))))
+print('tell: the 0x4000 bit (SIGTERM); a plain background job carries only 0x0006 (INT,QUIT)')
+EOF
+
+suspect (lab pid 13):
+Name:	deafear
+SigIgn:	0000000000004006
+[2] 26
+control (plain background job, pid 26):
+Name:	sleep
+SigIgn:	0000000000000006
+suspect ignores: SIGINT SIGQUIT SIGTERM
+tell: the 0x4000 bit (SIGTERM); a plain background job carries only 0x0006 (INT,QUIT)</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">2</div>
+<div>
+<h3>Convict and capture evidence</h3>
+<div class="prose"><p><strong>ps -o pid,ppid,lstart,stat,cmd</strong> is the conviction: started Mon Oct 5 11:44:16 2026, still ./deafear, surviving everything the red phase sent. Evidence before action: the ps line, the exe link, the full status file with the mask, the heartbeat log proving liveness across the signals, and the binary's sha256, all timestamped into <strong>evidence/</strong>. The mask is the finding; the heartbeat log is the proof the finding mattered. Only then does the blue phase move to removal.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="P=$(cat /tmp/gh028/lab.pid)
+TS=$(date -u +%Y%m%dT%H%M%SZ)
+mkdir -p evidence
+ps -p $P -o pid,ppid,lstart,stat,cmd &gt; evidence/ps-$TS.txt
+readlink /proc/$P/exe &gt; evidence/exe-$TS.txt
+cp /proc/$P/status evidence/status-$TS.txt
+cp heartbeat.log evidence/heartbeat-$TS.log
+sha256sum deafear &gt; evidence/sha256-$TS.txt
+cat evidence/ps-$TS.txt
+echo &#x27;--- evidence captured:&#x27;; ls evidence"><span data-label>COPY</span></button></div>
+<pre>$ P=$(cat /tmp/gh028/lab.pid)
+TS=$(date -u +%Y%m%dT%H%M%SZ)
+mkdir -p evidence
+ps -p $P -o pid,ppid,lstart,stat,cmd &gt; evidence/ps-$TS.txt
+readlink /proc/$P/exe &gt; evidence/exe-$TS.txt
+cp /proc/$P/status evidence/status-$TS.txt
+cp heartbeat.log evidence/heartbeat-$TS.log
+sha256sum deafear &gt; evidence/sha256-$TS.txt
+cat evidence/ps-$TS.txt
+echo '--- evidence captured:'; ls evidence
+    PID    PPID                  STARTED STAT CMD
+     13       1 Mon Oct  5 11:44:16 2026 S    ./deafear
+--- evidence captured:
+exe-20261005T114422Z.txt	sha256-20261005T114422Z.txt
+heartbeat-20261005T114422Z.log	status-20261005T114422Z.txt
+ps-20261005T114422Z.txt</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">3</div>
+<div>
+<h3>End it with SIGKILL, by exact PID</h3>
+<div class="prose"><p><strong>kill -KILL 13</strong>: by exact PID, never by name or pattern. The evidence already convicted this pid; a name pattern is a promise you keep making to every future process on the box. <strong>sleep 0.5</strong>, then <strong>ps -p 13</strong> finds nothing, and the echo states the reason it worked: SIGKILL cannot be ignored or caught, because the kernel never asks the process. It enforces.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="P=$(cat /tmp/gh028/lab.pid)
+kill -KILL $P
+sleep 0.5
+ps -p $P &gt;/dev/null &amp;&amp; echo &#x27;STILL ALIVE&#x27; || echo &#x27;gone: SIGKILL cannot be ignored or caught&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ P=$(cat /tmp/gh028/lab.pid)
+kill -KILL $P
+sleep 0.5
+ps -p $P &gt;/dev/null &amp;&amp; echo 'STILL ALIVE' || echo 'gone: SIGKILL cannot be ignored or caught'
+gone: SIGKILL cannot be ignored or caught</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">4</div>
+<div>
+<h3>Prove the supervisor lesson</h3>
+<div class="prose"><p>The prevention demo, executed for real. <strong>timeout 2 ./deafear</strong> sends SIGTERM after two seconds; four seconds later the supervisor is still waiting, its TERM ignored like every other TERM in this file. Then the escalation: <strong>timeout -s KILL 2</strong> ends the process in about two seconds, rc 137. A supervisor that only knows the polite signal never gets its process back; a supervisor that escalates to KILL always does. <strong>rm -rf /tmp/gh028</strong> removes the lab; the namespace's death reaps every stray.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="cd /tmp/gh028
+echo &#x27;--- a supervisor that only sends TERM never gets its process back:&#x27;
+timeout 2 ./deafear &gt;/dev/null 2&gt;&amp;1 &amp;
+TP=$!
+sleep 4
+kill -0 $TP 2&gt;/dev/null &amp;&amp; echo &#x27;timeout still waiting after 4s: its TERM was ignored&#x27;
+CP=$(pgrep -P $TP)
+kill -KILL $TP 2&gt;/dev/null
+[ -n &quot;$CP&quot; ] &amp;&amp; kill -KILL $CP 2&gt;/dev/null
+wait $TP 2&gt;/dev/null
+echo &#x27;--- escalate to KILL and the supervisor wins:&#x27;
+timeout -s KILL 2 ./deafear &gt;/dev/null 2&gt;&amp;1; echo &quot;rc=$? after ~2s&quot;
+rm -rf /tmp/gh028
+echo &#x27;lab removed; the namespace dies with every stray&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ cd /tmp/gh028
+echo '--- a supervisor that only sends TERM never gets its process back:'
+timeout 2 ./deafear &gt;/dev/null 2&gt;&amp;1 &amp;
+TP=$!
+sleep 4
+kill -0 $TP 2&gt;/dev/null &amp;&amp; echo 'timeout still waiting after 4s: its TERM was ignored'
+CP=$(pgrep -P $TP)
+kill -KILL $TP 2&gt;/dev/null
+[ -n "$CP" ] &amp;&amp; kill -KILL $CP 2&gt;/dev/null
+wait $TP 2&gt;/dev/null
+echo '--- escalate to KILL and the supervisor wins:'
+timeout -s KILL 2 ./deafear &gt;/dev/null 2&gt;&amp;1; echo "rc=$? after ~2s"
+rm -rf /tmp/gh028
+echo 'lab removed; the namespace dies with every stray'
+--- a supervisor that only sends TERM never gets its process back:
+[1] 42
+timeout still waiting after 4s: its TERM was ignored
+--- escalate to KILL and the supervisor wins:
+rc=137 after ~2s
+lab removed; the namespace dies with every stray</pre>
+</div>
+
+<div class="verdict green">
+<span class="mlabel">Detection verified</span>
+<p>The SigIgn mask convicted the process before a single signal was sent: 0x4006 against the 0x0006 control, the 0x4000 bit naming the deliberate ignore. Evidence was captured first, SIGKILL ended it, and the supervisor demo proved the durable lesson live.</p>
+</div>
+</div>
+</div>
+
+        </section>
+
+        <section class="phase" id="countermeasures">
+          <div class="phase-head"><span class="phase-num">05</span><h2>Countermeasures</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">Three moves, in order: end it, sweep for its siblings, make the next one endable. Each is one way, not the way.</p>
+<div class="step">
+<div class="step-num">1</div>
+<div>
+<h3>Mitigate: capture evidence, then SIGKILL by exact PID</h3>
+<div class="prose"><p>It is an ordinary unprivileged process that declines requests; SIGKILL is not a request. The order is the procedure: read the SigIgn mask, copy the binary, hash it, save the status file and the heartbeat log, <strong>then</strong> kill. Kill by exact PID, confirmed against the mask first. Never <strong>pkill -f deafear</strong>: a pattern is a promise you keep making to every future process on the box, and the wrong match on a fleet is catastrophic. The blue take ran this order: evidence/ first, kill second, verification third.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="P=$(cat /tmp/gh028/lab.pid)
+kill -KILL $P
+sleep 0.5
+ps -p $P &gt;/dev/null &amp;&amp; echo &#x27;STILL ALIVE&#x27; || echo &#x27;gone: SIGKILL cannot be ignored or caught&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ P=$(cat /tmp/gh028/lab.pid)
+kill -KILL $P
+sleep 0.5
+ps -p $P &gt;/dev/null &amp;&amp; echo 'STILL ALIVE' || echo 'gone: SIGKILL cannot be ignored or caught'
+gone: SIGKILL cannot be ignored or caught</pre>
+</div>
+<div class="callout"><p><strong>Honest limit.</strong> SIGKILL cannot be caught, which means no cleanup hooks run: open files stay open, buffered state is lost, and the heartbeat log ends mid-line. That is the price of the unenforceable kill. Two more things KILL cannot end: a process in uninterruptible sleep (D-state, usually stuck in a device driver) and a zombie, which is already dead and only waiting for its parent to reap it. And you must be able to signal the pid at all: same user or root, and no PID namespace between you and it. A deaf process in another container is not yours to kill.</p></div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">2</div>
+<div>
+<h3>Monitor: sweep the fleet for the 0x4000 bit</h3>
+<div class="prose"><p>The fleet form of the blue hunt, on a timer: every pid, read SigIgn, test bit 14. One loop, no baseline, no agent.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="for d in /proc/[0-9]*; do
+  m=$(awk &#x27;/^SigIgn/{print $2}&#x27; &quot;$d/status&quot; 2&gt;/dev/null)
+  [ -n &quot;$m&quot; ] &amp;&amp; [ $((0x$m &amp; 0x4000)) -ne 0 ] &amp;&amp; echo &quot;LEAD pid=${d#/proc/} SigIgn=$m&quot;
+done"><span data-label>COPY</span></button></div>
+<pre>$ for d in /proc/[0-9]*; do
+  m=$(awk '/^SigIgn/{print $2}' "$d/status" 2&gt;/dev/null)
+  [ -n "$m" ] &amp;&amp; [ $((0x$m &amp; 0x4000)) -ne 0 ] &amp;&amp; echo "LEAD pid=${d#/proc/} SigIgn=$m"
+done
+LEAD pid=13 SigIgn=0000000000004006</pre>
+</div>
+<div class="prose"><p>Run it across the fleet and you have the whole monitor; production versions add alerting, not new ideas.</p></div>
+<div class="callout"><p><strong>Honest limit.</strong> This net catches only processes that ignore SIGTERM. An implant that ignores only SIGHUP, the nohup style, sails straight through it; the general detector decodes every bit, not just bit 14. The mask is also a snapshot: a process can change its dispositions at any time, so a clean sweep now says nothing about five minutes from now. And the sweep needs privilege to read every /proc/&lt;pid&gt;/status; run it as an unprivileged user and you are blind to every other user's processes.</p></div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">3</div>
+<div>
+<h3>Prevent: supervise with KILL escalation</h3>
+<div class="prose"><p>Nothing prevents a process from ignoring SIGINT and SIGTERM. It is a legal disposition, one library call, no privilege, and MITRE's own mitigation note for this technique says preventive controls cannot easily touch it because it abuses a system feature. So prevention here does not mean blocking the ignore. It means making sure the ignore never buys survival: every supervisor in the chain must escalate to SIGKILL on a schedule. <strong>timeout -s KILL</strong> and <strong>timeout -k</strong> are the lab forms; the production forms are the process supervisor's kill escalation (systemd's kill signal chain ending at SIGKILL, runit's staged signals). The blue take proved the failure mode live: the TERM-only supervisor was still waiting after four seconds.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="timeout -s KILL 30 ./deafear &gt;/dev/null 2&gt;&amp;1; echo &quot;rc=$? (KILL ends what TERM cannot)&quot;"><span data-label>COPY</span></button></div>
+<pre>$ timeout -s KILL 30 ./deafear &gt;/dev/null 2&gt;&amp;1; echo "rc=$? (KILL ends what TERM cannot)"
+rc=137 (KILL ends what TERM cannot)</pre>
+</div>
+<div class="callout"><p><strong>Honest limit.</strong> The escalation ends the process; it does not prevent the ignore, and it does not prevent the next launch. A supervisor that restarts the service on failure will restart the deaf process too, brand new and still deaf, and the restart loop becomes the persistence the technique never had. Supervision answers "how does it end", not "how do we stop it coming back": the coming-back question belongs to execution prevention, allowlisting, and the SigIgn sweep above.</p></div>
+<div class="verdict green">
+<span class="mlabel">Countermeasures verified</span>
+<p>The deaf process dies to SIGKILL once the evidence is captured. The 0x4000 sweep finds its siblings fleet-wide with one loop. KILL-escalated supervision makes the next ignore survivable. None of it stops a process from declining the tap; all of it stops the decline from mattering.</p>
+</div>
+</div>
+</div>
+        </section>
+
+        <section class="phase" id="debrief">
+          <div class="phase-head"><span class="phase-num">06</span><h2>Debrief</h2><span class="phase-tag neutral">TAKEAWAY</span></div>
+          <p class="takeaway">A signal is a request the process may legally decline: kill -TERM proves delivery, never death, so confirm every kill by re-reading the process table, and treat an ignored SIGTERM in the SigIgn mask as the tell.</p>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">IOC checklist: signs this technique was used</span></p></div>
+          <ul class="checklist">
+            <li><span>A process that survives repeated <strong>kill -TERM</strong> and <strong>kill -INT</strong> while its pid, start time, and ppid stay constant</span></li>
+            <li><span><strong>/proc/&lt;pid&gt;/status</strong> SigIgn carrying the <strong>0x4000</strong> bit (SIGTERM ignored); plain background jobs carry only 0x0006</span></li>
+            <li><span>Log or heartbeat activity continuing across the timestamps of delivered signals</span></li>
+            <li><span>A supervisor or timeout that never reaps its child: the TERM went out, nothing came back</span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Reproducibility checklist</span></p></div>
+          <ul class="checklist">
+            <li><span>Verified on <strong>Ubuntu 24.04.5 LTS</strong>, <strong>gcc 13</strong>, x86-64, on 2026-10-05</span></li>
+            <li><span>Both recordings are real executions on that platform, not simulations</span></li>
+            <li><span>The attack runs fully unprivileged: choosing signal dispositions needs no capability</span></li>
+            <li><span>Cleanup: <strong>kill -KILL</strong> the lab pid by exact PID; <strong>rm -rf /tmp/gh028</strong> (recorded); the namespace's death reaps every stray</span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Sources</span></p></div>
+          <div class="prose"><p><a href="https://attack.mitre.org/techniques/T1564/011/" rel="noopener">MITRE ATT&amp;CK T1564.011: Hide Artifacts: Ignore Process Interrupts</a> (procedure examples: BPFDoor S1161, GoldMax S0588)<br>
+          <a href="https://man7.org/linux/man-pages/man7/signal.7.html" rel="noopener">signal(7)</a> (dispositions, the signals that cannot be caught or ignored)<br>
+          <a href="https://man7.org/linux/man-pages/man5/proc.5.html" rel="noopener">proc(5)</a> (the /proc/&lt;pid&gt;/status SigIgn field)<br>
+          <a href="https://man7.org/linux/man-pages/man1/timeout.1.html" rel="noopener">timeout(1)</a> (the -s and -k escalation options)</p></div>
+        </section>
+
+        <a class="next-file" href="../029-false-uniform/">
+          <span class="mlabel">Next file</span>
+          <h3>GH-029 The False Uniform</h3>
+          <p>The next file renames a system utility and watches the operator reach for the wrong binary.</p>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <div>
+      <div class="footer-brand">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+        <span class="brand-name" style="font-size:17px">GHOSTLIGHT</span>
+      </div>
+      <p class="footer-note">An independent adversary-stealth research publication. Every command verified on the named OS before publishing. No trackers, no frameworks, no autoplay.</p>
+    </div>
+    <nav class="footer-links">
+      <a href="../../method.html">METHOD</a>
+      <a href="../../index.html">FILES</a>
+      <a href="https://attack.mitre.org/tactics/TA0005/" rel="noopener">MITRE TA0005</a>
+    </nav>
+    <div class="footer-elsewhere">
+      <span class="mlabel">Elsewhere</span><a href="https://dillingerstaffing.github.io/portfolio/" target="_blank" rel="noopener">Portfolio</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/proving-ground/" target="_blank" rel="noopener">Proving Ground</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/old-iron/" target="_blank" rel="noopener">Old Iron</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/unstuck/" target="_blank" rel="noopener">Unstuck</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../../assets/site.js?v=78fb8790"></script>
+</body>
+</html>
