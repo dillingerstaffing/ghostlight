@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>GH-021 The False Testimony (T1564.010): GHOSTLIGHT</title>
+<meta name="description" content="T1564.010 Process Argument Spoofing, reproduced on Ubuntu 24.04: a lab binary re-executes itself with a forged argument vector, so ps testifies that /usr/bin/ssh-agent is running while the kernel&#x27;s exe link still points at /tmp/gh021/testify; the defender hunts the argv[0]-vs-exe mismatch, contains the impostor with evidence first, and stages the execve audit rule that pairs every claim with its record.">
+<link rel="canonical" href="https://dillingerstaffing.github.io/ghostlight/ops/021-false-testimony/">
+<meta property="og:title" content="GH-021 The False Testimony (T1564.010): GHOSTLIGHT">
+<meta property="og:description" content="T1564.010 Process Argument Spoofing, reproduced on Ubuntu 24.04: a lab binary re-executes itself with a forged argument vector, so ps testifies that /usr/bin/ssh-agent is running while the kernel&#x27;s exe link still points at /tmp/gh021/testify; the defender hunts the argv[0]-vs-exe mismatch, contains the impostor with evidence first, and stages the execve audit rule that pairs every claim with its record.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dillingerstaffing.github.io/ghostlight/ops/021-false-testimony/">
+<meta property="og:site_name" content="GHOSTLIGHT">
+<meta property="og:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="GH-021 The False Testimony (T1564.010): GHOSTLIGHT">
+<meta name="twitter:description" content="T1564.010 Process Argument Spoofing, reproduced on Ubuntu 24.04: a lab binary re-executes itself with a forged argument vector, so ps testifies that /usr/bin/ssh-agent is running while the kernel&#x27;s exe link still points at /tmp/gh021/testify; the defender hunts the argv[0]-vs-exe mismatch, contains the impostor with evidence first, and stages the execve audit rule that pairs every claim with its record.">
+<meta name="twitter:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23ece6d5'/%3E%3Ccircle cx='256' cy='196' r='104' fill='none' stroke='%23241f17' stroke-width='20'/%3E%3Cline x1='256' y1='152' x2='256' y2='240' stroke='%238c3f22' stroke-width='16'/%3E%3Cline x1='256' y1='300' x2='256' y2='424' stroke='%23241f17' stroke-width='14'/%3E%3Cline x1='200' y1='424' x2='312' y2='424' stroke='%23241f17' stroke-width='18'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+<link rel="manifest" href="../../assets/manifest.webmanifest">
+<meta name="theme-color" content="#0a0c0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GHOSTLIGHT">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<script>
+(function () {
+  // Theme: notebook is the default; a stored visitor choice wins.
+  // Runs before the stylesheet is parsed so the first paint is already
+  // the right theme (no flash of the wrong one).
+  try {
+    var t = localStorage.getItem('emi-site-theme');
+    var theme = t === 'classic' ? 'classic' : 'notebook';
+    document.documentElement.dataset.theme = theme;
+    var m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute('content', theme === 'classic' ? '#0a0c0f' : '#ece6d5');
+  } catch (e) {
+    document.documentElement.dataset.theme = 'notebook';
+  }
+})();
+</script>
+<link rel="stylesheet" href="../../assets/site.css?v=00000000">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"GH-021 The False Testimony (T1564.010): GHOSTLIGHT",
+"url":"https://dillingerstaffing.github.io/ghostlight/ops/021-false-testimony/","description":"T1564.010 Process Argument Spoofing, reproduced on Ubuntu 24.04: a lab binary re-executes itself with a forged argument vector, so ps testifies that /usr/bin/ssh-agent is running while the kernel's exe link still points at /tmp/gh021/testify; the defender hunts the argv[0]-vs-exe mismatch, contains the impostor with evidence first, and stages the execve audit rule that pairs every claim with its record.",
+"author":{"@type":"Person","name":"Chris Dillinger","url":"https://www.linkedin.com/in/christopherdillinger/"},
+"inLanguage":"en"}
+</script>
+</head>
+<body>
+
+<header class="site-header">
+  <a class="brand" href="../../index.html" aria-label="GHOSTLIGHT home">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+    <span class="brand-name">GHOSTLIGHT</span>
+  </a>
+  <nav class="site-nav">
+    <a href="../../method.html">METHOD</a>
+    <a href="../../index.html">FILES</a>
+    <button class="theme-toggle" type="button" aria-label="Switch to dark field dossier theme" title="Switch theme">
+      <span class="theme-toggle-mark" aria-hidden="true"><i></i><i></i></span>
+    </button>
+  </nav>
+</header>
+
+<div class="onboard" data-onboard hidden>
+  <span><strong>How to read a file:</strong> every file follows the six-phase structure below. <span class="k-green">Green</span> is verified, <span class="k-red">red</span> is hostile.</span>
+  <button aria-label="Dismiss">GOT IT</button>
+</div>
+
+<div class="page" data-op="021">
+  <div class="wrap">
+    <section class="op-hero">
+      <div class="op-kicker">
+        <span class="case-no">GH-021</span>
+        <a class="tech-id" href="https://attack.mitre.org/techniques/T1564/010/" rel="noopener">T1564.010</a>
+        <span class="phase-tag red">PHASE RED INSIDE</span>
+      </div>
+      <h1>The False Testimony</h1>
+      <p class="lede">The process list says /usr/bin/ssh-agent is running on this machine. It has never held a key in its life. One command forged the testimony; one command reads the record. This file runs both.</p>
+      <div class="op-meta-grid">
+        <div class="op-meta"><span class="mlabel">Technique</span><span class="mvalue">Process Argument Spoofing (T1564.010)</span></div>
+        <div class="op-meta"><span class="mlabel">Target OS</span><span class="mvalue">Ubuntu 24.04.5 LTS</span></div>
+        <div class="op-meta"><span class="mlabel">Toolchain</span><span class="mvalue">gcc 13</span></div>
+        <div class="op-meta"><span class="mlabel">Level</span><span class="mvalue">Beginner</span></div>
+        <div class="op-meta"><span class="mlabel">Time</span><span class="mvalue">20 min</span></div>
+      </div>
+      <div class="objectives">
+        <h2>OBJECTIVES</h2>
+        <ol>
+          <li data-phase="phase-red"><span class="box"></span>Forge a daemon's command line at exec time and watch ps testify to it</li>
+          <li data-phase="phase-blue"><span class="box"></span>Expose the forgery by comparing argv[0] against /proc/&lt;pid&gt;/exe</li>
+          <li data-phase="countermeasures"><span class="box"></span>Hunt the fleet for argv/exe mismatches and stage the execve audit rule</li>
+          <li data-phase="debrief"><span class="box"></span>Take the IOC checklist and the one-sentence lesson</li>
+        </ol>
+      </div>
+    </section>
+
+    <div class="op-layout">
+      <nav class="rail" aria-label="Phases">
+        <span class="mlabel">Phases</span>
+        <ol>
+          <li><a href="#intel-brief"><span class="pnum">01</span>INTEL BRIEF<span class="tick"></span></a></li>
+          <li><a href="#target-environment"><span class="pnum">02</span>TARGET ENV<span class="tick"></span></a></li>
+          <li><a href="#phase-red"><span class="pnum">03</span>PHASE RED<span class="tick"></span></a></li>
+          <li><a href="#phase-blue"><span class="pnum">04</span>PHASE BLUE<span class="tick"></span></a></li>
+          <li><a href="#countermeasures"><span class="pnum">05</span>COUNTERMEASURES<span class="tick"></span></a></li>
+          <li><a href="#debrief"><span class="pnum">06</span>DEBRIEF<span class="tick"></span></a></li>
+        </ol>
+      </nav>
+
+      <div class="op-content">
+        <section class="phase" id="intel-brief">
+          <div class="phase-head"><span class="phase-num">01</span><h2>Intel Brief</h2><span class="phase-tag neutral">CONTEXT</span></div>
+          <p class="lede">MITRE ATT&amp;CK <a href="https://attack.mitre.org/techniques/T1564/010/" rel="noopener">T1564.010</a>: adversaries launch processes with spoofed arguments, so the command line that every operator and every SIEM reads tells the attacker's story. This file forges the story at launch, then checks the one thing the story cannot change. Two actors: the attacker, who owns the launcher and the forged argument vector; and the defender, who owns every read, hunt, quarantine, and rule in the blue phases.</p>
+          <div class="prose">
+            <p><strong>Why this technique.</strong> The command line is the process's testimony about itself, and it is the most-read text on the system: ps aux, htop, top, every EDR process-creation event, every SIEM process log. Operators triage by reading stories ("ssh-agent -s, that is fine") rather than verifying them, because verification costs attention and the story is usually true. Forging the story costs one argument to one system call, and then the entire monitoring stack vouches for the fiction, because printing the testimony is its job.</p>
+            <p><strong>Why not just read ps carefully.</strong> The obvious alternative is the careful listing: run <strong>ps -o pid,args</strong>, read each row, move on. Break it on the concrete input from this file: the row reads <strong>/usr/bin/ssh-agent -s GHOSTLIGHT-CANARY-021</strong>. Nothing in that row is misrendered; it is exactly what the process said, byte for byte. The failure is not in the tool, it is in the trust: ps prints the process's testimony, and testimony is evidence only when something corroborates it. (Renaming the binary forges the kernel's short name instead; this technique leaves the binary's name alone and forges only the argument vector, so name-based checks pass clean.)</p>
+            <p><strong>The mechanism, in one line.</strong> <strong>execve(path, argv, envp)</strong> is the system call that starts a program: <strong>path</strong> selects the file the kernel maps and runs, and <strong>argv</strong> is an array of strings the caller supplies. Convention says <strong>argv[0]</strong> names the program, but the kernel does not check: it copies argv onto the new process's stack as given. <strong>/proc/&lt;pid&gt;/cmdline</strong> exposes those bytes (NUL-separated), and ps prints them. <strong>/proc/&lt;pid&gt;/exe</strong> is the kernel's own symlink to the executed file, set from <strong>path</strong> at exec time, never from argv. The testimony and the record have different authors, and only one of them is the kernel.</p>
+            <p><strong>The concrete case, before the abstraction.</strong> In /tmp/gh021: <strong>./testify &amp;</strong> starts the lab binary, which re-executes itself with a forged vector. <strong>ps -o pid,args</strong> prints <strong>/usr/bin/ssh-agent -s GHOSTLIGHT-CANARY-021</strong>: the daemon's story. <strong>tr '\0' '\n' &lt; /proc/&lt;pid&gt;/cmdline</strong> shows the forged bytes, three NUL-separated strings. <strong>readlink /proc/&lt;pid&gt;/exe</strong> prints <strong>/tmp/gh021/testify</strong>: the kernel's record. Same process, two authors, two answers.</p>
+            <p><strong>Terms, earned.</strong> <strong>argv</strong> is the argument vector: the process's words about itself, supplied by whoever launched it. <strong>argv[0]</strong> is the first word, conventionally the program name, chosen by the launcher, not the kernel. <strong>execve</strong> is the system call that starts a program from a file path plus an argv. <strong>cmdline</strong> is /proc's view of argv, the testimony in raw bytes. The <strong>exe link</strong> is /proc/&lt;pid&gt;/exe, the kernel's symlink to the file it actually executed. <strong>Process argument spoofing</strong> is T1564.010: launching with a forged argv so the testimony tells the attacker's story.</p>
+          </div>
+          <div class="callout"><p><strong>Scope.</strong> T1564 covers hiding artifacts broadly: hidden files, hidden users, and more. This file works the process-argument-spoofing case end to end: the launch-time forgery, the testimony-vs-record check, the fleet hunt, the evidence-first containment, and the execve audit rule. The canary is a benign token: it marks the lab payload and touches nothing else. The lab runs in a disposable namespace under /tmp because the blue phase hunts, kills, and quarantines for real.</p></div>
+        </section>
+
+        <section class="phase" id="target-environment">
+          <div class="phase-head"><span class="phase-num">02</span><h2>Target Environment</h2><span class="phase-tag neutral">LOADOUT</span></div>
+          <p class="lede">Ubuntu 24.04.5 LTS with gcc 13, x86-64, in a disposable namespace used only for this lab. The attack needs no privilege at all: any user may pass any argv to execve. Run it on a throwaway box anyway, because you are about to practice forging testimony.</p>
+<div class="step">
+<div class="step-num">1</div>
+<div>
+<h3>Build the lab</h3>
+<div class="prose"><p>The recording starts from an empty private /tmp inside its own mount namespace, so every take begins identical. <strong>rm -rf /tmp/gh021</strong> starts clean; <strong>mkdir -p</strong> and <strong>cd</strong> set up the lab directory. The heredoc writes <strong>testify.c</strong> (quoted <strong>'EOF'</strong>, so the shell passes the source through untouched); <strong>gcc -O2</strong> builds it; <strong>ls -l</strong> shows the lab binary. The attacker needs no privilege: forging argv is a caller-supplied argument, not a capability.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="rm -rf /tmp/gh021; mkdir -p /tmp/gh021; cd /tmp/gh021
+cat &gt; testify.c &lt;&lt;&#x27;EOF&#x27;
+/* testify.c - GH-021 lab: launch-time argument spoofing (T1564.010).
+ * Launcher mode (no canary in argv): re-exec self with a forged argv.
+ * Payload mode (canary present): print the benign canary, then sleep. */
+#include &lt;stdio.h&gt;
+#include &lt;string.h&gt;
+#include &lt;unistd.h&gt;
+
+static int has_canary(int argc, char **argv) {
+    for (int i = 0; i &lt; argc; i++)
+        if (strcmp(argv[i], &quot;GHOSTLIGHT-CANARY-021&quot;) == 0) return 1;
+    return 0;
+}
+
+int main(int argc, char **argv) {
+    if (has_canary(argc, argv)) {
+        printf(&quot;GHOSTLIGHT-CANARY-021: benign lab payload\n&quot;);
+        fflush(stdout);
+        for (;;) pause();
+    }
+    char *forged[] = {
+        &quot;/usr/bin/ssh-agent&quot;, &quot;-s&quot;, &quot;GHOSTLIGHT-CANARY-021&quot;, NULL
+    };
+    execv(&quot;/proc/self/exe&quot;, forged);
+    perror(&quot;execv&quot;);
+    return 1;
+}
+EOF
+gcc -O2 -o testify testify.c &amp;&amp; ls -l testify"><span data-label>COPY</span></button></div>
+<pre>$ rm -rf /tmp/gh021; mkdir -p /tmp/gh021; cd /tmp/gh021
+cat &gt; testify.c &lt;&lt;'EOF'
+/* testify.c - GH-021 lab: launch-time argument spoofing (T1564.010).
+ * Launcher mode (no canary in argv): re-exec self with a forged argv.
+ * Payload mode (canary present): print the benign canary, then sleep. */
+#include &lt;stdio.h&gt;
+#include &lt;string.h&gt;
+#include &lt;unistd.h&gt;
+
+static int has_canary(int argc, char **argv) {
+    for (int i = 0; i &lt; argc; i++)
+        if (strcmp(argv[i], "GHOSTLIGHT-CANARY-021") == 0) return 1;
+    return 0;
+}
+
+int main(int argc, char **argv) {
+    if (has_canary(argc, argv)) {
+        printf("GHOSTLIGHT-CANARY-021: benign lab payload\n");
+        fflush(stdout);
+        for (;;) pause();
+    }
+    char *forged[] = {
+        "/usr/bin/ssh-agent", "-s", "GHOSTLIGHT-CANARY-021", NULL
+    };
+    execv("/proc/self/exe", forged);
+    perror("execv");
+    return 1;
+}
+EOF
+gcc -O2 -o testify testify.c &amp;&amp; ls -l testify
+-rwxrwx--- 1 root root 16304 Oct  5 09:35 testify</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">2</div>
+<div>
+<h3>The payload: testify.c</h3>
+<div class="prose"><p>Thirty lines, two modes. <strong>has_canary</strong> scans argv for the benign token. In payload mode the program prints the canary (the marker that this is a lab process and nothing more), flushes, and sleeps forever with <strong>pause()</strong>, so the process list can be inspected. In launcher mode it builds the <strong>forged</strong> vector: argv[0] claims <strong>/usr/bin/ssh-agent</strong>, argv[1] is <strong>-s</strong>, argv[2] carries the canary, and the NULL terminates the array. <strong>execv("/proc/self/exe", forged)</strong> re-executes this same binary file, but hands the kernel the forged argv instead of the real one. The kernel maps and runs testify; the process list will tell ssh-agent's story. <strong>perror</strong> only runs if the exec fails.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">c: testify.c</span><button class="copy-btn" data-copy="/* testify.c - GH-021 lab: launch-time argument spoofing (T1564.010).
+ * Launcher mode (no canary in argv): re-exec self with a forged argv.
+ * Payload mode (canary present): print the benign canary, then sleep. */
+#include &lt;stdio.h&gt;
+#include &lt;string.h&gt;
+#include &lt;unistd.h&gt;
+
+static int has_canary(int argc, char **argv) {
+    for (int i = 0; i &lt; argc; i++)
+        if (strcmp(argv[i], &quot;GHOSTLIGHT-CANARY-021&quot;) == 0) return 1;
+    return 0;
+}
+
+int main(int argc, char **argv) {
+    if (has_canary(argc, argv)) {
+        printf(&quot;GHOSTLIGHT-CANARY-021: benign lab payload\n&quot;);
+        fflush(stdout);
+        for (;;) pause();
+    }
+    char *forged[] = {
+        &quot;/usr/bin/ssh-agent&quot;, &quot;-s&quot;, &quot;GHOSTLIGHT-CANARY-021&quot;, NULL
+    };
+    execv(&quot;/proc/self/exe&quot;, forged);
+    perror(&quot;execv&quot;);
+    return 1;
+}"><span data-label>COPY</span></button></div>
+<pre>/* testify.c - GH-021 lab: launch-time argument spoofing (T1564.010).
+ * Launcher mode (no canary in argv): re-exec self with a forged argv.
+ * Payload mode (canary present): print the benign canary, then sleep. */
+#include &lt;stdio.h&gt;
+#include &lt;string.h&gt;
+#include &lt;unistd.h&gt;
+
+static int has_canary(int argc, char **argv) {
+    for (int i = 0; i &lt; argc; i++)
+        if (strcmp(argv[i], "GHOSTLIGHT-CANARY-021") == 0) return 1;
+    return 0;
+}
+
+int main(int argc, char **argv) {
+    if (has_canary(argc, argv)) {
+        printf("GHOSTLIGHT-CANARY-021: benign lab payload\n");
+        fflush(stdout);
+        for (;;) pause();
+    }
+    char *forged[] = {
+        "/usr/bin/ssh-agent", "-s", "GHOSTLIGHT-CANARY-021", NULL
+    };
+    execv("/proc/self/exe", forged);
+    perror("execv");
+    return 1;
+}</pre>
+</div>
+</div>
+</div>
+</section>
+
+        <section class="phase" id="phase-red">
+          <div class="phase-head"><span class="phase-num">03</span><h2>Phase Red: bear false witness</h2><span class="phase-tag red">ATTACK</span></div>
+          <p class="lede">The attacker launches the payload, hands the kernel a forged argument vector at exec time, and lets the process list testify to the daemon's story.</p>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">114.9s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/testimony-red.jpg" aria-label="Screen recording: FALSE TESTIMONY RED, operator@lab">
+              <source src="../../assets/vid/testimony-red.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> The lab binary re-executes itself with a forged argv. ps testifies that /usr/bin/ssh-agent is running. Every command below is copy-pasteable.</figcaption>
+          </figure>
+<div class="step">
+<div class="step-num">1</div>
+<div>
+<h3>Launch, and read the testimony</h3>
+<div class="prose"><p><strong>./testify &amp;</strong> starts the launcher in the background; <strong>[1] 13</strong> is the shell's job notice, and the canary line is the payload announcing itself in payload mode: a benign marker, nothing more. <strong>sleep 0.5</strong> lets the re-exec settle. <strong>ps -o pid,args -p</strong> on the canary-matched pid prints the forgery: <strong>/usr/bin/ssh-agent -s GHOSTLIGHT-CANARY-021</strong>. An operator skimming the process list reads a daemon they expect and moves on; that moving on is the entire technique.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="./testify &amp;
+sleep 0.5
+ps -o pid,args -p $(pgrep -f &#x27;GHOSTLIGHT-CANARY-021&#x27;)"><span data-label>COPY</span></button></div>
+<pre>$ ./testify &amp;
+sleep 0.5
+ps -o pid,args -p $(pgrep -f 'GHOSTLIGHT-CANARY-021')
+[1] 13
+GHOSTLIGHT-CANARY-021: benign lab payload
+    PID COMMAND
+     13 /usr/bin/ssh-agent -s GHOSTLIGHT-CANARY-021</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">2</div>
+<div>
+<h3>Read the raw testimony bytes</h3>
+<div class="prose"><p><strong>pgrep -f</strong> finds the suspect by its own testimony; <strong>tr '\0' '\n'</strong> splits <strong>/proc/&lt;pid&gt;/cmdline</strong> on the NUL separators into one string per line. Three strings, exactly the forged vector: the daemon path, the flag, the canary. This is what ps printed, byte for byte. The testimony is consistent because it has one author: the attacker.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="CPID=$(pgrep -f &#x27;GHOSTLIGHT-CANARY-021&#x27;); echo &quot;suspect pid: $CPID&quot;
+tr &#x27;\0&#x27; &#x27;\n&#x27; &lt; /proc/$CPID/cmdline"><span data-label>COPY</span></button></div>
+<pre>$ CPID=$(pgrep -f 'GHOSTLIGHT-CANARY-021'); echo "suspect pid: $CPID"
+tr '\0' '\n' &lt; /proc/$CPID/cmdline
+suspect pid: 13
+/usr/bin/ssh-agent
+-s
+GHOSTLIGHT-CANARY-021</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">3</div>
+<div>
+<h3>Read the kernel's record</h3>
+<div class="prose"><p><strong>readlink /proc/&lt;pid&gt;/exe</strong> prints <strong>/tmp/gh021/testify</strong>: the file the kernel actually mapped and ran. <strong>ls -l</strong> shows the symlink the kernel maintains. The exe link is written from the execve path argument, and no system call lets the process rewrite it. Two authors, two answers: the testimony said ssh-agent, the record says testify.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="readlink /proc/$CPID/exe
+ls -l /proc/$CPID/exe"><span data-label>COPY</span></button></div>
+<pre>$ readlink /proc/$CPID/exe
+ls -l /proc/$CPID/exe
+/tmp/gh021/testify
+lrwxrwxrwx 1 root root 0 Oct  5 09:35 /proc/13/exe -&gt; /tmp/gh021/testify</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">4</div>
+<div>
+<h3>The verdict, in the attacker's own words</h3>
+<div class="prose"><p>The closing line of the recording, stated plain: the testimony said ssh-agent, the record said testify.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &#x27;stealth confirmed: the testimony said ssh-agent, the record said testify&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ echo 'stealth confirmed: the testimony said ssh-agent, the record said testify'
+stealth confirmed: the testimony said ssh-agent, the record said testify</pre>
+</div>
+<div class="verdict red">
+<span class="mlabel">Stealth confirmed</span>
+<p>One forged argument vector put a daemon's story on the process list with a single execve. ps, the tool every triage reads first, printed the fiction verbatim, because printing the testimony is its job: it prints argv. The forgery cost nothing, needed no privilege, and the listing detected nothing, because the listing was never checking.</p>
+</div></div>
+</div>
+
+        </section>
+
+        <section class="phase" id="phase-blue">
+          <div class="phase-head"><span class="phase-num">04</span><h2>Phase Blue: corroborate the testimony</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">The defender stops trusting testimony and starts corroborating it: the naive view, the mismatch hunt, the audit record that pairs every claim with its record. Then the impostor is contained with evidence first, and the execve rule goes in where processes are born.</p>
+          <div class="prose">
+            <p>Here is the trap: seeing ssh-agent in the process list and moving on. That is trusting the testimony of the suspect. The check that works never asks the process who it is; it asks the kernel what it ran.</p>
+          </div>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot blue" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">126.8s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/testimony-blue.jpg" aria-label="Screen recording: FALSE TESTIMONY BLUE, operator@lab">
+              <source src="../../assets/vid/testimony-blue.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> The defender hunts the argv[0]-vs-exe mismatch, captures evidence before the kill, and stages the execve audit rule. Every command below is copy-pasteable.</figcaption>
+          </figure>
+<div class="step">
+<div class="step-num">1</div>
+<div>
+<h3>DETECTION: the naive view</h3>
+<div class="prose"><p><strong>cd /tmp/gh021</strong> and <strong>ps -o pid,args</strong>: the defender's starting view, identical to the attacker's finished product. The row says ssh-agent. Nothing about it looks wrong, because nothing about the rendering is wrong: the row is the testimony, and the testimony is the forgery. Stopping here is the attacker's win.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="cd /tmp/gh021
+ps -o pid,args -p $(pgrep -f &#x27;GHOSTLIGHT-CANARY-021&#x27;)"><span data-label>COPY</span></button></div>
+<pre>$ cd /tmp/gh021
+ps -o pid,args -p $(pgrep -f 'GHOSTLIGHT-CANARY-021')
+    PID COMMAND
+     13 /usr/bin/ssh-agent -s GHOSTLIGHT-CANARY-021</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">2</div>
+<div>
+<h3>DETECTION: the mismatch hunt, the runbook one-liner</h3>
+<div class="prose"><p>For every pid, read the kernel's record (<strong>readlink .../exe</strong>) and the process's testimony (<strong>argv[0]</strong>, the first NUL-separated string of <strong>.../cmdline</strong>); flag the pid where neither the full path nor the basename agrees. The output names one lead: <strong>LEAD pid=13 argv0=[/usr/bin/ssh-agent] exe=[/tmp/gh021/testify]</strong>. The tell, concrete: good is an argv[0] that resolves to the exe; bad is a daemon's path on a stranger's binary. This is a lead, not a verdict: every hit gets the exe read before action.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="for d in /proc/[0-9]*; do
+  pid=${d#/proc/}
+  exe=$(readlink &quot;$d/exe&quot; 2&gt;/dev/null) || continue
+  a0=$(tr &#x27;\0&#x27; &#x27;\n&#x27; &lt; &quot;$d/cmdline&quot; 2&gt;/dev/null | sed -n &#x27;1p&#x27;)
+  [ -n &quot;$a0&quot; ] &amp;&amp; [ &quot;$a0&quot; != &quot;$exe&quot; ] &amp;&amp; [ &quot;$(basename &quot;$a0&quot;)&quot; != &quot;$(basename &quot;$exe&quot;)&quot; ] &amp;&amp; echo &quot;LEAD pid=$pid argv0=[$a0] exe=[$exe]&quot;
+done"><span data-label>COPY</span></button></div>
+<pre>$ for d in /proc/[0-9]*; do
+  pid=${d#/proc/}
+  exe=$(readlink "$d/exe" 2&gt;/dev/null) || continue
+  a0=$(tr '\0' '\n' &lt; "$d/cmdline" 2&gt;/dev/null | sed -n '1p')
+  [ -n "$a0" ] &amp;&amp; [ "$a0" != "$exe" ] &amp;&amp; [ "$(basename "$a0")" != "$(basename "$exe")" ] &amp;&amp; echo "LEAD pid=$pid argv0=[$a0] exe=[$exe]"
+done
+LEAD pid=13 argv0=[/usr/bin/ssh-agent] exe=[/tmp/gh021/testify]</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">3</div>
+<div>
+<h3>DETECTION: the audit question</h3>
+<div class="prose"><p><strong>command -v auditctl</strong> answers honestly: no auditd in this lab. The production control is stated with its dependency, not demonstrated: an <strong>execve</strong> audit rule (<strong>-a always,exit -F arch=b64 -S execve -k gh021-execve</strong>) records every process birth with BOTH authors present: the <strong>exe=</strong> field (the kernel's record: which file was executed) and the <strong>a0=, a1=...</strong> fields (the testimony: the argv the caller supplied). The hunt: alert where basename(a0) differs from basename(exe). It needs the audit subsystem enabled and its rules loaded, which containers usually lack.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="command -v auditctl || echo &#x27;no auditd in this lab: execve telemetry needs the audit subsystem&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ command -v auditctl || echo 'no auditd in this lab: execve telemetry needs the audit subsystem'
+no auditd in this lab: execve telemetry needs the audit subsystem</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">4</div>
+<div>
+<h3>MITIGATION: evidence first, then containment</h3>
+<div class="prose"><p><strong>mkdir -p evidence</strong>; <strong>tr</strong> captures the testimony bytes into <strong>evidence/cmdline.txt</strong> and <strong>readlink</strong> captures the record into <strong>evidence/exe.txt</strong>; <strong>cp /proc/$CPID/exe evidence/testify.bin</strong> preserves the binary through the kernel's own symlink, and <strong>sha256sum | tee evidence/hash.txt</strong> anchors its hash. All of it BEFORE the kill, because a dead process takes /proc with it. <strong>kill $CPID</strong> takes the suspect by PID, never by name: <strong>pkill -f ssh-agent</strong> on a real host would murder the real ssh-agent alongside the impostor. Verify: pgrep finds nothing, and no real ssh-agent was ever running. D3FEND calls the hash anchor <a href="https://d3fend.mitre.org/technique/d3f:FileHashing/" rel="noopener">D3-FH: File Hashing</a>.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="mkdir -p evidence
+CPID=$(pgrep -f &#x27;GHOSTLIGHT-CANARY-021&#x27;)
+tr &#x27;\0&#x27; &#x27;\n&#x27; &lt; /proc/$CPID/cmdline &gt; evidence/cmdline.txt
+readlink /proc/$CPID/exe | tee evidence/exe.txt
+cp /proc/$CPID/exe evidence/testify.bin
+sha256sum evidence/testify.bin | tee evidence/hash.txt
+kill $CPID
+sleep 0.5
+pgrep -f &#x27;GHOSTLIGHT-CANARY-021&#x27; || echo &#x27;impostor gone; no real ssh-agent was ever running&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ mkdir -p evidence
+CPID=$(pgrep -f 'GHOSTLIGHT-CANARY-021')
+tr '\0' '\n' &lt; /proc/$CPID/cmdline &gt; evidence/cmdline.txt
+readlink /proc/$CPID/exe | tee evidence/exe.txt
+cp /proc/$CPID/exe evidence/testify.bin
+sha256sum evidence/testify.bin | tee evidence/hash.txt
+kill $CPID
+sleep 0.5
+pgrep -f 'GHOSTLIGHT-CANARY-021' || echo 'impostor gone; no real ssh-agent was ever running'
+/tmp/gh021/testify
+4cf91b2f7bed1650c0d8fb060a5772ef8c7c63b2d137f3e5595bb4fa3633557b  evidence/testify.bin
+impostor gone; no real ssh-agent was ever running</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">5</div>
+<div>
+<h3>PREVENTION: the execve rule, staged</h3>
+<div class="prose"><p>The heredoc writes <strong>/etc/audit/rules.d/ghostlight-021.rules</strong>: log every execve, 64- and 32-bit, tagged <strong>gh021-execve</strong>. <strong>cat</strong> shows the staged rule; <strong>command -v auditctl</strong> confirms it is staged but not loaded: no auditd in this lab. Where auditd runs, this is the durable telemetry: every birth on the box carries its claim stapled to its record, hunted on a schedule. The second half of prevention is identity anchored to the record: allowlists keyed on exe path plus hash (<a href="https://d3fend.mitre.org/technique/d3f:FileIntegrityMonitoring/" rel="noopener">D3-FIM: File Integrity Monitoring</a>), so a /tmp binary never runs no matter what story its argv tells.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="mkdir -p /etc/audit/rules.d
+cat &gt; /etc/audit/rules.d/ghostlight-021.rules &lt;&lt;&#x27;EOF&#x27;
+# GH-021: log every execve with its argument vector (needs auditd running)
+-a always,exit -F arch=b64 -S execve -k gh021-execve
+-a always,exit -F arch=b32 -S execve -k gh021-execve
+EOF
+cat /etc/audit/rules.d/ghostlight-021.rules
+command -v auditctl || echo &#x27;rule staged but not loaded: no auditd in this lab&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ mkdir -p /etc/audit/rules.d
+cat &gt; /etc/audit/rules.d/ghostlight-021.rules &lt;&lt;'EOF'
+# GH-021: log every execve with its argument vector (needs auditd running)
+-a always,exit -F arch=b64 -S execve -k gh021-execve
+-a always,exit -F arch=b32 -S execve -k gh021-execve
+EOF
+cat /etc/audit/rules.d/ghostlight-021.rules
+command -v auditctl || echo 'rule staged but not loaded: no auditd in this lab'
+# GH-021: log every execve with its argument vector (needs auditd running)
+-a always,exit -F arch=b64 -S execve -k gh021-execve
+-a always,exit -F arch=b32 -S execve -k gh021-execve
+rule staged but not loaded: no auditd in this lab</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">6</div>
+<div>
+<h3>Verdict and cleanup</h3>
+<div class="prose"><p>The summary, in the defender's own words: the testimony is argv, the record is exe. <strong>rm -rf /tmp/gh021</strong> removes the lab; <strong>ls /tmp</strong> shows the empty private tmp.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &#x27;detection verified: the testimony is argv, the record is exe&#x27;
+cd /tmp &amp;&amp; rm -rf /tmp/gh021 &amp;&amp; ls /tmp"><span data-label>COPY</span></button></div>
+<pre>$ echo 'detection verified: the testimony is argv, the record is exe'
+cd /tmp &amp;&amp; rm -rf /tmp/gh021 &amp;&amp; ls /tmp
+detection verified: the testimony is argv, the record is exe</pre>
+</div>
+<div class="verdict green">
+<span class="mlabel">Detection verified</span>
+<p>The naive view showed the daemon's story; the mismatch hunt named the one lead where argv[0] and exe disagree; the execve audit rule is stated with its dependency; the impostor's testimony, record, binary, and hash were captured before the kill-by-PID, and the box verified clean. The testimony never got a second hearing.</p>
+</div></div>
+</div>
+
+        </section>
+
+        <section class="phase" id="countermeasures">
+          <div class="phase-head"><span class="phase-num">05</span><h2>Countermeasures</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">Three moves, in order: contain with evidence first, hunt on a schedule, log every birth and anchor identity to the record. Each is one way, not the way.</p>
+<div class="step">
+<div class="step-num">1</div>
+<div>
+<h3>Mitigate: capture, kill by PID, re-sweep</h3>
+<div class="prose"><p>Proven first against the live impostor: the testimony bytes, the exe path, the binary, and its hash are captured into <strong>evidence/</strong> BEFORE the kill, because /proc dies with the process. <strong>kill $CPID</strong> takes only the suspect; killing by the forged name is the classic blunder this technique baits: on a real host <strong>pkill -f ssh-agent</strong> takes the real daemon too. The re-sweep (<strong>pgrep -f</strong> on the canary) returns nothing, and the box holds no real ssh-agent. A real response then hunts the delivery vector: how the binary arrived is the incident's open question, and the mismatch hunt from Phase Blue is the sibling sweep.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="mkdir -p evidence
+CPID=$(pgrep -f &#x27;GHOSTLIGHT-CANARY-021&#x27;)
+tr &#x27;\0&#x27; &#x27;\n&#x27; &lt; /proc/$CPID/cmdline &gt; evidence/cmdline.txt
+readlink /proc/$CPID/exe | tee evidence/exe.txt
+cp /proc/$CPID/exe evidence/testify.bin
+sha256sum evidence/testify.bin | tee evidence/hash.txt
+kill $CPID
+sleep 0.5
+pgrep -f &#x27;GHOSTLIGHT-CANARY-021&#x27; || echo &#x27;impostor gone; no real ssh-agent was ever running&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ mkdir -p evidence
+CPID=$(pgrep -f 'GHOSTLIGHT-CANARY-021')
+tr '\0' '\n' &lt; /proc/$CPID/cmdline &gt; evidence/cmdline.txt
+readlink /proc/$CPID/exe | tee evidence/exe.txt
+cp /proc/$CPID/exe evidence/testify.bin
+sha256sum evidence/testify.bin | tee evidence/hash.txt
+kill $CPID
+sleep 0.5
+pgrep -f 'GHOSTLIGHT-CANARY-021' || echo 'impostor gone; no real ssh-agent was ever running'
+/tmp/gh021/testify
+4cf91b2f7bed1650c0d8fb060a5772ef8c7c63b2d137f3e5595bb4fa3633557b  evidence/testify.bin
+impostor gone; no real ssh-agent was ever running</pre>
+</div>
+<div class="callout"><p><strong>Honest limit.</strong> Killing ends this process, not the technique: the binary on disk re-launches with a fresh forged story. The kill needs the right PID, and on a busy box PID reuse means re-reading exe between the hunt and the kill. The lab removes the tree for cleanliness; a real incident preserves evidence/ for forensics instead of deleting it.</p></div></div>
+</div>
+<div class="step">
+<div class="step-num">2</div>
+<div>
+<h3>Monitor: hunt the argv/exe mismatch on a schedule</h3>
+<div class="prose"><p>The scheduled form of the phase-blue read: the one-liner walks /proc, compares each process's testimony against the kernel's record, and prints only the disagreements. The tell is a daemon's path on a stranger's binary. Run it on a timer across the fleet and you have the whole monitor; production versions add alerting, not new ideas.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="for d in /proc/[0-9]*; do
+  pid=${d#/proc/}
+  exe=$(readlink &quot;$d/exe&quot; 2&gt;/dev/null) || continue
+  a0=$(tr &#x27;\0&#x27; &#x27;\n&#x27; &lt; &quot;$d/cmdline&quot; 2&gt;/dev/null | sed -n &#x27;1p&#x27;)
+  [ -n &quot;$a0&quot; ] &amp;&amp; [ &quot;$a0&quot; != &quot;$exe&quot; ] &amp;&amp; [ &quot;$(basename &quot;$a0&quot;)&quot; != &quot;$(basename &quot;$exe&quot;)&quot; ] &amp;&amp; echo &quot;LEAD pid=$pid argv0=[$a0] exe=[$exe]&quot;
+done"><span data-label>COPY</span></button></div>
+<pre>$ for d in /proc/[0-9]*; do
+  pid=${d#/proc/}
+  exe=$(readlink "$d/exe" 2&gt;/dev/null) || continue
+  a0=$(tr '\0' '\n' &lt; "$d/cmdline" 2&gt;/dev/null | sed -n '1p')
+  [ -n "$a0" ] &amp;&amp; [ "$a0" != "$exe" ] &amp;&amp; [ "$(basename "$a0")" != "$(basename "$exe")" ] &amp;&amp; echo "LEAD pid=$pid argv0=[$a0] exe=[$exe]"
+done
+LEAD pid=13 argv0=[/usr/bin/ssh-agent] exe=[/tmp/gh021/testify]</pre>
+</div>
+<div class="callout"><p><strong>Honest limit.</strong> The hunt prints leads, not verdicts. Legitimate software forges argv too: PostgreSQL rewrites argv[0] to <strong>postgres: checkpointer process</strong> (exe postgres, testimony checkpointer), and login shells run with argv[0] <strong>-bash</strong>; both trip the basename comparison, so every hit gets the exe read before action. The basename comparison also has a blind spot: a copy of the real binary run from /tmp with argv[0] set to the real path passes it. The strict full-path variant catches that copy and false-positives on bare argv[0]s like <strong>bash</strong> instead. Pick the variant, then tune out your fleet's known-good oddities. And the poll interval sets the floor: a spoof that lives and dies between sweeps leaves no testimony behind, only the audit log, if auditd was watching.</p></div></div>
+</div>
+<div class="step">
+<div class="step-num">3</div>
+<div>
+<h3>Prevent: log every birth, anchor identity to the record</h3>
+<div class="prose"><p>The staged rule (<strong>/etc/audit/rules.d/ghostlight-021.rules</strong>) is the telemetry half: every execve carries its claim stapled to its record, hunted for basename(a0) vs basename(exe) disagreements. The policy half is identity anchored to the record: execution allowlists keyed on exe path plus file hash (D3-FIM), so a binary in /tmp never runs no matter what story its argv tells. Only the record decides what a process is; the testimony is never consulted.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="mkdir -p /etc/audit/rules.d
+cat &gt; /etc/audit/rules.d/ghostlight-021.rules &lt;&lt;&#x27;EOF&#x27;
+# GH-021: log every execve with its argument vector (needs auditd running)
+-a always,exit -F arch=b64 -S execve -k gh021-execve
+-a always,exit -F arch=b32 -S execve -k gh021-execve
+EOF
+cat /etc/audit/rules.d/ghostlight-021.rules
+command -v auditctl || echo &#x27;rule staged but not loaded: no auditd in this lab&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ mkdir -p /etc/audit/rules.d
+cat &gt; /etc/audit/rules.d/ghostlight-021.rules &lt;&lt;'EOF'
+# GH-021: log every execve with its argument vector (needs auditd running)
+-a always,exit -F arch=b64 -S execve -k gh021-execve
+-a always,exit -F arch=b32 -S execve -k gh021-execve
+EOF
+cat /etc/audit/rules.d/ghostlight-021.rules
+command -v auditctl || echo 'rule staged but not loaded: no auditd in this lab'
+# GH-021: log every execve with its argument vector (needs auditd running)
+-a always,exit -F arch=b64 -S execve -k gh021-execve
+-a always,exit -F arch=b32 -S execve -k gh021-execve
+rule staged but not loaded: no auditd in this lab</pre>
+</div>
+<div class="callout"><p><strong>Honest limit.</strong> The rule needs auditd running with rules loaded; this lab has neither, and many containers lack the subsystem entirely. The audit record freezes the exec-time testimony, so a process that rewrites its argv AFTER launch leaves the record looking clean while the live testimony lies: the live exe-vs-cmdline comparison covers that blind spot, which is why the two controls ship as a pair. No control makes argv trustworthy, because argv is attacker-owned memory from birth. And execve on a busy box is a firehose: scope the rule's key and the hunt, or the telemetry drowns the team it was built to help. This control raises the cost of the trick; it does not remove the trick. The mismatch check in Phase Blue works regardless of which story the attacker chose, which is why detection outlives prevention here.</p></div><div class="verdict green">
+<span class="mlabel">Countermeasures verified</span>
+<p>The impostor's testimony, record, binary, and hash were captured before the kill-by-PID; the scheduled hunt names its tell, its false positives, and its blind spot; the execve rule is staged with its dependency stated. Every control names its bypass: PID reuse, the poll-interval floor, the post-launch argv rewrite, and the one fact no control changes, that argv is the attacker's memory.</p>
+</div></div>
+</div>
+
+        </section>
+
+        <section class="phase" id="debrief">
+          <div class="phase-head"><span class="phase-num">06</span><h2>Debrief</h2><span class="phase-tag neutral">TAKEAWAY</span></div>
+          <p class="takeaway">The command line is the process's testimony about itself; /proc/PID/exe is the kernel's record of what it ran. When testimony and record disagree, believe the record.</p>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">IOC checklist: signs this technique was used</span></p></div>
+          <ul class="checklist">
+            <li><span><strong>argv[0] and exe disagree</strong>: a daemon's path in cmdline on a stranger's binary (the mismatch hunt's LEAD)</span></li>
+            <li><span><strong>Daemon command lines whose exe lives in /tmp, /dev/shm, or $HOME</strong>: ssh-agent, dbus-daemon, cron stories told from writable dirt</span></li>
+            <li><span><strong>execve audit records where basename(a0) differs from basename(exe)</strong>: the claim stapled to a contradicting record</span></li>
+            <li><span><strong>A process whose cmdline story matches no hash baseline</strong> for the binary it claims to be</span></li>
+            <li><span><strong>No execve telemetry at all</strong>: the absence of the birth record is itself the gap, testimony with no corroboration</span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Reproducibility checklist</span></p></div>
+          <ul class="checklist">
+            <li><span>Verified on <strong>Ubuntu 24.04.5 LTS</strong>, <strong>gcc 13</strong>, x86-64, on 2026-10-05</span></li>
+            <li><span>Both recordings are real executions on that platform, not simulations</span></li>
+            <li><span>The attack runs fully unprivileged: any user may pass any argv to execve</span></li>
+            <li><span>Cleanup: <strong>pkill -f GHOSTLIGHT-CANARY-021</strong>; <strong>rm -rf /tmp/gh021</strong>; verify with <strong>ls /tmp</strong></span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Sources</span></p></div>
+          <div class="prose"><p><a href="https://attack.mitre.org/techniques/T1564/010/" rel="noopener">MITRE ATT&amp;CK T1564.010: Hide Artifacts: Process Argument Spoofing</a><br>
+          <a href="https://attack.mitre.org/techniques/T1564/" rel="noopener">MITRE ATT&amp;CK T1564: Hide Artifacts</a> (the parent technique)<br>
+          <a href="https://man7.org/linux/man-pages/man2/execve.2.html" rel="noopener">execve(2)</a> (path selects the file, argv is caller-supplied)<br>
+          <a href="https://man7.org/linux/man-pages/man5/proc.5.html" rel="noopener">proc(5)</a> (the /proc/&lt;pid&gt;/cmdline bytes and the /proc/&lt;pid&gt;/exe symlink)<br>
+          <a href="https://man7.org/linux/man-pages/man1/ps.1.html" rel="noopener">ps(1)</a> (the args output column)<br>
+          <a href="https://d3fend.mitre.org/technique/d3f:FileHashing/" rel="noopener">D3FEND D3-FH: File Hashing</a><br>
+          <a href="https://d3fend.mitre.org/technique/d3f:FileIntegrityMonitoring/" rel="noopener">D3FEND D3-FIM: File Integrity Monitoring</a></p></div>
+        </section>
+
+        <a class="next-file" href="../023-second-root/">
+          <span class="mlabel">Next file</span>
+          <h3>GH-023 The Second Root</h3>
+          <p>The next file looks for a user the user list does not show.</p>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <div>
+      <div class="footer-brand">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+        <span class="brand-name" style="font-size:17px">GHOSTLIGHT</span>
+      </div>
+      <p class="footer-note">An independent adversary-stealth research publication. Every command verified on the named OS before publishing. No trackers, no frameworks, no autoplay.</p>
+    </div>
+    <nav class="footer-links">
+      <a href="../../method.html">METHOD</a>
+      <a href="../../index.html">FILES</a>
+      <a href="https://attack.mitre.org/tactics/TA0005/" rel="noopener">MITRE TA0005</a>
+    </nav>
+    <div class="footer-elsewhere">
+      <span class="mlabel">Elsewhere</span><a href="https://dillingerstaffing.github.io/portfolio/" target="_blank" rel="noopener">Portfolio</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/proving-ground/" target="_blank" rel="noopener">Proving Ground</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/tapeout/" target="_blank" rel="noopener">Tapeout</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/old-iron/" target="_blank" rel="noopener">Old Iron</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/unstuck/" target="_blank" rel="noopener">Unstuck</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../../assets/site.js?v=00000000"></script>
+</body>
+</html>
