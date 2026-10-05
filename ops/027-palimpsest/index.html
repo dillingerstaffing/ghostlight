@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>GH-027 The Palimpsest (T1036.011): GHOSTLIGHT</title>
+<meta name="description" content="T1036.011 Overwrite Process Arguments, reproduced on Ubuntu 24.04: a lab binary launches with a truthful command line, then rewrites its own argv memory, so ps reports a kernel thread that was never born. The defender hunts the bracket decoy, convicts on the comm/cmdline/exe mismatch, and pins the exec-time record.">
+<link rel="canonical" href="https://dillingerstaffing.github.io/ghostlight/ops/027-palimpsest/">
+<meta property="og:title" content="GH-027 The Palimpsest (T1036.011): GHOSTLIGHT">
+<meta property="og:description" content="T1036.011 Overwrite Process Arguments, reproduced on Ubuntu 24.04: a lab binary launches with a truthful command line, then rewrites its own argv memory, so ps reports a kernel thread that was never born. The defender hunts the bracket decoy, convicts on the comm/cmdline/exe mismatch, and pins the exec-time record.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dillingerstaffing.github.io/ghostlight/ops/027-palimpsest/">
+<meta property="og:site_name" content="GHOSTLIGHT">
+<meta property="og:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="GH-027 The Palimpsest (T1036.011): GHOSTLIGHT">
+<meta name="twitter:description" content="T1036.011 Overwrite Process Arguments, reproduced on Ubuntu 24.04: a lab binary launches with a truthful command line, then rewrites its own argv memory, so ps reports a kernel thread that was never born. The defender hunts the bracket decoy, convicts on the comm/cmdline/exe mismatch, and pins the exec-time record.">
+<meta name="twitter:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23ece6d5'/%3E%3Ccircle cx='256' cy='196' r='104' fill='none' stroke='%23241f17' stroke-width='20'/%3E%3Cline x1='256' y1='152' x2='256' y2='240' stroke='%238c3f22' stroke-width='16'/%3E%3Cline x1='256' y1='300' x2='256' y2='424' stroke='%23241f17' stroke-width='14'/%3E%3Cline x1='200' y1='424' x2='312' y2='424' stroke='%23241f17' stroke-width='18'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+<link rel="manifest" href="../../assets/manifest.webmanifest">
+<meta name="theme-color" content="#0a0c0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GHOSTLIGHT">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<script>
+(function () {
+  // Theme: notebook is the default; a stored visitor choice wins.
+  // Runs before the stylesheet is parsed so the first paint is already
+  // the right theme (no flash of the wrong one).
+  try {
+    var t = localStorage.getItem('emi-site-theme');
+    var theme = t === 'classic' ? 'classic' : 'notebook';
+    document.documentElement.dataset.theme = theme;
+    var m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute('content', theme === 'classic' ? '#0a0c0f' : '#ece6d5');
+  } catch (e) {
+    document.documentElement.dataset.theme = 'notebook';
+  }
+})();
+</script>
+<link rel="stylesheet" href="../../assets/site.css?v=bca2bb86">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"GH-027 The Palimpsest (T1036.011): GHOSTLIGHT",
+"url":"https://dillingerstaffing.github.io/ghostlight/ops/027-palimpsest/","description":"T1036.011 Overwrite Process Arguments, reproduced on Ubuntu 24.04: a lab binary launches with a truthful command line, then rewrites its own argv memory, so ps reports a kernel thread that was never born. The defender hunts the bracket decoy, convicts on the comm/cmdline/exe mismatch, and pins the exec-time record.",
+"author":{"@type":"Person","name":"Chris Dillinger","url":"https://www.linkedin.com/in/christopherdillinger/"},
+"inLanguage":"en"}
+</script>
+</head>
+<body>
+
+<header class="site-header">
+  <a class="brand" href="../../index.html" aria-label="GHOSTLIGHT home">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+    <span class="brand-name">GHOSTLIGHT</span>
+  </a>
+  <nav class="site-nav">
+    <a href="../../method.html">METHOD</a>
+    <a href="../../index.html">FILES</a>
+    <button class="theme-toggle" type="button" aria-label="Switch to dark field dossier theme" title="Switch theme">
+      <span class="theme-toggle-mark" aria-hidden="true"><i></i><i></i></span>
+    </button>
+  </nav>
+</header>
+
+<div class="onboard" data-onboard hidden>
+  <span><strong>How to read a file:</strong> every file follows the six-phase structure below. <span class="k-green">Green</span> is verified, <span class="k-red">red</span> is hostile.</span>
+  <button aria-label="Dismiss">GOT IT</button>
+</div>
+
+<div class="page" data-op="027">
+  <div class="wrap">
+    <section class="op-hero">
+      <div class="op-kicker">
+        <span class="case-no">GH-027</span>
+        <a class="tech-id" href="https://attack.mitre.org/techniques/T1036/011/" rel="noopener">T1036.011</a>
+        <span class="phase-tag red">PHASE RED INSIDE</span>
+      </div>
+      <h1>The Palimpsest</h1>
+      <p class="lede">The process list says a kernel thread named [kworker/u16:2] is running on this machine. No such thread was ever born. The process launched with a truthful command line, then scraped its own argv clean and wrote a new story over it. This file runs the rewrite, then reads the two things the rewrite cannot change.</p>
+      <div class="op-meta-grid">
+        <div class="op-meta"><span class="mlabel">Technique</span><span class="mvalue">Overwrite Process Arguments (T1036.011)</span></div>
+        <div class="op-meta"><span class="mlabel">Target OS</span><span class="mvalue">Ubuntu 24.04.5 LTS</span></div>
+        <div class="op-meta"><span class="mlabel">Toolchain</span><span class="mvalue">gcc 13</span></div>
+        <div class="op-meta"><span class="mlabel">Level</span><span class="mvalue">Beginner</span></div>
+        <div class="op-meta"><span class="mlabel">Time</span><span class="mvalue">20 min</span></div>
+      </div>
+      <div class="objectives">
+        <h2>OBJECTIVES</h2>
+        <ol>
+          <li data-phase="phase-red"><span class="box"></span>Rewrite a running process's own argv memory and watch ps report a kernel thread</li>
+          <li data-phase="phase-blue"><span class="box"></span>Hunt the bracket decoy and convict it on the comm/cmdline/exe mismatch</li>
+          <li data-phase="countermeasures"><span class="box"></span>Contain with evidence first and pin the exec-time record against the next rewrite</li>
+          <li data-phase="debrief"><span class="box"></span>Take the IOC checklist and the one-sentence lesson</li>
+        </ol>
+      </div>
+    </section>
+
+    <div class="op-layout">
+      <nav class="rail" aria-label="Phases">
+        <span class="mlabel">Phases</span>
+        <ol>
+          <li><a href="#intel-brief"><span class="pnum">01</span>INTEL BRIEF<span class="tick"></span></a></li>
+          <li><a href="#target-environment"><span class="pnum">02</span>TARGET ENV<span class="tick"></span></a></li>
+          <li><a href="#phase-red"><span class="pnum">03</span>PHASE RED<span class="tick"></span></a></li>
+          <li><a href="#phase-blue"><span class="pnum">04</span>PHASE BLUE<span class="tick"></span></a></li>
+          <li><a href="#countermeasures"><span class="pnum">05</span>COUNTERMEASURES<span class="tick"></span></a></li>
+          <li><a href="#debrief"><span class="pnum">06</span>DEBRIEF<span class="tick"></span></a></li>
+        </ol>
+      </nav>
+
+      <div class="op-content">
+
+        <section class="phase" id="intel-brief">
+          <div class="phase-head"><span class="phase-num">01</span><h2>Intel Brief</h2><span class="phase-tag neutral">CONTEXT</span></div>
+          <p class="lede">MITRE ATT&amp;CK <a href="https://attack.mitre.org/techniques/T1036/011/" rel="noopener">T1036.011</a>: adversaries overwrite a running process's own argument memory, so the process list reports a story the launch never told. This file performs the rewrite after launch, then checks the two things the rewrite cannot change. Two actors: the attacker, who owns the lab binary and the rewrite; and the defender, who owns every hunt, read, kill, and rule in the blue phases.</p>
+          <div class="prose">
+            <p><strong>Why this technique.</strong> The command line is the process's testimony about itself, and it is the most-read text on the system: ps, htop, top, every EDR sensor, every SIEM process feed. But the testimony is not a record. It is live memory. Every tool that prints a command line reads <strong>/proc/&lt;pid&gt;/cmdline</strong>, which is a window into the process's own stack, and the process owns that memory the way it owns its variables. Rewriting it costs one <strong>memcpy</strong>, fires no system call, changes no pid, no start time, no parent, no executable. The lie is total and the process never stops being itself.</p>
+            <p><strong>Why not the obvious alternative.</strong> The obvious check is the birth certificate: capture argv at exec time, in an auditd execve record, an EDR process-creation event, or the operator's own launch log, and trust it. Break it on this file's concrete input: the pinned exec record reads <strong>./palimpsest PADDINGPADDINGPADDING GHOSTLIGHT-CANARY-027</strong>, truthful to the byte. Three seconds later the same pid's cmdline reads <strong>[kworker/u16:2]</strong>. The record is accurate and useless: it describes a moment that has passed, and nothing re-checks it. Any defense that verifies the testimony once, at birth, loses to a rewrite that happens after. (Plain difference from GH-021 "The False Testimony": that file forged the argument vector <strong>at launch</strong> with execve, so the birth record itself was the lie; this file launches truthfully and rewrites the memory <strong>afterwards</strong>, with no exec at all, so the birth record is true and the live testimony is the lie. Different moment, different author of the bytes, same deceived reader.)</p>
+            <p><strong>The mechanism, in one paragraph.</strong> At exec, the kernel copies the launch argv onto the new process's stack and remembers the bounds of that memory. <strong>/proc/&lt;pid&gt;/cmdline</strong> prints exactly that range, so a <strong>memcpy</strong> into <strong>argv[0]</strong> changes what every reader sees, with no system call and no exec. The writable length is bounded by the original argv's total bytes: writing past the end would corrupt the environment block sitting above it on the stack, so the demo measures the region first, writes the decoy, and NUL-pads the rest so no stale argument bytes leak through. Two things the rewrite cannot touch: <strong>comm</strong>, the kernel's separate 16-byte name field (<strong>ps -o comm</strong> still says palimpsest), and <strong>/proc/&lt;pid&gt;/exe</strong>, the kernel's symlink to the executed file.</p>
+            <p><strong>The concrete case, before the abstraction.</strong> In /tmp/gh027: <strong>./palimpsest PADDINGPADDINGPADDING GHOSTLIGHT-CANARY-027 &amp;</strong> starts the lab binary. <strong>ps -o pid,comm,args</strong> prints <strong>palimpsest ./palimpsest PADDINGPADDINGPADDING GHOSTLIGHT-CANARY-027</strong>. Three seconds later, the same pid: <strong>palimpsest [kworker/u16:2]</strong>. No new process, no exec, no privilege. <strong>readlink /proc/&lt;pid&gt;/exe</strong> still says /tmp/gh027/palimpsest. Same parchment, new text: a palimpsest is a manuscript scraped clean and written over, and that is exactly what happened to this process's argv.</p>
+            <p><strong>Terms, earned.</strong> <strong>argv</strong> is the argument vector: the process's words about itself, living in its own writable stack memory. <strong>cmdline</strong> is /proc's view of argv, the testimony in raw bytes. <strong>comm</strong> is the kernel's separate 16-byte process name, set at exec, untouched by the rewrite. The <strong>exe link</strong> is /proc/&lt;pid&gt;/exe, the kernel's symlink to the file it actually executed. <strong>Overwrite process arguments</strong> is T1036.011: rewriting argv after launch so the testimony tells a new story.</p>
+          </div>
+          <div class="callout"><p><strong>Scope.</strong> T1036.011 covers post-launch argument overwrites wherever a process can write its own argv memory. This file works the Linux case end to end: the in-place rewrite, the kernel-thread decoy, the bracket-plus-live-cmdline hunt, the evidence-first containment, and the exec-record diff that pins the next rewrite. The canary is a benign token: it marks the lab payload and touches nothing else. The lab runs in a disposable PID and mount namespace with a private /tmp; teardown removes it and the namespace's death reaps every stray.</p></div>
+        </section>
+
+        <section class="phase" id="target-environment">
+          <div class="phase-head"><span class="phase-num">02</span><h2>Target Environment</h2><span class="phase-tag neutral">LOADOUT</span></div>
+          <p class="lede">Ubuntu 24.04.5 LTS with gcc 13, x86-64, in a disposable PID and mount namespace used only for this lab. The attack needs no privilege at all: a process may always write its own memory. Run it on a throwaway box anyway, because you are about to practice lying to your own tools.</p>
+<div class="step">
+<div class="step-num">1</div>
+<div>
+<h3>Build the lab</h3>
+<div class="prose"><p>The recording starts from an empty private /tmp inside its own mount namespace, so every take begins identical. <strong>rm -rf /tmp/gh027</strong> starts clean; <strong>mkdir -p</strong> and <strong>cd</strong> set up the lab directory. The heredoc writes <strong>palimpsest.c</strong> (quoted <strong>'EOF'</strong>, so the shell passes the source through untouched); <strong>gcc -O2</strong> builds it; <strong>ls -l</strong> shows the lab binary. The attacker needs no privilege: rewriting argv is writing your own stack, not a capability.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="rm -rf /tmp/gh027; mkdir -p /tmp/gh027; cd /tmp/gh027
+cat &gt; palimpsest.c &lt;&lt;&#x27;EOF&#x27;
+/* palimpsest.c - GH-027 lab: post-launch argv overwrite (T1036.011).
+ * Prints the benign canary and its launch-time argv[0], waits, then
+ * overwrites its own argument memory in place with a kernel-thread
+ * decoy. No exec, no privilege, no persistence: a benign demo. */
+#include &lt;stdio.h&gt;
+#include &lt;string.h&gt;
+#include &lt;unistd.h&gt;
+
+int main(int argc, char **argv) {
+    printf(&quot;GHOSTLIGHT-CANARY-027: benign lab payload\n&quot;);
+    printf(&quot;argv[0] at launch: %s\n&quot;, argv[0]);
+    fflush(stdout);
+    sleep(3);
+    size_t total = 0;
+    for (int i = 0; i &lt; argc; i++)
+        total += strlen(argv[i]) + 1;
+    const char *decoy = &quot;[kworker/u16:2]&quot;;
+    size_t n = strlen(decoy);
+    if (n + 1 &gt; total) {
+        printf(&quot;argv region too small for decoy\n&quot;);
+        return 1;
+    }
+    memcpy(argv[0], decoy, n + 1);
+    memset(argv[0] + n + 1, 0, total - (n + 1));
+    printf(&quot;argv[0] rewritten in place: %s\n&quot;, argv[0]);
+    fflush(stdout);
+    for (;;) pause();
+    return 0;
+}
+EOF
+gcc -O2 -o palimpsest palimpsest.c &amp;&amp; ls -l palimpsest"><span data-label>COPY</span></button></div>
+<pre>$ rm -rf /tmp/gh027; mkdir -p /tmp/gh027; cd /tmp/gh027
+cat &gt; palimpsest.c &lt;&lt;'EOF'
+/* palimpsest.c - GH-027 lab: post-launch argv overwrite (T1036.011).
+ * Prints the benign canary and its launch-time argv[0], waits, then
+ * overwrites its own argument memory in place with a kernel-thread
+ * decoy. No exec, no privilege, no persistence: a benign demo. */
+#include &lt;stdio.h&gt;
+#include &lt;string.h&gt;
+#include &lt;unistd.h&gt;
+
+int main(int argc, char **argv) {
+    printf("GHOSTLIGHT-CANARY-027: benign lab payload\n");
+    printf("argv[0] at launch: %s\n", argv[0]);
+    fflush(stdout);
+    sleep(3);
+    size_t total = 0;
+    for (int i = 0; i &lt; argc; i++)
+        total += strlen(argv[i]) + 1;
+    const char *decoy = "[kworker/u16:2]";
+    size_t n = strlen(decoy);
+    if (n + 1 &gt; total) {
+        printf("argv region too small for decoy\n");
+        return 1;
+    }
+    memcpy(argv[0], decoy, n + 1);
+    memset(argv[0] + n + 1, 0, total - (n + 1));
+    printf("argv[0] rewritten in place: %s\n", argv[0]);
+    fflush(stdout);
+    for (;;) pause();
+    return 0;
+}
+EOF
+gcc -O2 -o palimpsest palimpsest.c &amp;&amp; ls -l palimpsest
+-rwxrwx--- 1 root root 16272 Oct  5 11:26 palimpsest</pre>
+</div>
+</div>
+</div>
+
+<div class="step">
+<div class="step-num">2</div>
+<div>
+<h3>The payload: palimpsest.c</h3>
+<div class="prose"><p>Twenty-nine lines. It prints the benign canary and its launch-time <strong>argv[0]</strong>, then <strong>sleep(3)</strong> gives the operator time to pin the launch record. <strong>total</strong> measures the writable argv region (every argument's length plus its NUL); the <strong>[kworker/u16:2]</strong> decoy needs 15 bytes, and the size guard refuses the rewrite if the region is smaller. <strong>memcpy</strong> writes the decoy over <strong>argv[0]</strong>, and <strong>memset</strong> NUL-pads the rest so no stale argument bytes leak through into the new testimony. The process announces the rewritten <strong>argv[0]</strong> itself, then <strong>pause()</strong>s forever so the process list can be inspected. The <strong>PADDINGPADDINGPADDING</strong> launch argument exists only to size the writable region comfortably: without it the region would still fit the decoy, but the padding makes the before/after contrast unmistakable.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">c: palimpsest.c</span><button class="copy-btn" data-copy="/* palimpsest.c - GH-027 lab: post-launch argv overwrite (T1036.011).
+ * Prints the benign canary and its launch-time argv[0], waits, then
+ * overwrites its own argument memory in place with a kernel-thread
+ * decoy. No exec, no privilege, no persistence: a benign demo. */
+#include &lt;stdio.h&gt;
+#include &lt;string.h&gt;
+#include &lt;unistd.h&gt;
+
+int main(int argc, char **argv) {
+    printf(&quot;GHOSTLIGHT-CANARY-027: benign lab payload\n&quot;);
+    printf(&quot;argv[0] at launch: %s\n&quot;, argv[0]);
+    fflush(stdout);
+    sleep(3);
+    size_t total = 0;
+    for (int i = 0; i &lt; argc; i++)
+        total += strlen(argv[i]) + 1;
+    const char *decoy = &quot;[kworker/u16:2]&quot;;
+    size_t n = strlen(decoy);
+    if (n + 1 &gt; total) {
+        printf(&quot;argv region too small for decoy\n&quot;);
+        return 1;
+    }
+    memcpy(argv[0], decoy, n + 1);
+    memset(argv[0] + n + 1, 0, total - (n + 1));
+    printf(&quot;argv[0] rewritten in place: %s\n&quot;, argv[0]);
+    fflush(stdout);
+    for (;;) pause();
+    return 0;
+}"><span data-label>COPY</span></button></div>
+<pre>/* palimpsest.c - GH-027 lab: post-launch argv overwrite (T1036.011).
+ * Prints the benign canary and its launch-time argv[0], waits, then
+ * overwrites its own argument memory in place with a kernel-thread
+ * decoy. No exec, no privilege, no persistence: a benign demo. */
+#include &lt;stdio.h&gt;
+#include &lt;string.h&gt;
+#include &lt;unistd.h&gt;
+
+int main(int argc, char **argv) {
+    printf("GHOSTLIGHT-CANARY-027: benign lab payload\n");
+    printf("argv[0] at launch: %s\n", argv[0]);
+    fflush(stdout);
+    sleep(3);
+    size_t total = 0;
+    for (int i = 0; i &lt; argc; i++)
+        total += strlen(argv[i]) + 1;
+    const char *decoy = "[kworker/u16:2]";
+    size_t n = strlen(decoy);
+    if (n + 1 &gt; total) {
+        printf("argv region too small for decoy\n");
+        return 1;
+    }
+    memcpy(argv[0], decoy, n + 1);
+    memset(argv[0] + n + 1, 0, total - (n + 1));
+    printf("argv[0] rewritten in place: %s\n", argv[0]);
+    fflush(stdout);
+    for (;;) pause();
+    return 0;
+}</pre>
+</div>
+</div>
+</div>
+
+        </section>
+
+        <section class="phase" id="phase-red">
+          <div class="phase-head"><span class="phase-num">03</span><h2>Phase Red: scrape the parchment</h2><span class="phase-tag red">ATTACK</span></div>
+          <p class="lede">The attacker launches the payload with a truthful argv, lets the operator pin the launch record, and waits three seconds. The process then rewrites its own argument memory. No exec, no new pid, no privilege.</p>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">152.0s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/palimpsest-red.jpg" aria-label="Screen recording: PALIMPSEST RED, operator@lab">
+              <source src="../../assets/vid/palimpsest-red.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> The lab binary launches with a truthful command line, then rewrites its own argv memory. ps reports a kernel thread that was never born. Every command below is copy-pasteable.</figcaption>
+          </figure>
+<div class="step">
+<div class="step-num">1</div>
+<div>
+<h3>Launch clean, pin the launch record</h3>
+<div class="prose"><p><strong>./palimpsest PADDINGPADDINGPADDING GHOSTLIGHT-CANARY-027 &amp;</strong> starts the lab binary in the background; <strong>[1] 13</strong> is the shell's job notice and <strong>lab pid: 13</strong> saves the pid. The canary line and <strong>argv[0] at launch: ./palimpsest</strong> are the payload announcing itself: a benign marker, nothing more. <strong>tr '\0' '\n' &lt; /proc/13/cmdline &gt; exec-record.txt</strong> pins the launch-time argv to a file before the rewrite happens (the operator's harness record; the production form is the immutable auditd execve log). <strong>ps -o pid,comm,args</strong> shows the truthful launch: comm palimpsest, args the real command line.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="./palimpsest PADDINGPADDINGPADDING GHOSTLIGHT-CANARY-027 &amp;
+P=$!
+echo &quot;lab pid: $P&quot;
+tr &#x27;\0&#x27; &#x27;\n&#x27; &lt; /proc/$P/cmdline &gt; exec-record.txt
+echo &#x27;--- exec-time argv, pinned before the rewrite:&#x27;
+cat exec-record.txt
+ps -o pid,comm,args -p $P"><span data-label>COPY</span></button></div>
+<pre>$ ./palimpsest PADDINGPADDINGPADDING GHOSTLIGHT-CANARY-027 &amp;
+P=$!
+echo "lab pid: $P"
+tr '\0' '\n' &lt; /proc/$P/cmdline &gt; exec-record.txt
+echo '--- exec-time argv, pinned before the rewrite:'
+cat exec-record.txt
+ps -o pid,comm,args -p $P
+[1] 13
+lab pid: 13
+GHOSTLIGHT-CANARY-027: benign lab payload
+argv[0] at launch: ./palimpsest
+--- exec-time argv, pinned before the rewrite:
+./palimpsest
+PADDINGPADDINGPADDING
+GHOSTLIGHT-CANARY-027
+    PID COMMAND         COMMAND
+     13 palimpsest      ./palimpsest PADDINGPADDINGPADDING GHOSTLIGHT-CANARY-027</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">2</div>
+<div>
+<h3>Read the rewritten story</h3>
+<div class="prose"><p><strong>sleep 4</strong> waits out the three-second fuse. The process's own line lands first: <strong>argv[0] rewritten in place: [kworker/u16:2]</strong>. Then the same pid, <strong>ps -o pid,comm,args</strong>: comm still palimpsest, args now <strong>[kworker/u16:2]</strong>. The cmdline, with the NUL padding squeezed, is the decoy and nothing else. The exe link still says /tmp/gh027/palimpsest; comm still says palimpsest. Nothing was exec'd, no pid was born or died: the only thing that changed is the bytes in the process's own argv memory.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="sleep 4
+echo &#x27;--- the same pid, after the rewrite:&#x27;
+ps -o pid,comm,args -p $P
+echo &#x27;--- cmdline now (NUL padding squeezed):&#x27;
+tr &#x27;\0&#x27; &#x27; &#x27; &lt; /proc/$P/cmdline | tr -s &#x27; &#x27;; echo
+echo &#x27;--- exe link (unchanged):&#x27;
+readlink /proc/$P/exe
+echo &#x27;--- comm (unchanged):&#x27;
+cat /proc/$P/comm"><span data-label>COPY</span></button></div>
+<pre>$ sleep 4
+echo '--- the same pid, after the rewrite:'
+ps -o pid,comm,args -p $P
+echo '--- cmdline now (NUL padding squeezed):'
+tr '\0' ' ' &lt; /proc/$P/cmdline | tr -s ' '; echo
+echo '--- exe link (unchanged):'
+readlink /proc/$P/exe
+echo '--- comm (unchanged):'
+cat /proc/$P/comm
+argv[0] rewritten in place: [kworker/u16:2]
+--- the same pid, after the rewrite:
+    PID COMMAND         COMMAND
+     13 palimpsest      [kworker/u16:2]
+--- cmdline now (NUL padding squeezed):
+[kworker/u16:2]
+--- exe link (unchanged):
+/tmp/gh027/palimpsest
+--- comm (unchanged):
+palimpsest</pre>
+</div>
+<div class="prose"><p>An operator skimming the process list reads a kernel thread name they expect and moves on; that moving on is the entire technique. The birth certificate in exec-record.txt still tells the truth, and nobody is reading it.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &#x27;stealth confirmed: no exec happened, yet ps now reports a kernel thread&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ echo 'stealth confirmed: no exec happened, yet ps now reports a kernel thread'
+stealth confirmed: no exec happened, yet ps now reports a kernel thread</pre>
+</div>
+<div class="verdict red">
+<span class="mlabel">Stealth confirmed</span>
+<p>No exec happened, yet ps now reports a kernel thread. The process list was never checking the process; it was reading the process's own memory back to the operator, and the process changed what was there.</p>
+</div>
+</div>
+</div>
+        </section>
+
+        <section class="phase" id="phase-blue">
+          <div class="phase-head"><span class="phase-num">04</span><h2>Phase Blue: read the parchment, not the ink</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">The defender never saw the launch; the blue take opens on the rewritten process list. The triad, at runbook quality. <strong>Detection:</strong> hunt for bracket-named processes whose cmdline is live and whose exe link resolves (real kernel threads have neither), then convict on the three-way mismatch between comm, cmdline, and exe. <strong>Mitigation:</strong> capture the evidence first (cmdline bytes, exe target, binary hash), then kill by exact PID. <strong>Prevention:</strong> pin the exec-time argv where the process cannot reach it and diff every live cmdline against the pin; the rewrite emits no event, so the diff is the durable control.</p>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot blue" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">103.9s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/palimpsest-blue.jpg" aria-label="Screen recording: PALIMPSEST BLUE, operator@lab">
+              <source src="../../assets/vid/palimpsest-blue.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> The defender hunts the bracket decoy, convicts it against the kernel's records, captures evidence, and removes it. Every command below is copy-pasteable.</figcaption>
+          </figure>
+<div class="step">
+<div class="step-num">1</div>
+<div>
+<h3>Hunt the bracket decoys</h3>
+<div class="prose"><p><strong>pgrep -f 'kworker/u16:2'</strong> finds the suspect by its forged cmdline: real kernel threads have empty cmdlines, so the full-text match never touches them. The loop is the fleet form: for every pid, squeeze the cmdline and match bracket-wrapped names, and a hit only counts if the exe link resolves. Real kworkers fail both tests at once: their cmdline is empty and their exe link dangles. The output is one lead: <strong>LEAD pid=13 cmdline=[[kworker/u16:2]]</strong>. An operator who trusts brackets alone would stop here; the blue phase does not.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="cd /tmp/gh027
+P=$(pgrep -f &#x27;kworker/u16:2&#x27;); echo &quot;suspect pid: $P&quot;
+for d in /proc/[0-9]*; do
+  c=$(tr &#x27;\0&#x27; &#x27; &#x27; &lt; &quot;$d/cmdline&quot; 2&gt;/dev/null | tr -s &#x27; &#x27; | sed &#x27;s/^ //;s/ $//&#x27;)
+  case &quot;$c&quot; in
+    \[*\]) readlink &quot;$d/exe&quot; &gt;/dev/null 2&gt;&amp;1 &amp;&amp; echo &quot;LEAD pid=${d#/proc/} cmdline=[$c]&quot; ;;
+  esac
+done"><span data-label>COPY</span></button></div>
+<pre>$ cd /tmp/gh027
+P=$(pgrep -f 'kworker/u16:2'); echo "suspect pid: $P"
+for d in /proc/[0-9]*; do
+  c=$(tr '\0' ' ' &lt; "$d/cmdline" 2&gt;/dev/null | tr -s ' ' | sed 's/^ //;s/ $//')
+  case "$c" in
+    \[*\]) readlink "$d/exe" &gt;/dev/null 2&gt;&amp;1 &amp;&amp; echo "LEAD pid=${d#/proc/} cmdline=[$c]" ;;
+  esac
+done
+suspect pid: 13
+LEAD pid=13 cmdline=[[kworker/u16:2]]</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">2</div>
+<div>
+<h3>Convict and capture evidence</h3>
+<div class="prose"><p><strong>ps -o pid,ppid,lstart,comm,args</strong> is the conviction: started Mon Oct 5 11:26:39 2026, comm palimpsest, args [kworker/u16:2], and the exe link says /tmp/gh027/palimpsest. Three records, two authors: comm and exe are the kernel's (written at exec), cmdline is the process's (rewritten after). Two agree; the testimony stands alone. Evidence before action: the cmdline bytes, the exe target, a copy of the binary, its sha256, and the ps line, all timestamped into <strong>evidence/</strong>. Only then does the blue phase move to removal.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="ps -o pid,ppid,lstart,comm,args -p $P
+echo &#x27;--- exe:&#x27;; readlink /proc/$P/exe
+mkdir -p evidence
+tr &#x27;\0&#x27; &#x27;\n&#x27; &lt; /proc/$P/cmdline &gt; evidence/cmdline-bytes.txt
+readlink /proc/$P/exe &gt; evidence/exe.txt
+cp /proc/$P/exe evidence/palimpsest.bin
+sha256sum evidence/palimpsest.bin &gt; evidence/hash.txt
+ps -o pid,ppid,lstart,comm,args -p $P &gt; evidence/ps.txt
+ls -l evidence"><span data-label>COPY</span></button></div>
+<pre>$ ps -o pid,ppid,lstart,comm,args -p $P
+echo '--- exe:'; readlink /proc/$P/exe
+mkdir -p evidence
+tr '\0' '\n' &lt; /proc/$P/cmdline &gt; evidence/cmdline-bytes.txt
+readlink /proc/$P/exe &gt; evidence/exe.txt
+cp /proc/$P/exe evidence/palimpsest.bin
+sha256sum evidence/palimpsest.bin &gt; evidence/hash.txt
+ps -o pid,ppid,lstart,comm,args -p $P &gt; evidence/ps.txt
+ls -l evidence
+    PID    PPID                  STARTED COMMAND         COMMAND
+     13       1 Mon Oct  5 11:26:39 2026 palimpsest      [kworker/u16:2]
+--- exe:
+/tmp/gh027/palimpsest
+total 32
+-rw-rw---- 1 root root    57 Oct  5 11:26 cmdline-bytes.txt
+-rw-rw---- 1 root root    22 Oct  5 11:26 exe.txt
+-rw-rw---- 1 root root    90 Oct  5 11:26 hash.txt
+-rwxrwx--- 1 root root 16272 Oct  5 11:26 palimpsest.bin
+-rw-rw---- 1 root root   138 Oct  5 11:26 ps.txt</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">3</div>
+<div>
+<h3>Pin the rewrite against the exec record</h3>
+<div class="prose"><p><strong>diff exec-record.txt</strong> against the live cmdline (NUL padding filtered for display): three truthful launch lines against one forged line. The <strong>&amp;&amp; echo 'no rewrite'</strong> branch never fires; the <strong>||</strong> prints the verdict: the live cmdline no longer matches the exec-time record. <strong>command -v auditctl</strong> finds /usr/sbin/auditctl, so the tooling is present, but the audit daemon is not running in this lab and no execve records were written; exec-record.txt is the lab stand-in for the immutable audit log, and the diff is the demonstration that actually ran. The production form of this pin is the immutable execve rule in the countermeasures.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &#x27;--- live cmdline vs exec-time record:&#x27;
+diff exec-record.txt &lt;(tr &#x27;\0&#x27; &#x27;\n&#x27; &lt; /proc/$P/cmdline | grep -v &#x27;^$&#x27;) &amp;&amp; echo &#x27;no rewrite&#x27; || echo &#x27;REWRITE: the live cmdline no longer matches the exec-time record&#x27;
+command -v auditctl || echo &#x27;no auditd in this lab: exec-record.txt is the lab stand-in for the immutable auditd execve log&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ echo '--- live cmdline vs exec-time record:'
+diff exec-record.txt &lt;(tr '\0' '\n' &lt; /proc/$P/cmdline | grep -v '^$') &amp;&amp; echo 'no rewrite' || echo 'REWRITE: the live cmdline no longer matches the exec-time record'
+command -v auditctl || echo 'no auditd in this lab: exec-record.txt is the lab stand-in for the immutable auditd execve log'
+--- live cmdline vs exec-time record:
+1,3c1
+&lt; ./palimpsest
+&lt; PADDINGPADDINGPADDING
+&lt; GHOSTLIGHT-CANARY-027
+---
+&gt; [kworker/u16:2]
+REWRITE: the live cmdline no longer matches the exec-time record
+/usr/sbin/auditctl</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">4</div>
+<div>
+<h3>Kill by PID, verify, clean up</h3>
+<div class="prose"><p><strong>kill 13</strong>: by exact PID, never by name or pattern. The evidence already convicted this pid; a bracket pattern is a regex, and the wrong match on a fleet would be catastrophic. <strong>sleep 0.5</strong>, then <strong>ps -p 13</strong> finds nothing: the header prints, no row follows, and the echo confirms the impostor is gone and no real kworker was ever touched. <strong>rm -rf /tmp/gh027</strong> removes the lab; the namespace's death reaps every stray.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="kill $P
+sleep 0.5
+ps -p $P || echo &#x27;impostor gone; no real kworker was ever touched&#x27;
+cd /tmp &amp;&amp; rm -rf /tmp/gh027 &amp;&amp; ls /tmp"><span data-label>COPY</span></button></div>
+<pre>$ kill $P
+sleep 0.5
+ps -p $P || echo 'impostor gone; no real kworker was ever touched'
+cd /tmp &amp;&amp; rm -rf /tmp/gh027 &amp;&amp; ls /tmp
+    PID TTY          TIME CMD
+impostor gone; no real kworker was ever touched</pre>
+</div>
+<div class="verdict green">
+<span class="mlabel">Detection verified</span>
+<p>The bracket hunt found the one live cmdline with a resolvable exe, the comm/cmdline/exe mismatch convicted it, the exec-record diff proved the rewrite happened after launch, and the evidence was captured before the kill. The testimony changed; the records did not.</p>
+</div>
+</div>
+</div>
+        </section>
+
+        <section class="phase" id="countermeasures">
+          <div class="phase-head"><span class="phase-num">05</span><h2>Countermeasures</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">Three moves, in order: remove it, sweep for its siblings, make the next rewrite checkable. Each is one way, not the way.</p>
+<div class="step">
+<div class="step-num">1</div>
+<div>
+<h3>Mitigate: kill the impostor, evidence first</h3>
+<div class="prose"><p>It is an ordinary unprivileged process: kill ends it, and there is no persistence here, no reinfection, no second stage. The order is the procedure: read the exe link, copy the binary, hash it, save the cmdline bytes, <strong>then</strong> kill. Kill by exact PID, confirmed against the exe link first. Never <strong>pkill -f 'kworker'</strong>: a pattern is a promise you keep making to every future process on the box, and the wrong match on a fleet is catastrophic. Never bare <strong>pkill kworker</strong> either: without <strong>-f</strong> it matches comm, and comm is exactly what real kernel threads are named. The blue take ran this order: evidence/ first, kill second, verification third.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="P=$(pgrep -f &#x27;kworker/u16:2&#x27;)
+kill $P
+sleep 0.5
+ps -p $P || echo &#x27;impostor gone; no real kworker was ever touched&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ P=$(pgrep -f 'kworker/u16:2')
+kill $P
+sleep 0.5
+ps -p $P || echo 'impostor gone; no real kworker was ever touched'
+    PID TTY          TIME CMD
+impostor gone; no real kworker was ever touched</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">2</div>
+<div>
+<h3>Monitor: sweep for bracket-named live cmdlines</h3>
+<div class="prose"><p>The fleet form of the blue hunt, on a timer: every pid, squeeze the cmdline, match bracket-wrapped names, keep the hit only if the exe link resolves. One loop, no baseline, no agent.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="for d in /proc/[0-9]*; do
+  c=$(tr &#x27;\0&#x27; &#x27; &#x27; &lt; &quot;$d/cmdline&quot; 2&gt;/dev/null | tr -s &#x27; &#x27; | sed &#x27;s/^ //;s/ $//&#x27;)
+  case &quot;$c&quot; in
+    \[*\]) readlink &quot;$d/exe&quot; &gt;/dev/null 2&gt;&amp;1 &amp;&amp; echo &quot;LEAD pid=${d#/proc/} cmdline=[$c]&quot; ;;
+  esac
+done"><span data-label>COPY</span></button></div>
+<pre>$ for d in /proc/[0-9]*; do
+  c=$(tr '\0' ' ' &lt; "$d/cmdline" 2&gt;/dev/null | tr -s ' ' | sed 's/^ //;s/ $//')
+  case "$c" in
+    \[*\]) readlink "$d/exe" &gt;/dev/null 2&gt;&amp;1 &amp;&amp; echo "LEAD pid=${d#/proc/} cmdline=[$c]" ;;
+  esac
+done
+LEAD pid=13 cmdline=[[kworker/u16:2]]</pre>
+</div>
+<div class="prose"><p>Run it across the fleet and you have the whole monitor; production versions add alerting, not new ideas.</p></div>
+<div class="callout"><p><strong>Honest limit.</strong> This net catches only the bracket style. An attacker who overwrites argv[0] with <strong>sshd: ubuntu@pts/0</strong> or <strong>/usr/sbin/cron -f</strong>, no brackets anywhere, sails straight through it. The general detector is the exec-record diff from Phase Blue: any rewrite fails the diff, whatever the decoy looks like. But the diff needs a pin for every process, and pins are the expensive part: execve auditing logs every process birth on the fleet, and a process born before the rule existed has no pin at all. The sweep also needs root to read every /proc/&lt;pid&gt;/cmdline; run it as an unprivileged user and you are blind to every other user's processes.</p></div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">3</div>
+<div>
+<h3>Prevent: pin exec-time argv immutably</h3>
+<div class="prose"><p>No kernel control stops a process from writing its own memory; the write is the process's own store instruction, and prohibiting it would prohibit computation. So prevention here does not mean blocking the write. It means making the lie checkable: pin argv at exec in a place the process cannot rewrite, then diff every live cmdline against the pin, exactly as the blue take did with exec-record.txt. The production pin is the audit daemon's immutable execve log: <strong>-a always,exit -F arch=b64 -S execve -k exec_argv</strong>, with the config locked by <strong>auditctl -e 2</strong> so it cannot be changed short of reboot, or the EDR's process-creation event shipped off-host where the local attacker cannot reach it.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="diff exec-record.txt &lt;(tr &#x27;\0&#x27; &#x27;\n&#x27; &lt; /proc/$P/cmdline | grep -v &#x27;^$&#x27;) &amp;&amp; echo &#x27;no rewrite&#x27; || echo &#x27;REWRITE: the live cmdline no longer matches the exec-time record&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ diff exec-record.txt &lt;(tr '\0' '\n' &lt; /proc/$P/cmdline | grep -v '^$') &amp;&amp; echo 'no rewrite' || echo 'REWRITE: the live cmdline no longer matches the exec-time record'
+1,3c1
+&lt; ./palimpsest
+&lt; PADDINGPADDINGPADDING
+&lt; GHOSTLIGHT-CANARY-027
+---
+&gt; [kworker/u16:2]
+REWRITE: the live cmdline no longer matches the exec-time record</pre>
+</div>
+<div class="callout"><p><strong>Honest limit.</strong> The rewrite itself emits no event, so an immutable log that nobody diffs against detects nothing; the control is the diff, not the log. The audit daemon was not running in this lab (the tooling at /usr/sbin/auditctl was present, the daemon was not), which is why the lab ran the diff against the stand-in record instead of the real log. Execve auditing is also the noisiest rule in the audit subsystem, every exec on the fleet, so most shops scope it or sample it, and every sampled birth is a process with no pin. And a long-running process that started before the rule existed has no pin either, so its rewrite is invisible to the diff. You cannot prevent the write. You can only prevent the stealth, and only if the diff actually runs.</p></div>
+<div class="verdict green">
+<span class="mlabel">Countermeasures verified</span>
+<p>The impostor dies to an ordinary kill once the evidence is captured. The bracket sweep finds its siblings fleet-wide with one loop. The immutable exec-time pin makes the next rewrite checkable. None of it stops a process from writing its own memory; all of it stops the lie from surviving contact with the kernel's records.</p>
+</div>
+</div>
+</div>
+        </section>
+
+        <section class="phase" id="debrief">
+          <div class="phase-head"><span class="phase-num">06</span><h2>Debrief</h2><span class="phase-tag neutral">TAKEAWAY</span></div>
+          <p class="takeaway">The command line is the process's own writable memory, not a record of its launch: any check that reads it once, at birth, loses to a rewrite that happens after, so believe only what the process cannot rewrite, the kernel's exe link and a pinned exec-time record.</p>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">IOC checklist: signs this technique was used</span></p></div>
+          <ul class="checklist">
+            <li><span>A process whose cmdline is wrapped in brackets, kernel-thread style, while <strong>/proc/&lt;pid&gt;/exe</strong> resolves to a file (real kernel threads have an empty cmdline and no exe)</span></li>
+            <li><span>comm/cmdline disagreement: the kernel's short name says one thing, the testimony says another</span></li>
+            <li><span>A cmdline that changed while the pid, start time, ppid, and exe stayed the same: the lifetime lie against the birth record</span></li>
+            <li><span>Kernel-thread names on pids that are not kernel threads: a ppid that is not kthreadd, an exe link that resolves</span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Reproducibility checklist</span></p></div>
+          <ul class="checklist">
+            <li><span>Verified on <strong>Ubuntu 24.04.5 LTS</strong>, <strong>gcc 13</strong>, x86-64, on 2026-10-05</span></li>
+            <li><span>Both recordings are real executions on that platform, not simulations</span></li>
+            <li><span>The attack runs fully unprivileged: a process may always write its own memory</span></li>
+            <li><span>Cleanup: kill the lab pid; <strong>rm -rf /tmp/gh027</strong> (recorded); the namespace's death reaps every stray</span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Sources</span></p></div>
+          <div class="prose"><p><a href="https://attack.mitre.org/techniques/T1036/011/" rel="noopener">MITRE ATT&amp;CK T1036.011: Masquerading: Overwrite Process Arguments</a><br>
+          <a href="https://attack.mitre.org/techniques/T1036/" rel="noopener">MITRE ATT&amp;CK T1036: Masquerading</a> (the parent technique)<br>
+          <a href="https://man7.org/linux/man-pages/man5/proc.5.html" rel="noopener">proc(5)</a> (the /proc/&lt;pid&gt;/cmdline bytes and the exe symlink)<br>
+          <a href="https://man7.org/linux/man-pages/man1/ps.1.html" rel="noopener">ps(1)</a> (the comm and args output columns)<br>
+          <a href="https://man7.org/linux/man-pages/man2/execve.2.html" rel="noopener">execve(2)</a> (argv copied onto the new process's stack at exec)</p></div>
+        </section>
+
+        <a class="next-file" href="../028-deaf-ear/">
+          <span class="mlabel">Next file</span>
+          <h3>GH-028 The Deaf Ear</h3>
+          <p>The next file teaches a process to ignore the interrupt signal, then watches the usual kill bounce off.</p>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <div>
+      <div class="footer-brand">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+        <span class="brand-name" style="font-size:17px">GHOSTLIGHT</span>
+      </div>
+      <p class="footer-note">An independent adversary-stealth research publication. Every command verified on the named OS before publishing. No trackers, no frameworks, no autoplay.</p>
+    </div>
+    <nav class="footer-links">
+      <a href="../../method.html">METHOD</a>
+      <a href="../../index.html">FILES</a>
+      <a href="https://attack.mitre.org/tactics/TA0005/" rel="noopener">MITRE TA0005</a>
+    </nav>
+    <div class="footer-elsewhere">
+      <span class="mlabel">Elsewhere</span><a href="https://dillingerstaffing.github.io/portfolio/" target="_blank" rel="noopener">Portfolio</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/proving-ground/" target="_blank" rel="noopener">Proving Ground</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/old-iron/" target="_blank" rel="noopener">Old Iron</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/unstuck/" target="_blank" rel="noopener">Unstuck</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../../assets/site.js?v=78fb8790"></script>
+</body>
+</html>
