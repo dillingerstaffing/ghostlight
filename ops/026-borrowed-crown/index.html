@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>GH-026 The Borrowed Crown (T1548.001): GHOSTLIGHT</title>
+<meta name="description" content="T1548.001 Setuid and Setgid, reproduced on Ubuntu 24.04: a root-owned binary is planted with the setuid bit set, the kernel refuses the transfer, and the file names the exact mechanism. The defender hunts the bit, convicts by provenance, strips it with evidence first, and hardens the mounts.">
+<link rel="canonical" href="https://dillingerstaffing.github.io/ghostlight/ops/026-borrowed-crown/">
+<meta property="og:title" content="GH-026 The Borrowed Crown (T1548.001): GHOSTLIGHT">
+<meta property="og:description" content="T1548.001 Setuid and Setgid, reproduced on Ubuntu 24.04: a root-owned binary is planted with the setuid bit set, the kernel refuses the transfer, and the file names the exact mechanism. The defender hunts the bit, convicts by provenance, strips it with evidence first, and hardens the mounts.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dillingerstaffing.github.io/ghostlight/ops/026-borrowed-crown/">
+<meta property="og:site_name" content="GHOSTLIGHT">
+<meta property="og:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="GH-026 The Borrowed Crown (T1548.001): GHOSTLIGHT">
+<meta name="twitter:description" content="T1548.001 Setuid and Setgid, reproduced on Ubuntu 24.04: a root-owned binary is planted with the setuid bit set, the kernel refuses the transfer, and the file names the exact mechanism. The defender hunts the bit, convicts by provenance, strips it with evidence first, and hardens the mounts.">
+<meta name="twitter:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23ece6d5'/%3E%3Ccircle cx='256' cy='196' r='104' fill='none' stroke='%23241f17' stroke-width='20'/%3E%3Cline x1='256' y1='152' x2='256' y2='240' stroke='%238c3f22' stroke-width='16'/%3E%3Cline x1='256' y1='300' x2='256' y2='424' stroke='%23241f17' stroke-width='14'/%3E%3Cline x1='200' y1='424' x2='312' y2='424' stroke='%23241f17' stroke-width='18'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+<link rel="manifest" href="../../assets/manifest.webmanifest">
+<meta name="theme-color" content="#0a0c0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GHOSTLIGHT">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<script>
+(function () {
+  // Theme: notebook is the default; a stored visitor choice wins.
+  // Runs before the stylesheet is parsed so the first paint is already
+  // the right theme (no flash of the wrong one).
+  try {
+    var t = localStorage.getItem('emi-site-theme');
+    var theme = t === 'classic' ? 'classic' : 'notebook';
+    document.documentElement.dataset.theme = theme;
+    var m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute('content', theme === 'classic' ? '#0a0c0f' : '#ece6d5');
+  } catch (e) {
+    document.documentElement.dataset.theme = 'notebook';
+  }
+})();
+</script>
+<link rel="stylesheet" href="../../assets/site.css?v=bca2bb86">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"GH-026 The Borrowed Crown (T1548.001): GHOSTLIGHT",
+"url":"https://dillingerstaffing.github.io/ghostlight/ops/026-borrowed-crown/","description":"T1548.001 Setuid and Setgid, reproduced on Ubuntu 24.04: a root-owned binary is planted with the setuid bit set, the kernel refuses the transfer, and the file names the exact mechanism. The defender hunts the bit, convicts by provenance, strips it with evidence first, and hardens the mounts.",
+"author":{"@type":"Person","name":"Chris Dillinger","url":"https://www.linkedin.com/in/christopherdillinger/"},
+"inLanguage":"en"}
+</script>
+</head>
+<body>
+
+<header class="site-header">
+  <a class="brand" href="../../index.html" aria-label="GHOSTLIGHT home">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+    <span class="brand-name">GHOSTLIGHT</span>
+  </a>
+  <nav class="site-nav">
+    <a href="../../method.html">METHOD</a>
+    <a href="../../index.html">FILES</a>
+    <button class="theme-toggle" type="button" aria-label="Switch to dark field dossier theme" title="Switch theme">
+      <span class="theme-toggle-mark" aria-hidden="true"><i></i><i></i></span>
+    </button>
+  </nav>
+</header>
+
+<div class="onboard" data-onboard hidden>
+  <span><strong>How to read a file:</strong> every file follows the six-phase structure below. <span class="k-green">Green</span> is verified, <span class="k-red">red</span> is hostile.</span>
+  <button aria-label="Dismiss">GOT IT</button>
+</div>
+
+<div class="page" data-op="026">
+  <div class="wrap">
+    <section class="op-hero">
+      <div class="op-kicker">
+        <span class="case-no">GH-026</span>
+        <a class="tech-id" href="https://attack.mitre.org/techniques/T1548/001/" rel="noopener">T1548.001</a>
+        <span class="phase-tag red">PHASE RED INSIDE</span>
+      </div>
+      <h1>The Borrowed Crown</h1>
+      <p class="lede">A binary owned by root sits in the lab with the setuid bit set. On an ordinary machine, anyone who runs it runs as root. On this machine the kernel refuses the transfer, and this file shows you the exact mechanism that refuses it, then hunts the planted bit the way a defender would.</p>
+      <div class="op-meta-grid">
+        <div class="op-meta"><span class="mlabel">Technique</span><span class="mvalue">Setuid and Setgid (T1548.001)</span></div>
+        <div class="op-meta"><span class="mlabel">Target OS</span><span class="mvalue">Ubuntu 24.04.5 LTS</span></div>
+        <div class="op-meta"><span class="mlabel">Toolchain</span><span class="mvalue">gcc 13</span></div>
+        <div class="op-meta"><span class="mlabel">Level</span><span class="mvalue">Intermediate</span></div>
+        <div class="op-meta"><span class="mlabel">Time</span><span class="mvalue">25 min</span></div>
+      </div>
+      <div class="objectives">
+        <h2>OBJECTIVES</h2>
+        <ol>
+          <li data-phase="phase-red"><span class="box"></span>Plant a root-owned binary with the setuid bit set and watch the kernel refuse the transfer</li>
+          <li data-phase="phase-blue"><span class="box"></span>Hunt the planted bits with find -perm and convict by package provenance</li>
+          <li data-phase="countermeasures"><span class="box"></span>Strip the bits with evidence first and harden the mounts against the next plant</li>
+          <li data-phase="debrief"><span class="box"></span>Take the IOC checklist and the one-sentence lesson</li>
+        </ol>
+      </div>
+    </section>
+
+    <div class="op-layout">
+      <nav class="rail" aria-label="Phases">
+        <span class="mlabel">Phases</span>
+        <ol>
+          <li><a href="#intel-brief"><span class="pnum">01</span>INTEL BRIEF<span class="tick"></span></a></li>
+          <li><a href="#target-environment"><span class="pnum">02</span>TARGET ENV<span class="tick"></span></a></li>
+          <li><a href="#phase-red"><span class="pnum">03</span>PHASE RED<span class="tick"></span></a></li>
+          <li><a href="#phase-blue"><span class="pnum">04</span>PHASE BLUE<span class="tick"></span></a></li>
+          <li><a href="#countermeasures"><span class="pnum">05</span>COUNTERMEASURES<span class="tick"></span></a></li>
+          <li><a href="#debrief"><span class="pnum">06</span>DEBRIEF<span class="tick"></span></a></li>
+        </ol>
+      </nav>
+
+      <div class="op-content">
+        <section class="phase" id="intel-brief">
+          <div class="phase-head"><span class="phase-num">01</span><h2>Intel Brief</h2><span class="phase-tag neutral">CONTEXT</span></div>
+          <p class="lede">MITRE ATT&amp;CK <a href="https://attack.mitre.org/techniques/T1548/001/" rel="noopener">T1548.001</a>: adversaries plant setuid and setgid binaries so a later run inherits a privileged identity. This file plants the crown, watches the kernel refuse to transfer it, and names the exact mechanism. Two actors: the attacker, who owns every plant in the red phase; and the defender, who owns every hunt, strip, and rule in the blue phases.</p>
+          <div class="prose">
+            <p><strong>Why this technique.</strong> The operating system's core promise is that your processes run as you. setuid is the sanctioned exception: passwd, sudo, and su all need to act with privileges their caller does not have, so the kernel lets a marked binary borrow its owner's identity at exec. An attacker who gains root once plants their own exception: a binary that hands root back on demand, later, without the original hole. The stealth is in the artifact: the plant is a single letter in a directory listing, an <strong>s</strong> where an <strong>x</strong> used to be. No new user, no password change, nothing in the account database for an auditor to find.</p>
+            <p><strong>Why not the obvious alternative.</strong> The obvious move for re-entry is a backdoor root account: one new row in /etc/passwd with UID 0. It works, and it is exactly what account inventories are built to catch: the row shows in every user audit, in lastlog, in every compliance scan. The setuid plant shows up in none of those places. The other obvious move is simpler still: just read the secret file. The red phase tries it first, as the unprivileged user, and the kernel answers Permission denied. That denial is the whole reason the crown exists: the file cannot be read as nobody, so the attacker borrows an identity that can.</p>
+            <p><strong>The mechanism, in one paragraph.</strong> The setuid bit is mode 04000. At exec, the kernel sets the process's <strong>effective</strong> user ID to the file owner's UID; the real UID stays the caller's, and permission checks use the effective one. The setgid bit is mode 02000: the same transfer for the effective group ID and the file's group. In <strong>ls -l</strong> the owner's x becomes s (<strong>-rwsr-xr-x</strong>) and the group's x becomes s (<strong>-rwxr-sr-x</strong>); in octal the modes read 4755 and 2755. One boundary the kernel draws itself: the bits are ignored on scripts. Exec of a #! script runs the interpreter, and the interpreter does not inherit the bit, so the crown has to be a real binary.</p>
+            <p><strong>The concrete case, before the abstraction.</strong> The lab plants <strong>/tmp/gh026/crown</strong>: root-owned, mode 4755, a reader for a root-only vault holding <strong>GHOSTLIGHT-CANARY-026</strong>. Run it as the unprivileged user on an ordinary host and the output line reads <strong>uid=65534 euid=0</strong>, then the canary. Run it in this lab and the line reads <strong>uid=65534 euid=65534</strong>, then open: Permission denied. Same binary, same bit, different kernel answer. The red phase then runs the control experiment: the crown copied to the root filesystem, where no nosuid flag exists. Still refused. The mount was never the binding constraint.</p>
+            <p><strong>Terms, earned.</strong> The <strong>effective UID</strong> (euid) is the identity the kernel checks permissions against; the <strong>real UID</strong> (ruid) is who launched the process. <strong>NO_NEW_PRIVS</strong> is a per-process kernel flag: once set, exec grants no new privileges, and it can never be cleared. <strong>nosuid</strong> is a mount flag: the kernel ignores setuid and setgid bits on binaries executed from that mount. <strong>T1548.001</strong> is the planting and abuse of these bits for privilege escalation.</p>
+          </div>
+          <div class="callout"><p><strong>Scope.</strong> T1548.001 covers planting setuid/setgid binaries and abusing existing ones. This file works the plant end to end: the bit set on disk, the hunt that finds it, the provenance check that convicts it, the evidence-first strip, and the mount hardening that prevents the next one. The canary is a benign token. The lab runs in a disposable PID and mount namespace with a private /tmp; the lab directory is /tmp/gh026; teardown removes it and the namespace's death reaps every stray. Nothing persists outside the lab.</p></div>
+        </section>
+
+        <section class="phase" id="target-environment">
+          <div class="phase-head"><span class="phase-num">02</span><h2>Target Environment</h2><span class="phase-tag neutral">LOADOUT</span></div>
+          <p class="lede">Ubuntu 24.04.5 LTS, x86-64, gcc 13.3.0, root inside a disposable PID and mount namespace used only for this lab. Two properties of this sandbox shape the file, and both are verified live rather than assumed: the whole process tree runs with NO_NEW_PRIVS (even PID 1 carries it), and every new mount gets nosuid from the user namespace. The plant is real; the transfer is refused; both are shown.</p>
+<div class="step">
+<div class="step-num">1</div>
+<div>
+<h3>Build the lab</h3>
+<div class="prose"><p><strong>umask 022</strong> first: the default 0007 of this shell would lock the unprivileged user out of the lab directory itself, which would break the demo for the wrong reason. <strong>rm -rf</strong> starts clean. Two heredocs stage the sources shown and glossed in the next steps: <strong>crown.c</strong>, the planted reader, and <strong>as-nobody</strong>, the privilege-dropper. <strong>gcc</strong> builds the crown; the two vaults are written, chowned, and locked down (<strong>root:root</strong> mode 600 for the canary, <strong>root:nogroup</strong> mode 640 for the group canary). <strong>ls -l</strong> shows the staged lab: no s bits yet.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="umask 022  # this shell&#x27;s default 0007 would lock the unprivileged user out of the lab dir itself
+rm -rf /tmp/gh026; mkdir -p /tmp/gh026
+cat &gt; /tmp/gh026/crown.c &lt;&lt;&#x27;CEOF&#x27;
+/* crown.c - GH-026 lab: the planted crown (attacker&#x27;s side).
+ *
+ * Benign: prints real/effective UIDs and GIDs, then reads the path given
+ * as argv[1] (default /tmp/gh026/vault) and prints its first line.
+ * Compiled, chown root:root, chmod 4755: on a normal host, whoever runs
+ * it reads as root. In this lab the kernel refuses the transfer; the
+ * red phase shows the refusal and names the mechanism. */
+#include &lt;stdio.h&gt;
+#include &lt;unistd.h&gt;
+
+int main(int argc, char **argv) {
+    char buf[128];
+    FILE *f;
+    const char *path = argc &gt; 1 ? argv[1] : &quot;/tmp/gh026/vault&quot;;
+
+    printf(&quot;uid=%d euid=%d gid=%d egid=%d\n&quot;,
+           getuid(), geteuid(), getgid(), getegid());
+    f = fopen(path, &quot;r&quot;);
+    if (!f) { perror(&quot;open&quot;); return 1; }
+    if (!fgets(buf, sizeof buf, f)) { perror(&quot;read&quot;); return 1; }
+    printf(&quot;vault: %s&quot;, buf);
+    fclose(f);
+    return 0;
+}
+CEOF
+cat &gt; /tmp/gh026/as-nobody &lt;&lt;&#x27;PYEOF&#x27;
+#!/usr/bin/env python3
+&quot;&quot;&quot;as-nobody - GH-026 lab scaffolding: become nobody:nogroup, exec argv.
+
+Drops privilege with setresuid/setresgid and does NOT set NO_NEW_PRIVS,
+so setuid/setgid bits on the target are honored or refused by the kernel
+exactly as policy dictates. su, runuser, and setpriv all set NO_NEW_PRIVS
+on this VM (verified live), which would neuter the very bit being
+demonstrated.
+&quot;&quot;&quot;
+import os
+import sys
+
+os.setresgid(65534, 65534, 65534)
+os.setresuid(65534, 65534, 65534)
+os.execvp(sys.argv[1], sys.argv[1:])
+PYEOF
+chmod 755 /tmp/gh026/as-nobody
+gcc -O2 -o /tmp/gh026/crown /tmp/gh026/crown.c &amp;&amp; echo &#x27;build OK&#x27;
+echo &#x27;GHOSTLIGHT-CANARY-026&#x27; &gt; /tmp/gh026/vault
+chown root:root /tmp/gh026/vault &amp;&amp; chmod 600 /tmp/gh026/vault
+echo &#x27;GHOSTLIGHT-CANARY-026-G&#x27; &gt; /tmp/gh026/vault-g
+chown root:nogroup /tmp/gh026/vault-g &amp;&amp; chmod 640 /tmp/gh026/vault-g
+ls -l /tmp/gh026"><span data-label>COPY</span></button></div>
+<pre>$ umask 022  # this shell's default 0007 would lock the unprivileged user out of the lab dir itself
+rm -rf /tmp/gh026; mkdir -p /tmp/gh026
+cat &gt; /tmp/gh026/crown.c &lt;&lt;'CEOF'
+/* crown.c - GH-026 lab: the planted crown (attacker's side).
+ *
+ * Benign: prints real/effective UIDs and GIDs, then reads the path given
+ * as argv[1] (default /tmp/gh026/vault) and prints its first line.
+ * Compiled, chown root:root, chmod 4755: on a normal host, whoever runs
+ * it reads as root. In this lab the kernel refuses the transfer; the
+ * red phase shows the refusal and names the mechanism. */
+#include &lt;stdio.h&gt;
+#include &lt;unistd.h&gt;
+
+int main(int argc, char **argv) {
+    char buf[128];
+    FILE *f;
+    const char *path = argc &gt; 1 ? argv[1] : "/tmp/gh026/vault";
+
+    printf("uid=%d euid=%d gid=%d egid=%d\n",
+           getuid(), geteuid(), getgid(), getegid());
+    f = fopen(path, "r");
+    if (!f) { perror("open"); return 1; }
+    if (!fgets(buf, sizeof buf, f)) { perror("read"); return 1; }
+    printf("vault: %s", buf);
+    fclose(f);
+    return 0;
+}
+CEOF
+cat &gt; /tmp/gh026/as-nobody &lt;&lt;'PYEOF'
+#!/usr/bin/env python3
+"""as-nobody - GH-026 lab scaffolding: become nobody:nogroup, exec argv.
+
+Drops privilege with setresuid/setresgid and does NOT set NO_NEW_PRIVS,
+so setuid/setgid bits on the target are honored or refused by the kernel
+exactly as policy dictates. su, runuser, and setpriv all set NO_NEW_PRIVS
+on this VM (verified live), which would neuter the very bit being
+demonstrated.
+"""
+import os
+import sys
+
+os.setresgid(65534, 65534, 65534)
+os.setresuid(65534, 65534, 65534)
+os.execvp(sys.argv[1], sys.argv[1:])
+PYEOF
+chmod 755 /tmp/gh026/as-nobody
+gcc -O2 -o /tmp/gh026/crown /tmp/gh026/crown.c &amp;&amp; echo 'build OK'
+echo 'GHOSTLIGHT-CANARY-026' &gt; /tmp/gh026/vault
+chown root:root /tmp/gh026/vault &amp;&amp; chmod 600 /tmp/gh026/vault
+echo 'GHOSTLIGHT-CANARY-026-G' &gt; /tmp/gh026/vault-g
+chown root:nogroup /tmp/gh026/vault-g &amp;&amp; chmod 640 /tmp/gh026/vault-g
+ls -l /tmp/gh026
+build OK
+total 36
+-rwxr-xr-x 1 root root      527 Oct  5 10:46 as-nobody
+-rwxr-xr-x 1 root root    16400 Oct  5 10:46 crown
+-rw-r--r-- 1 root root      875 Oct  5 10:46 crown.c
+-rw------- 1 root root       22 Oct  5 10:46 vault
+-rw-r----- 1 root nogroup    24 Oct  5 10:46 vault-g</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">2</div>
+<div>
+<h3>The payload: crown.c</h3>
+<div class="prose"><p>The planted reader, in full. Line by line: the header comment states the contract (benign reader, planted with the bit, refused by this kernel). <strong>#include &lt;stdio.h&gt;</strong> and <strong>&lt;unistd.h&gt;</strong> bring file I/O and the UID/GID calls. <strong>main</strong> takes <strong>argc/argv</strong>: the vault path comes from <strong>argv[1]</strong>, defaulting to <strong>/tmp/gh026/vault</strong>, so the setgid twin reuses the same binary on a different vault. <strong>buf[128]</strong> and <strong>FILE *f</strong> are the read buffer and handle. The <strong>printf</strong> line is the instrument of the experiment: it prints ruid, euid, rgid, egid <em>before</em> touching the file, so the transfer, or its refusal, is on the record. <strong>fopen(path, "r")</strong> is the permission check under test: as the unprivileged user this fails without the crown. The two error branches call <strong>perror</strong> to name the failing call and return 1 to mark the refusal. <strong>fgets</strong> reads the first line, <strong>printf("vault: %s")</strong> prints the canary, <strong>fclose</strong> cleans up, <strong>return 0</strong> marks success.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">c: crown.c</span><button class="copy-btn" data-copy="/* crown.c - GH-026 lab: the planted crown (attacker&#x27;s side).
+ *
+ * Benign: prints real/effective UIDs and GIDs, then reads the path given
+ * as argv[1] (default /tmp/gh026/vault) and prints its first line.
+ * Compiled, chown root:root, chmod 4755: on a normal host, whoever runs
+ * it reads as root. In this lab the kernel refuses the transfer; the
+ * red phase shows the refusal and names the mechanism. */
+#include &lt;stdio.h&gt;
+#include &lt;unistd.h&gt;
+
+int main(int argc, char **argv) {
+    char buf[128];
+    FILE *f;
+    const char *path = argc &gt; 1 ? argv[1] : &quot;/tmp/gh026/vault&quot;;
+
+    printf(&quot;uid=%d euid=%d gid=%d egid=%d\n&quot;,
+           getuid(), geteuid(), getgid(), getegid());
+    f = fopen(path, &quot;r&quot;);
+    if (!f) { perror(&quot;open&quot;); return 1; }
+    if (!fgets(buf, sizeof buf, f)) { perror(&quot;read&quot;); return 1; }
+    printf(&quot;vault: %s&quot;, buf);
+    fclose(f);
+    return 0;
+}"><span data-label>COPY</span></button></div>
+<pre>/* crown.c - GH-026 lab: the planted crown (attacker's side).
+ *
+ * Benign: prints real/effective UIDs and GIDs, then reads the path given
+ * as argv[1] (default /tmp/gh026/vault) and prints its first line.
+ * Compiled, chown root:root, chmod 4755: on a normal host, whoever runs
+ * it reads as root. In this lab the kernel refuses the transfer; the
+ * red phase shows the refusal and names the mechanism. */
+#include &lt;stdio.h&gt;
+#include &lt;unistd.h&gt;
+
+int main(int argc, char **argv) {
+    char buf[128];
+    FILE *f;
+    const char *path = argc &gt; 1 ? argv[1] : "/tmp/gh026/vault";
+
+    printf("uid=%d euid=%d gid=%d egid=%d\n",
+           getuid(), geteuid(), getgid(), getegid());
+    f = fopen(path, "r");
+    if (!f) { perror("open"); return 1; }
+    if (!fgets(buf, sizeof buf, f)) { perror("read"); return 1; }
+    printf("vault: %s", buf);
+    fclose(f);
+    return 0;
+}</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">3</div>
+<div>
+<h3>The scaffolding: as-nobody</h3>
+<div class="prose"><p>The privilege-dropper, in full. The docstring states why this file exists: <strong>su</strong>, <strong>runuser</strong>, and <strong>setpriv</strong> all set NO_NEW_PRIVS on this VM (verified live), which would neuter the very bit being demonstrated before the kernel ever sees it. <strong>import os, sys</strong> brings the privilege calls and argv. <strong>setresgid</strong> then <strong>setresuid</strong> to 65534: group first, then user, because dropping the UID first would revoke the right to change the GID. <strong>os.execvp(sys.argv[1], sys.argv[1:])</strong> replaces the process with the target, carrying argv through: no new process, no shell, no NO_NEW_PRIVS. The kernel sees a plain unprivileged exec and applies its setuid policy honestly, which is exactly what the red phase needs.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">python: as-nobody</span><button class="copy-btn" data-copy="#!/usr/bin/env python3
+&quot;&quot;&quot;as-nobody - GH-026 lab scaffolding: become nobody:nogroup, exec argv.
+
+Drops privilege with setresuid/setresgid and does NOT set NO_NEW_PRIVS,
+so setuid/setgid bits on the target are honored or refused by the kernel
+exactly as policy dictates. su, runuser, and setpriv all set NO_NEW_PRIVS
+on this VM (verified live), which would neuter the very bit being
+demonstrated.
+&quot;&quot;&quot;
+import os
+import sys
+
+os.setresgid(65534, 65534, 65534)
+os.setresuid(65534, 65534, 65534)
+os.execvp(sys.argv[1], sys.argv[1:])"><span data-label>COPY</span></button></div>
+<pre>#!/usr/bin/env python3
+"""as-nobody - GH-026 lab scaffolding: become nobody:nogroup, exec argv.
+
+Drops privilege with setresuid/setresgid and does NOT set NO_NEW_PRIVS,
+so setuid/setgid bits on the target are honored or refused by the kernel
+exactly as policy dictates. su, runuser, and setpriv all set NO_NEW_PRIVS
+on this VM (verified live), which would neuter the very bit being
+demonstrated.
+"""
+import os
+import sys
+
+os.setresgid(65534, 65534, 65534)
+os.setresuid(65534, 65534, 65534)
+os.execvp(sys.argv[1], sys.argv[1:])</pre>
+</div>
+</div>
+</div>
+</section>
+
+        <section class="phase" id="phase-red">
+          <div class="phase-head"><span class="phase-num">03</span><h2>Phase Red: place the crown</h2><span class="phase-tag red">ATTACK</span></div>
+          <p class="lede">The attacker in this scenario has already been root once: that is the standard plant story, a backdoor for re-entry after the original hole closes. The plant is compiled, the vaults are locked, the crown is set, and the unprivileged user tries it on.</p>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">276.2s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/crown-red.jpg" aria-label="Screen recording: CROWN RED, operator@lab">
+              <source src="../../assets/vid/crown-red.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> The lab is staged, the obvious read breaks on permissions, the setuid and setgid crowns are planted, and the kernel refuses the transfer: the control run and NO_NEW_PRIVS name the mechanism. Every command below is copy-pasteable.</figcaption>
+          </figure>
+<div class="step">
+<div class="step-num">1</div>
+<div>
+<h3>Stage the lab</h3>
+<div class="prose"><p>The namespace gives a private /tmp and private PIDs; the lab directory is <strong>/tmp/gh026</strong>. umask, clean slate, the two sources by heredoc, the build, the locked vaults, the listing. Everything the page shows is built here, on camera.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="umask 022  # this shell&#x27;s default 0007 would lock the unprivileged user out of the lab dir itself
+rm -rf /tmp/gh026; mkdir -p /tmp/gh026
+cat &gt; /tmp/gh026/crown.c &lt;&lt;&#x27;CEOF&#x27;
+/* crown.c - GH-026 lab: the planted crown (attacker&#x27;s side).
+ *
+ * Benign: prints real/effective UIDs and GIDs, then reads the path given
+ * as argv[1] (default /tmp/gh026/vault) and prints its first line.
+ * Compiled, chown root:root, chmod 4755: on a normal host, whoever runs
+ * it reads as root. In this lab the kernel refuses the transfer; the
+ * red phase shows the refusal and names the mechanism. */
+#include &lt;stdio.h&gt;
+#include &lt;unistd.h&gt;
+
+int main(int argc, char **argv) {
+    char buf[128];
+    FILE *f;
+    const char *path = argc &gt; 1 ? argv[1] : &quot;/tmp/gh026/vault&quot;;
+
+    printf(&quot;uid=%d euid=%d gid=%d egid=%d\n&quot;,
+           getuid(), geteuid(), getgid(), getegid());
+    f = fopen(path, &quot;r&quot;);
+    if (!f) { perror(&quot;open&quot;); return 1; }
+    if (!fgets(buf, sizeof buf, f)) { perror(&quot;read&quot;); return 1; }
+    printf(&quot;vault: %s&quot;, buf);
+    fclose(f);
+    return 0;
+}
+CEOF
+cat &gt; /tmp/gh026/as-nobody &lt;&lt;&#x27;PYEOF&#x27;
+#!/usr/bin/env python3
+&quot;&quot;&quot;as-nobody - GH-026 lab scaffolding: become nobody:nogroup, exec argv.
+
+Drops privilege with setresuid/setresgid and does NOT set NO_NEW_PRIVS,
+so setuid/setgid bits on the target are honored or refused by the kernel
+exactly as policy dictates. su, runuser, and setpriv all set NO_NEW_PRIVS
+on this VM (verified live), which would neuter the very bit being
+demonstrated.
+&quot;&quot;&quot;
+import os
+import sys
+
+os.setresgid(65534, 65534, 65534)
+os.setresuid(65534, 65534, 65534)
+os.execvp(sys.argv[1], sys.argv[1:])
+PYEOF
+chmod 755 /tmp/gh026/as-nobody
+gcc -O2 -o /tmp/gh026/crown /tmp/gh026/crown.c &amp;&amp; echo &#x27;build OK&#x27;
+echo &#x27;GHOSTLIGHT-CANARY-026&#x27; &gt; /tmp/gh026/vault
+chown root:root /tmp/gh026/vault &amp;&amp; chmod 600 /tmp/gh026/vault
+echo &#x27;GHOSTLIGHT-CANARY-026-G&#x27; &gt; /tmp/gh026/vault-g
+chown root:nogroup /tmp/gh026/vault-g &amp;&amp; chmod 640 /tmp/gh026/vault-g
+ls -l /tmp/gh026"><span data-label>COPY</span></button></div>
+<pre>$ umask 022  # this shell's default 0007 would lock the unprivileged user out of the lab dir itself
+rm -rf /tmp/gh026; mkdir -p /tmp/gh026
+cat &gt; /tmp/gh026/crown.c &lt;&lt;'CEOF'
+/* crown.c - GH-026 lab: the planted crown (attacker's side).
+ *
+ * Benign: prints real/effective UIDs and GIDs, then reads the path given
+ * as argv[1] (default /tmp/gh026/vault) and prints its first line.
+ * Compiled, chown root:root, chmod 4755: on a normal host, whoever runs
+ * it reads as root. In this lab the kernel refuses the transfer; the
+ * red phase shows the refusal and names the mechanism. */
+#include &lt;stdio.h&gt;
+#include &lt;unistd.h&gt;
+
+int main(int argc, char **argv) {
+    char buf[128];
+    FILE *f;
+    const char *path = argc &gt; 1 ? argv[1] : "/tmp/gh026/vault";
+
+    printf("uid=%d euid=%d gid=%d egid=%d\n",
+           getuid(), geteuid(), getgid(), getegid());
+    f = fopen(path, "r");
+    if (!f) { perror("open"); return 1; }
+    if (!fgets(buf, sizeof buf, f)) { perror("read"); return 1; }
+    printf("vault: %s", buf);
+    fclose(f);
+    return 0;
+}
+CEOF
+cat &gt; /tmp/gh026/as-nobody &lt;&lt;'PYEOF'
+#!/usr/bin/env python3
+"""as-nobody - GH-026 lab scaffolding: become nobody:nogroup, exec argv.
+
+Drops privilege with setresuid/setresgid and does NOT set NO_NEW_PRIVS,
+so setuid/setgid bits on the target are honored or refused by the kernel
+exactly as policy dictates. su, runuser, and setpriv all set NO_NEW_PRIVS
+on this VM (verified live), which would neuter the very bit being
+demonstrated.
+"""
+import os
+import sys
+
+os.setresgid(65534, 65534, 65534)
+os.setresuid(65534, 65534, 65534)
+os.execvp(sys.argv[1], sys.argv[1:])
+PYEOF
+chmod 755 /tmp/gh026/as-nobody
+gcc -O2 -o /tmp/gh026/crown /tmp/gh026/crown.c &amp;&amp; echo 'build OK'
+echo 'GHOSTLIGHT-CANARY-026' &gt; /tmp/gh026/vault
+chown root:root /tmp/gh026/vault &amp;&amp; chmod 600 /tmp/gh026/vault
+echo 'GHOSTLIGHT-CANARY-026-G' &gt; /tmp/gh026/vault-g
+chown root:nogroup /tmp/gh026/vault-g &amp;&amp; chmod 640 /tmp/gh026/vault-g
+ls -l /tmp/gh026
+build OK
+total 36
+-rwxr-xr-x 1 root root      527 Oct  5 10:46 as-nobody
+-rwxr-xr-x 1 root root    16400 Oct  5 10:46 crown
+-rw-r--r-- 1 root root      875 Oct  5 10:46 crown.c
+-rw------- 1 root root       22 Oct  5 10:46 vault
+-rw-r----- 1 root nogroup    24 Oct  5 10:46 vault-g</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">2</div>
+<div>
+<h3>The obvious attempt breaks</h3>
+<div class="prose"><p>The unprivileged user reads the vault directly: <strong>Permission denied</strong>. Then runs the plain binary: <strong>uid=65534 euid=65534</strong>, <strong>open: Permission denied</strong>. The permission model is working exactly as designed, and that working is the whole reason the crown exists: the file cannot be read as nobody, so the attacker borrows an identity that can.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &#x27;--- the obvious attempt: read the vault directly as the unprivileged user&#x27;
+/tmp/gh026/as-nobody cat /tmp/gh026/vault; echo &quot;rc=$?&quot;
+echo &#x27;--- the plain binary, no crown yet:&#x27;
+/tmp/gh026/as-nobody /tmp/gh026/crown; echo &quot;rc=$?&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo '--- the obvious attempt: read the vault directly as the unprivileged user'
+/tmp/gh026/as-nobody cat /tmp/gh026/vault; echo "rc=$?"
+echo '--- the plain binary, no crown yet:'
+/tmp/gh026/as-nobody /tmp/gh026/crown; echo "rc=$?"
+--- the obvious attempt: read the vault directly as the unprivileged user
+cat: /tmp/gh026/vault: Permission denied
+rc=1
+--- the plain binary, no crown yet:
+uid=65534 euid=65534 gid=65534 egid=65534
+open: Permission denied
+rc=1</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">3</div>
+<div>
+<h3>Plant the crown</h3>
+<div class="prose"><p><strong>chown root:root</strong> and <strong>chmod 4755</strong>: <strong>stat</strong> reads <strong>4755 root:root</strong>, <strong>ls</strong> reads <strong>-rwsr-xr-x</strong>. The setgid twin: <strong>chgrp nogroup</strong>, <strong>chmod 2755</strong>, <strong>-rwxr-sr-x</strong>. Two plants, one pattern: the <strong>s</strong> sits where the <strong>x</strong> was, and at a glance the line still reads as an ordinary executable.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &#x27;--- plant the setuid crown:&#x27;
+chown root:root /tmp/gh026/crown &amp;&amp; chmod 4755 /tmp/gh026/crown
+stat -c &#x27;%a %U:%G %n&#x27; /tmp/gh026/crown
+echo &#x27;--- plant the setgid twin:&#x27;
+cp /tmp/gh026/crown /tmp/gh026/crown-g
+chgrp nogroup /tmp/gh026/crown-g &amp;&amp; chmod 2755 /tmp/gh026/crown-g
+ls -l /tmp/gh026/crown /tmp/gh026/crown-g
+echo &#x27;planted: the s sits where the x was&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ echo '--- plant the setuid crown:'
+chown root:root /tmp/gh026/crown &amp;&amp; chmod 4755 /tmp/gh026/crown
+stat -c '%a %U:%G %n' /tmp/gh026/crown
+echo '--- plant the setgid twin:'
+cp /tmp/gh026/crown /tmp/gh026/crown-g
+chgrp nogroup /tmp/gh026/crown-g &amp;&amp; chmod 2755 /tmp/gh026/crown-g
+ls -l /tmp/gh026/crown /tmp/gh026/crown-g
+echo 'planted: the s sits where the x was'
+--- plant the setuid crown:
+4755 root:root /tmp/gh026/crown
+--- plant the setgid twin:
+-rwsr-xr-x 1 root root    16400 Oct  5 10:46 /tmp/gh026/crown
+-rwxr-sr-x 1 root nogroup 16400 Oct  5 10:46 /tmp/gh026/crown-g
+planted: the s sits where the x was</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">4</div>
+<div>
+<h3>The kernel refuses</h3>
+<div class="prose"><p>The unprivileged run: <strong>uid=65534 euid=65534</strong>, <strong>open: Permission denied</strong>. The crown did not transfer. The control experiment: the same binary copied to the root filesystem, where <strong>findmnt</strong> shows no nosuid flag. Still refused. The mount was never the binding constraint. The kernel states its reason: <strong>NoNewPrivs: 1</strong>, on this shell and on PID 1. This entire VM runs with NO_NEW_PRIVS, the flag that tells exec to grant no new privileges. The crown is placed; the kernel refuses to let it be worn.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &#x27;--- the unprivileged run:&#x27;
+/tmp/gh026/as-nobody /tmp/gh026/crown; echo &quot;rc=$?&quot;
+echo &#x27;--- is it the nosuid mount? retest on the root filesystem (no nosuid there):&#x27;
+mkdir -p /gh026x &amp;&amp; cp /tmp/gh026/crown /gh026x/crown &amp;&amp; chmod 4755 /gh026x/crown
+findmnt -n -o OPTIONS /tmp | tr &#x27;,&#x27; &#x27;\n&#x27; | grep nosuid &amp;&amp; echo &#x27;/tmp: nosuid present&#x27;
+findmnt -n -o OPTIONS / | tr &#x27;,&#x27; &#x27;\n&#x27; | grep -q nosuid &amp;&amp; echo &#x27;/: nosuid present&#x27; || echo &#x27;/: no nosuid flag&#x27;
+/tmp/gh026/as-nobody /gh026x/crown; echo &quot;rc=$?&quot;
+rm -rf /gh026x
+echo &#x27;--- the kernel stated reason:&#x27;
+grep NoNewPrivs /proc/self/status
+grep NoNewPrivs /proc/1/status"><span data-label>COPY</span></button></div>
+<pre>$ echo '--- the unprivileged run:'
+/tmp/gh026/as-nobody /tmp/gh026/crown; echo "rc=$?"
+echo '--- is it the nosuid mount? retest on the root filesystem (no nosuid there):'
+mkdir -p /gh026x &amp;&amp; cp /tmp/gh026/crown /gh026x/crown &amp;&amp; chmod 4755 /gh026x/crown
+findmnt -n -o OPTIONS /tmp | tr ',' '\n' | grep nosuid &amp;&amp; echo '/tmp: nosuid present'
+findmnt -n -o OPTIONS / | tr ',' '\n' | grep -q nosuid &amp;&amp; echo '/: nosuid present' || echo '/: no nosuid flag'
+/tmp/gh026/as-nobody /gh026x/crown; echo "rc=$?"
+rm -rf /gh026x
+echo '--- the kernel stated reason:'
+grep NoNewPrivs /proc/self/status
+grep NoNewPrivs /proc/1/status
+--- the unprivileged run:
+uid=65534 euid=65534 gid=65534 egid=65534
+open: Permission denied
+rc=1
+--- is it the nosuid mount? retest on the root filesystem (no nosuid there):
+nosuid
+nosuid
+/tmp: nosuid present
+/: no nosuid flag
+uid=65534 euid=65534 gid=65534 egid=65534
+open: Permission denied
+rc=1
+--- the kernel stated reason:
+NoNewPrivs:	1
+NoNewPrivs:	1</pre>
+</div>
+<div class="verdict red">
+<span class="mlabel">Plant confirmed</span>
+<p>The artifact is on disk, root-owned, bit set, byte-identical to a plant on an ordinary host, and every scanner in the blue phase finds it. The transfer is refused by NO_NEW_PRIVS, verified live on this shell and on PID 1, with the nosuid mount ruled out by the control run on the root filesystem. The stealth point stands regardless: the s hides among the x characters in a casual listing; only the bit-aware hunt sees it.</p>
+</div></div>
+</div>
+
+        </section>
+
+        <section class="phase" id="phase-blue">
+          <div class="phase-head"><span class="phase-num">04</span><h2>Phase Blue: hunt the bit</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">The defender never trusts the listing. The defender hunts the bit, convicts by provenance, strips with evidence first, and hardens the mounts. Every command below ran against the planted lab.</p>
+          <div class="prose">
+            <p>Here is the trap: opening the directory listing, seeing two ordinary-looking executables, and moving on. The <strong>s</strong> is one letter among dozens, and the eye reads <strong>-rwsr-xr-x</strong> as <strong>-rwxr-xr-x</strong> at speed. The checks that work never read the listing the way a human does; they ask the kernel for the mode bits directly.</p>
+          </div>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot blue" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">192.6s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/crown-blue.jpg" aria-label="Screen recording: CROWN BLUE, operator@lab">
+              <source src="../../assets/vid/crown-blue.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> The defender hunts both planted bits, convicts by package provenance, captures evidence before stripping the bits, and stages the prevention controls with every dependency stated. Every command below is copy-pasteable.</figcaption>
+          </figure>
+<div class="step">
+<div class="step-num">1</div>
+<div>
+<h3>DETECTION: hunt the bits</h3>
+<div class="prose"><p><strong>ls -l</strong> first, read by someone who knows where the <strong>s</strong> hides. Then the hunt proper: <strong>find /tmp/gh026 -perm -4000 -ls</strong> names the setuid plant; <strong>-perm -2000 -ls</strong> names the setgid twin. <strong>-perm -4000</strong> matches any file with the setuid bit, regardless of the other mode bits; <strong>-ls</strong> prints the long form. This is the query that sees what the listing hides. D3FEND names the heavier forms <a href="https://d3fend.mitre.org/technique/d3f:FileHashing/" rel="noopener">File Hashing (D3-FH)</a> and <a href="https://d3fend.mitre.org/technique/d3f:FileIntegrityMonitoring/" rel="noopener">File Integrity Monitoring (D3-FIM)</a>: hash the setuid inventory, and alert when it changes.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &#x27;--- DETECTION: the listing, read by someone who knows where the s hides&#x27;
+ls -l /tmp/gh026
+echo &#x27;--- hunt: every setuid bit under the lab&#x27;
+find /tmp/gh026 -perm -4000 -ls
+echo &#x27;--- hunt: every setgid bit under the lab&#x27;
+find /tmp/gh026 -perm -2000 -ls"><span data-label>COPY</span></button></div>
+<pre>$ echo '--- DETECTION: the listing, read by someone who knows where the s hides'
+ls -l /tmp/gh026
+echo '--- hunt: every setuid bit under the lab'
+find /tmp/gh026 -perm -4000 -ls
+echo '--- hunt: every setgid bit under the lab'
+find /tmp/gh026 -perm -2000 -ls
+--- DETECTION: the listing, read by someone who knows where the s hides
+total 56
+-rwxr-xr-x 1 root root      527 Oct  5 10:46 as-nobody
+-rwsr-xr-x 1 root root    16400 Oct  5 10:46 crown
+-rwxr-sr-x 1 root nogroup 16400 Oct  5 10:46 crown-g
+-rw-r--r-- 1 root root      875 Oct  5 10:46 crown.c
+-rw------- 1 root root       22 Oct  5 10:46 vault
+-rw-r----- 1 root nogroup    24 Oct  5 10:46 vault-g
+--- hunt: every setuid bit under the lab
+       10     20 -rwsr-xr-x   1 root     root        16400 Oct  5 10:46 /tmp/gh026/crown
+--- hunt: every setgid bit under the lab
+       13     20 -rwxr-sr-x   1 root     nogroup     16400 Oct  5 10:46 /tmp/gh026/crown-g</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">2</div>
+<div>
+<h3>DETECTION: rogue or legitimate?</h3>
+<div class="prose"><p><strong>stat -c</strong> reads the raw modes: <strong>4755 root:root</strong>, <strong>2755 root:nogroup</strong>. Then provenance: <strong>dpkg -S</strong> asks which package owns the file. <strong>/tmp/gh026/crown</strong>: no path found matching pattern. Not from any package: rogue. <strong>/usr/bin/sudo</strong>: sudo: /usr/bin/sudo. From the sudo package: legitimate. The last command lists the legitimate inventory, the haystack the rogue hides in: a dozen package-owned setuid binaries in /usr/bin. Good is package-owned, in a system path, expected. Bad is unowned, in /tmp, unexpected. The discriminator is provenance, not the bit: the bit alone convicts nothing.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &#x27;--- DETECTION: rogue or legitimate? read the mode, then the provenance&#x27;
+stat -c &#x27;%a %U:%G %n&#x27; /tmp/gh026/crown /tmp/gh026/crown-g
+echo &#x27;--- package ownership: the discriminator&#x27;
+dpkg -S /tmp/gh026/crown 2&gt;&amp;1
+dpkg -S /usr/bin/sudo
+echo &#x27;--- the legitimate inventory (the haystack the rogue hides in)&#x27;
+find /usr/bin -perm -4000 2&gt;/dev/null"><span data-label>COPY</span></button></div>
+<pre>$ echo '--- DETECTION: rogue or legitimate? read the mode, then the provenance'
+stat -c '%a %U:%G %n' /tmp/gh026/crown /tmp/gh026/crown-g
+echo '--- package ownership: the discriminator'
+dpkg -S /tmp/gh026/crown 2&gt;&amp;1
+dpkg -S /usr/bin/sudo
+echo '--- the legitimate inventory (the haystack the rogue hides in)'
+find /usr/bin -perm -4000 2&gt;/dev/null
+--- DETECTION: rogue or legitimate? read the mode, then the provenance
+4755 root:root /tmp/gh026/crown
+2755 root:nogroup /tmp/gh026/crown-g
+--- package ownership: the discriminator
+dpkg-query: no path found matching pattern /tmp/gh026/crown
+sudo: /usr/bin/sudo
+--- the legitimate inventory (the haystack the rogue hides in)
+/usr/bin/chfn
+/usr/bin/chsh
+/usr/bin/gpasswd
+/usr/bin/mount
+/usr/bin/newgidmap
+/usr/bin/newgrp
+/usr/bin/newuidmap
+/usr/bin/passwd
+/usr/bin/su
+/usr/bin/sudo
+/usr/bin/umount</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">3</div>
+<div>
+<h3>MITIGATION: evidence first, the bit is stripped second</h3>
+<div class="prose"><p><strong>mkdir evidence</strong>. The <strong>sha256sum</strong> of both crowns, the <strong>stat</strong> of both, copies of both: captured BEFORE the strip, because the strip changes the artifact and the hashes must describe the planted state. Then <strong>chmod u-s</strong> and <strong>chmod g-s</strong>: the bits come off, the files stay for forensics. <strong>ls -l</strong> confirms: the <strong>s</strong> is gone. The re-run fails closed: still Permission denied, and now the crown could not transfer on any host.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &#x27;--- MITIGATION: evidence first, the bit is stripped second&#x27;
+mkdir -p /tmp/gh026/evidence
+sha256sum /tmp/gh026/crown /tmp/gh026/crown-g | tee /tmp/gh026/evidence/hashes.txt
+stat /tmp/gh026/crown /tmp/gh026/crown-g | tee /tmp/gh026/evidence/stat.txt
+cp /tmp/gh026/crown /tmp/gh026/crown-g /tmp/gh026/evidence/ &amp;&amp; echo &#x27;binaries preserved&#x27;
+echo &#x27;--- now strip the crowns:&#x27;
+chmod u-s /tmp/gh026/crown
+chmod g-s /tmp/gh026/crown-g
+ls -l /tmp/gh026/crown /tmp/gh026/crown-g
+echo &#x27;--- verify: fails closed&#x27;
+/tmp/gh026/as-nobody /tmp/gh026/crown; echo &quot;rc=$?&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo '--- MITIGATION: evidence first, the bit is stripped second'
+mkdir -p /tmp/gh026/evidence
+sha256sum /tmp/gh026/crown /tmp/gh026/crown-g | tee /tmp/gh026/evidence/hashes.txt
+stat /tmp/gh026/crown /tmp/gh026/crown-g | tee /tmp/gh026/evidence/stat.txt
+cp /tmp/gh026/crown /tmp/gh026/crown-g /tmp/gh026/evidence/ &amp;&amp; echo 'binaries preserved'
+echo '--- now strip the crowns:'
+chmod u-s /tmp/gh026/crown
+chmod g-s /tmp/gh026/crown-g
+ls -l /tmp/gh026/crown /tmp/gh026/crown-g
+echo '--- verify: fails closed'
+/tmp/gh026/as-nobody /tmp/gh026/crown; echo "rc=$?"
+--- MITIGATION: evidence first, the bit is stripped second
+7cef9b773849c5822a7ff43ed81d116ec743c4884d66c2bd88657534b3453006  /tmp/gh026/crown
+7cef9b773849c5822a7ff43ed81d116ec743c4884d66c2bd88657534b3453006  /tmp/gh026/crown-g
+  File: /tmp/gh026/crown
+  Size: 16400     	Blocks: 40         IO Block: 4096   regular file
+Device: 0,92	Inode: 10          Links: 1
+Access: (4755/-rwsr-xr-x)  Uid: (    0/    root)   Gid: (    0/    root)
+Access: 2026-10-05 10:46:54.802312902 +0000
+Modify: 2026-10-05 10:46:54.739024229 +0000
+Change: 2026-10-05 10:46:54.800581745 +0000
+ Birth: 2026-10-05 10:46:54.711581745 +0000
+  File: /tmp/gh026/crown-g
+  Size: 16400     	Blocks: 40         IO Block: 4096   regular file
+Device: 0,92	Inode: 13          Links: 1
+Access: (2755/-rwxr-sr-x)  Uid: (    0/    root)   Gid: (65534/ nogroup)
+Access: 2026-10-05 10:46:54.812859131 +0000
+Modify: 2026-10-05 10:46:54.808801204 +0000
+Change: 2026-10-05 10:46:54.812633242 +0000
+ Birth: 2026-10-05 10:46:54.807581745 +0000
+binaries preserved
+--- now strip the crowns:
+-rwxr-xr-x 1 root root    16400 Oct  5 10:46 /tmp/gh026/crown
+-rwxr-xr-x 1 root nogroup 16400 Oct  5 10:46 /tmp/gh026/crown-g
+--- verify: fails closed
+uid=65534 euid=65534 gid=65534 egid=65534
+open: Permission denied
+rc=1</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">4</div>
+<div>
+<h3>PREVENTION: three controls, one proven live</h3>
+<div class="prose"><p><strong>nosuid:</strong> <strong>findmnt</strong> shows this lab's /tmp already mounts nosuid (forced by the sandbox's user namespace), while / carries no nosuid flag: the control, working, on camera. On an ordinary host this is <strong>mount -o remount,nosuid /tmp</strong> or the fstab entry. <strong>auditd:</strong> the staged rule watches both crowns for writes and attribute changes; <strong>command -v</strong> finds auditctl, <strong>pgrep</strong> finds no daemon: rule staged, not loaded, stated with its dependency. <strong>NO_NEW_PRIVS:</strong> <strong>grep</strong> on <strong>/proc/1/status</strong> shows 1: the control this lab proved live, set on the whole tree, the reason the planted crown never transferred.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &#x27;--- PREVENTION 1: nosuid mounts ignore the bit at exec&#x27;
+findmnt -n -o OPTIONS /tmp | tr &#x27;,&#x27; &#x27;\n&#x27; | grep nosuid &amp;&amp; echo &#x27;/tmp: nosuid present (this lab, live)&#x27;
+findmnt -n -o OPTIONS / | tr &#x27;,&#x27; &#x27;\n&#x27; | grep -q nosuid &amp;&amp; echo &#x27;/: nosuid present&#x27; || echo &#x27;/: no nosuid flag&#x27;
+echo &#x27;--- PREVENTION 2: auditd watches the plant (staged; daemon absent, stated plainly)&#x27;
+cat &gt; /tmp/gh026/ghostlight-026.rules &lt;&lt;&#x27;REOF&#x27;
+-w /tmp/gh026/crown -p wa -k setuid_plant
+-w /tmp/gh026/crown-g -p wa -k setgid_plant
+REOF
+cat /tmp/gh026/ghostlight-026.rules
+command -v auditctl
+pgrep -x auditd &gt;/dev/null &amp;&amp; echo &#x27;auditd running: rules loadable&#x27; || echo &#x27;auditd NOT running: rule staged, not loaded&#x27;
+echo &#x27;--- PREVENTION 3: NO_NEW_PRIVS, the control this lab proved live&#x27;
+grep NoNewPrivs /proc/1/status
+echo &#x27;set on the whole tree: even PID 1 carries it&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ echo '--- PREVENTION 1: nosuid mounts ignore the bit at exec'
+findmnt -n -o OPTIONS /tmp | tr ',' '\n' | grep nosuid &amp;&amp; echo '/tmp: nosuid present (this lab, live)'
+findmnt -n -o OPTIONS / | tr ',' '\n' | grep -q nosuid &amp;&amp; echo '/: nosuid present' || echo '/: no nosuid flag'
+echo '--- PREVENTION 2: auditd watches the plant (staged; daemon absent, stated plainly)'
+cat &gt; /tmp/gh026/ghostlight-026.rules &lt;&lt;'REOF'
+-w /tmp/gh026/crown -p wa -k setuid_plant
+-w /tmp/gh026/crown-g -p wa -k setgid_plant
+REOF
+cat /tmp/gh026/ghostlight-026.rules
+command -v auditctl
+pgrep -x auditd &gt;/dev/null &amp;&amp; echo 'auditd running: rules loadable' || echo 'auditd NOT running: rule staged, not loaded'
+echo '--- PREVENTION 3: NO_NEW_PRIVS, the control this lab proved live'
+grep NoNewPrivs /proc/1/status
+echo 'set on the whole tree: even PID 1 carries it'
+--- PREVENTION 1: nosuid mounts ignore the bit at exec
+nosuid
+nosuid
+/tmp: nosuid present (this lab, live)
+/: no nosuid flag
+--- PREVENTION 2: auditd watches the plant (staged; daemon absent, stated plainly)
+-w /tmp/gh026/crown -p wa -k setuid_plant
+-w /tmp/gh026/crown-g -p wa -k setgid_plant
+/usr/sbin/auditctl
+auditd NOT running: rule staged, not loaded
+--- PREVENTION 3: NO_NEW_PRIVS, the control this lab proved live
+NoNewPrivs:	1
+set on the whole tree: even PID 1 carries it</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">5</div>
+<div>
+<h3>Teardown</h3>
+<div class="prose"><p><strong>rm -rf /tmp/gh026</strong>: the lab, the crowns, the evidence copies, the staged rule, all gone. <strong>ls -A /tmp</strong>: the private tmp is empty. The namespace's death reaps every stray.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &#x27;--- teardown: remove the lab&#x27;
+rm -rf /tmp/gh026
+ls -A /tmp
+echo &#x27;private /tmp empty; namespace death reaps every stray&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ echo '--- teardown: remove the lab'
+rm -rf /tmp/gh026
+ls -A /tmp
+echo 'private /tmp empty; namespace death reaps every stray'
+--- teardown: remove the lab
+private /tmp empty; namespace death reaps every stray</pre>
+</div>
+<div class="verdict green">
+<span class="mlabel">Detection verified</span>
+<p>The hunt found both planted bits; provenance convicted them (no package owns them); the hashes, stats, and binaries were captured before the strip; the strip removed both bits and the re-run fails closed; nosuid was shown working on the lab's /tmp; the auditd rule is staged with its dependency stated; NO_NEW_PRIVS was proven live as the binding control. The crown never transferred, and every step of that is on the record.</p>
+</div></div>
+</div>
+
+        </section>
+
+        <section class="phase" id="countermeasures">
+          <div class="phase-head"><span class="phase-num">05</span><h2>Countermeasures</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">Three moves, in order: strip with evidence first, sweep on a schedule, harden so the next plant cannot transfer. Each is one way, not the way.</p>
+<div class="step">
+<div class="step-num">1</div>
+<div>
+<h3>Mitigate: capture, strip, verify</h3>
+<div class="prose"><p>Proven first against the planted crowns: the hashes, stats, and binaries are captured into <strong>evidence/</strong> BEFORE the strip, because the strip changes the artifact. <strong>chmod u-s</strong> and <strong>chmod g-s</strong> take the crowns off; the files stay for forensics. <strong>ls -l</strong> confirms the <strong>s</strong> is gone; the re-run fails closed. The plant is contained without deleting the evidence it is made of.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &#x27;--- MITIGATION: evidence first, the bit is stripped second&#x27;
+mkdir -p /tmp/gh026/evidence
+sha256sum /tmp/gh026/crown /tmp/gh026/crown-g | tee /tmp/gh026/evidence/hashes.txt
+stat /tmp/gh026/crown /tmp/gh026/crown-g | tee /tmp/gh026/evidence/stat.txt
+cp /tmp/gh026/crown /tmp/gh026/crown-g /tmp/gh026/evidence/ &amp;&amp; echo &#x27;binaries preserved&#x27;
+echo &#x27;--- now strip the crowns:&#x27;
+chmod u-s /tmp/gh026/crown
+chmod g-s /tmp/gh026/crown-g
+ls -l /tmp/gh026/crown /tmp/gh026/crown-g
+echo &#x27;--- verify: fails closed&#x27;
+/tmp/gh026/as-nobody /tmp/gh026/crown; echo &quot;rc=$?&quot;"><span data-label>COPY</span></button></div>
+<pre>$ echo '--- MITIGATION: evidence first, the bit is stripped second'
+mkdir -p /tmp/gh026/evidence
+sha256sum /tmp/gh026/crown /tmp/gh026/crown-g | tee /tmp/gh026/evidence/hashes.txt
+stat /tmp/gh026/crown /tmp/gh026/crown-g | tee /tmp/gh026/evidence/stat.txt
+cp /tmp/gh026/crown /tmp/gh026/crown-g /tmp/gh026/evidence/ &amp;&amp; echo 'binaries preserved'
+echo '--- now strip the crowns:'
+chmod u-s /tmp/gh026/crown
+chmod g-s /tmp/gh026/crown-g
+ls -l /tmp/gh026/crown /tmp/gh026/crown-g
+echo '--- verify: fails closed'
+/tmp/gh026/as-nobody /tmp/gh026/crown; echo "rc=$?"
+--- MITIGATION: evidence first, the bit is stripped second
+7cef9b773849c5822a7ff43ed81d116ec743c4884d66c2bd88657534b3453006  /tmp/gh026/crown
+7cef9b773849c5822a7ff43ed81d116ec743c4884d66c2bd88657534b3453006  /tmp/gh026/crown-g
+  File: /tmp/gh026/crown
+  Size: 16400     	Blocks: 40         IO Block: 4096   regular file
+Device: 0,92	Inode: 10          Links: 1
+Access: (4755/-rwsr-xr-x)  Uid: (    0/    root)   Gid: (    0/    root)
+Access: 2026-10-05 10:46:54.802312902 +0000
+Modify: 2026-10-05 10:46:54.739024229 +0000
+Change: 2026-10-05 10:46:54.800581745 +0000
+ Birth: 2026-10-05 10:46:54.711581745 +0000
+  File: /tmp/gh026/crown-g
+  Size: 16400     	Blocks: 40         IO Block: 4096   regular file
+Device: 0,92	Inode: 13          Links: 1
+Access: (2755/-rwxr-sr-x)  Uid: (    0/    root)   Gid: (65534/ nogroup)
+Access: 2026-10-05 10:46:54.812859131 +0000
+Modify: 2026-10-05 10:46:54.808801204 +0000
+Change: 2026-10-05 10:46:54.812633242 +0000
+ Birth: 2026-10-05 10:46:54.807581745 +0000
+binaries preserved
+--- now strip the crowns:
+-rwxr-xr-x 1 root root    16400 Oct  5 10:46 /tmp/gh026/crown
+-rwxr-xr-x 1 root nogroup 16400 Oct  5 10:46 /tmp/gh026/crown-g
+--- verify: fails closed
+uid=65534 euid=65534 gid=65534 egid=65534
+open: Permission denied
+rc=1</pre>
+</div>
+<div class="callout"><p><strong>Honest limit.</strong> Stripping the bit ends this plant's future, not its past: the binary is still on disk, and the incident's real question is how the attacker wrote as root in the first place. If that access is still open, the attacker re-adds the bit with one chmod and the next hunt starts over. The strip is containment of the artifact, not of the intrusion: pair it with the root-cause hunt.</p></div></div>
+</div>
+<div class="step">
+<div class="step-num">2</div>
+<div>
+<h3>Monitor: sweep the bits on a schedule</h3>
+<div class="prose"><p>The scheduled form of the phase-blue hunt: <strong>find / -perm -4000 -o -perm -2000</strong> on a timer (the lab ran it scoped to /tmp/gh026), diffed against the known-good inventory, alerting only on the diff. The tell is concrete: good is package-owned in a system path; bad is unowned, or owned wrong, or somewhere a crown has no business being. Production versions add the inventory and the alerting, not new ideas. This is D3-FIM as a cron job: watch the setuid inventory, notice when it changes.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &#x27;--- DETECTION: the listing, read by someone who knows where the s hides&#x27;
+ls -l /tmp/gh026
+echo &#x27;--- hunt: every setuid bit under the lab&#x27;
+find /tmp/gh026 -perm -4000 -ls
+echo &#x27;--- hunt: every setgid bit under the lab&#x27;
+find /tmp/gh026 -perm -2000 -ls"><span data-label>COPY</span></button></div>
+<pre>$ echo '--- DETECTION: the listing, read by someone who knows where the s hides'
+ls -l /tmp/gh026
+echo '--- hunt: every setuid bit under the lab'
+find /tmp/gh026 -perm -4000 -ls
+echo '--- hunt: every setgid bit under the lab'
+find /tmp/gh026 -perm -2000 -ls
+--- DETECTION: the listing, read by someone who knows where the s hides
+total 56
+-rwxr-xr-x 1 root root      527 Oct  5 10:46 as-nobody
+-rwsr-xr-x 1 root root    16400 Oct  5 10:46 crown
+-rwxr-sr-x 1 root nogroup 16400 Oct  5 10:46 crown-g
+-rw-r--r-- 1 root root      875 Oct  5 10:46 crown.c
+-rw------- 1 root root       22 Oct  5 10:46 vault
+-rw-r----- 1 root nogroup    24 Oct  5 10:46 vault-g
+--- hunt: every setuid bit under the lab
+       10     20 -rwsr-xr-x   1 root     root        16400 Oct  5 10:46 /tmp/gh026/crown
+--- hunt: every setgid bit under the lab
+       13     20 -rwxr-sr-x   1 root     nogroup     16400 Oct  5 10:46 /tmp/gh026/crown-g</pre>
+</div>
+<div class="callout"><p><strong>Honest limit.</strong> The sweep finds bits, not intent: every sudo, su, and newgrp on the box matches <strong>-perm -4000</strong>, so an unbaselined sweep pages the on-call for the operating system. The scheduled form needs the known-good inventory (dpkg -S output, or a recorded find baseline) and alerts only on the diff. And the interval sets the floor: a plant that is used and removed between sweeps leaves no find trace behind; only the auditd watch, if running, sees it.</p></div></div>
+</div>
+<div class="step">
+<div class="step-num">3</div>
+<div>
+<h3>Prevent: nosuid, inventory, auditd, NO_NEW_PRIVS</h3>
+<div class="prose"><p>Four controls, in increasing strength. <strong>nosuid</strong> on writable mounts: shown live on this lab's /tmp; on an ordinary host, <strong>mount -o remount,nosuid</strong> or the fstab entry. <strong>Inventory reduction:</strong> baseline the legitimate setuid inventory with <strong>dpkg -S</strong> and <strong>chmod u-s</strong> what the host does not need (a procedure for the reader's own hosts; this lab touches no host binaries). <strong>auditd:</strong> the staged rule watches crowned files for writes and attribute changes, loaded where the daemon runs. <strong>NO_NEW_PRIVS:</strong> proven live in the red phase as the binding control: with it set, no planted crown can ever transfer.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &#x27;--- PREVENTION 1: nosuid mounts ignore the bit at exec&#x27;
+findmnt -n -o OPTIONS /tmp | tr &#x27;,&#x27; &#x27;\n&#x27; | grep nosuid &amp;&amp; echo &#x27;/tmp: nosuid present (this lab, live)&#x27;
+findmnt -n -o OPTIONS / | tr &#x27;,&#x27; &#x27;\n&#x27; | grep -q nosuid &amp;&amp; echo &#x27;/: nosuid present&#x27; || echo &#x27;/: no nosuid flag&#x27;
+echo &#x27;--- PREVENTION 2: auditd watches the plant (staged; daemon absent, stated plainly)&#x27;
+cat &gt; /tmp/gh026/ghostlight-026.rules &lt;&lt;&#x27;REOF&#x27;
+-w /tmp/gh026/crown -p wa -k setuid_plant
+-w /tmp/gh026/crown-g -p wa -k setgid_plant
+REOF
+cat /tmp/gh026/ghostlight-026.rules
+command -v auditctl
+pgrep -x auditd &gt;/dev/null &amp;&amp; echo &#x27;auditd running: rules loadable&#x27; || echo &#x27;auditd NOT running: rule staged, not loaded&#x27;
+echo &#x27;--- PREVENTION 3: NO_NEW_PRIVS, the control this lab proved live&#x27;
+grep NoNewPrivs /proc/1/status
+echo &#x27;set on the whole tree: even PID 1 carries it&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ echo '--- PREVENTION 1: nosuid mounts ignore the bit at exec'
+findmnt -n -o OPTIONS /tmp | tr ',' '\n' | grep nosuid &amp;&amp; echo '/tmp: nosuid present (this lab, live)'
+findmnt -n -o OPTIONS / | tr ',' '\n' | grep -q nosuid &amp;&amp; echo '/: nosuid present' || echo '/: no nosuid flag'
+echo '--- PREVENTION 2: auditd watches the plant (staged; daemon absent, stated plainly)'
+cat &gt; /tmp/gh026/ghostlight-026.rules &lt;&lt;'REOF'
+-w /tmp/gh026/crown -p wa -k setuid_plant
+-w /tmp/gh026/crown-g -p wa -k setgid_plant
+REOF
+cat /tmp/gh026/ghostlight-026.rules
+command -v auditctl
+pgrep -x auditd &gt;/dev/null &amp;&amp; echo 'auditd running: rules loadable' || echo 'auditd NOT running: rule staged, not loaded'
+echo '--- PREVENTION 3: NO_NEW_PRIVS, the control this lab proved live'
+grep NoNewPrivs /proc/1/status
+echo 'set on the whole tree: even PID 1 carries it'
+--- PREVENTION 1: nosuid mounts ignore the bit at exec
+nosuid
+nosuid
+/tmp: nosuid present (this lab, live)
+/: no nosuid flag
+--- PREVENTION 2: auditd watches the plant (staged; daemon absent, stated plainly)
+-w /tmp/gh026/crown -p wa -k setuid_plant
+-w /tmp/gh026/crown-g -p wa -k setgid_plant
+/usr/sbin/auditctl
+auditd NOT running: rule staged, not loaded
+--- PREVENTION 3: NO_NEW_PRIVS, the control this lab proved live
+NoNewPrivs:	1
+set on the whole tree: even PID 1 carries it</pre>
+</div>
+<div class="callout"><p><strong>Honest limit.</strong> nosuid does not strip existing bits and does not cover other mounts: an attacker who can write to a non-nosuid mount simply plants there, which is why the control ships with the sweep, not instead of it. Inventory reduction has its own price: sudo needs its bit, and stripping a legitimate crown breaks the tool, so test before stripping. auditd needs the daemon running with rules loaded, and root can stop the daemon: it is a witness, not a wall. NO_NEW_PRIVS is the strongest of the four and the bluntest: it neuters every setuid transition on the box, legitimate tools included, which is why it lives in sandboxes and containers, not on general-purpose hosts.</p></div><div class="verdict green">
+<span class="mlabel">Countermeasures verified</span>
+<p>The planted bits were captured and stripped with the re-run failing closed; the scheduled sweep names its bit pattern, its baseline, and its interval floor; nosuid was shown live with its relocation bypass stated; the auditd rule is staged with the daemon dependency stated; NO_NEW_PRIVS was proven as the binding control with its price named. Every control names its bypass.</p>
+</div></div>
+</div>
+
+        </section>
+
+        <section class="phase" id="debrief">
+          <div class="phase-head"><span class="phase-num">06</span><h2>Debrief</h2><span class="phase-tag neutral">TAKEAWAY</span></div>
+          <p class="takeaway">The setuid bit is a request the kernel may refuse: scanners read the request in the mode bits, but only the exec path decides the effective identity. Hunt the bit, convict by provenance, strip with evidence first, harden the mounts.</p>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">IOC checklist: signs this technique was used</span></p></div>
+          <ul class="checklist">
+            <li><span><strong>A file with mode 4755 or 2755 outside /usr/bin, /bin, /usr/sbin</strong> (the planted crown's shape)</span></li>
+            <li><span><strong>A setuid/setgid binary that no package owns</strong> (<strong>dpkg -S</strong> answers "no path found matching pattern")</span></li>
+            <li><span><strong>A setuid binary with a recent mtime in a world-writable directory</strong></span></li>
+            <li><span><strong>A setuid binary whose owner or group does not match the package default</strong> (chown drift on a legitimate path)</span></li>
+            <li><span><strong>auditd write/attribute records on a crowned binary</strong>, where the watch runs</span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Reproducibility checklist</span></p></div>
+          <ul class="checklist">
+            <li><span>Verified on <strong>Ubuntu 24.04.5 LTS</strong>, <strong>gcc 13.3.0</strong>, x86-64, on 2026-10-05</span></li>
+            <li><span>Both recordings are real executions on that platform, not simulations</span></li>
+            <li><span>The lab runs as root inside a PID and mount namespace (<strong>unshare -pfm --mount-proc</strong>) with a private /tmp; the lab directory is <strong>/tmp/gh026</strong></span></li>
+            <li><span>This sandbox runs <strong>NO_NEW_PRIVS</strong> on the whole process tree (verified on PID 1) and forces nosuid on new mounts: the plant is real, the transfer is refused, both verified live with a control run on the root filesystem</span></li>
+            <li><span>Cleanup: <strong>rm -rf /tmp/gh026</strong> (recorded); the namespace's death reaps every stray</span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Sources</span></p></div>
+          <div class="prose"><p><a href="https://attack.mitre.org/techniques/T1548/001/" rel="noopener">MITRE ATT&amp;CK T1548.001: Abuse Elevation Control Mechanism: Setuid and Setgid</a><br>
+          <a href="https://attack.mitre.org/techniques/T1548/" rel="noopener">MITRE ATT&amp;CK T1548: Abuse Elevation Control Mechanism</a> (the parent technique)<br>
+          <a href="https://man7.org/linux/man-pages/man1/chmod.1.html" rel="noopener">chmod(1)</a> (the 4000/2000 modes)<br>
+          <a href="https://man7.org/linux/man-pages/man1/find.1.html" rel="noopener">find(1)</a> (the -perm hunt)<br>
+          <a href="https://man7.org/linux/man-pages/man2/prctl.2.html" rel="noopener">prctl(2)</a> (PR_SET_NO_NEW_PRIVS, the binding control)<br>
+          <a href="https://man7.org/linux/man-pages/man8/mount.8.html" rel="noopener">mount(8)</a> (the nosuid flag)<br>
+          <a href="https://d3fend.mitre.org/" rel="noopener">MITRE D3FEND</a>: <a href="https://d3fend.mitre.org/technique/d3f:FileHashing/" rel="noopener">D3-FH</a>, <a href="https://d3fend.mitre.org/technique/d3f:FileIntegrityMonitoring/" rel="noopener">D3-FIM</a></p></div>
+        </section>
+
+        <a class="next-file" href="../027-palimpsest/">
+          <span class="mlabel">Next file</span>
+          <h3>GH-027 The Palimpsest</h3>
+          <p>The next file overwrites a process's own command line and watches the process list report the forgery.</p>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <div>
+      <div class="footer-brand">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+        <span class="brand-name" style="font-size:17px">GHOSTLIGHT</span>
+      </div>
+      <p class="footer-note">An independent adversary-stealth research publication. Every command verified on the named OS before publishing. No trackers, no frameworks, no autoplay.</p>
+    </div>
+    <nav class="footer-links">
+      <a href="../../method.html">METHOD</a>
+      <a href="../../index.html">FILES</a>
+      <a href="https://attack.mitre.org/tactics/TA0005/" rel="noopener">MITRE TA0005</a>
+    </nav>
+    <div class="footer-elsewhere">
+      <span class="mlabel">Elsewhere</span><a href="https://dillingerstaffing.github.io/portfolio/" target="_blank" rel="noopener">Portfolio</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/proving-ground/" target="_blank" rel="noopener">Proving Ground</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/old-iron/" target="_blank" rel="noopener">Old Iron</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/unstuck/" target="_blank" rel="noopener">Unstuck</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../../assets/site.js?v=78fb8790"></script>
+</body>
+</html>
