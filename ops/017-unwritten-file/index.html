@@ -589,6 +589,8 @@ loader rc=1
           <a href="https://man7.org/linux/man-pages/man5/proc.5.html" rel="noopener">proc(5)</a> (the exe link, the maps, the fd table)<br>
           <a href="https://d3fend.mitre.org/technique/d3f:ProcessCodeSegmentVerification/" rel="noopener">D3FEND D3-PCSV: Process Code Segment Verification</a><br>
           <a href="https://d3fend.mitre.org/technique/d3f:ProcessSegmentExecutionPrevention/" rel="noopener">D3FEND D3-PSEP: Process Segment Execution Prevention</a></p></div>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Legitimate uses</span></p></div>
+          <div class="prose"><p>memfd_create is dual-use: the same anonymous file the loader abuses is ordinary infrastructure elsewhere. systemd wraps it for sealed, non-executable anonymous files (<a href="https://github.com/systemd/systemd/blob/main/src/basic/memfd-util.c" rel="noopener">memfd-util.c</a>); QEMU backs guest RAM with it to share memory with vhost-user daemons (<a href="https://qemu.weilnetz.de/doc/8.1/system/devices/vhost-user.html" rel="noopener">memory-backend-memfd</a>); Wayland's wl_shm software-rendering path is typically memfd-backed (<a href="https://vectree.io/pdf/c/mechanism-of-wayland-shared-memory-wlshm-and-generic-buffer-management-gbm" rel="noopener">wl_shm mechanism</a>). The blue phase above targets the malicious pattern, an executable whose exe link resolves to anonymous memory, not the syscall itself, which is why the seccomp gate belongs on the sandboxed workload, not the whole host.</p></div>
         </section>
 
         <a class="next-file" href="../018-folded-letter/index.html">
