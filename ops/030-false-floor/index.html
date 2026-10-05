@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>GH-030 The Hidden Basement (T1564.005): GHOSTLIGHT</title>
+<meta name="description" content="T1564.005 Hidden File System, reproduced on Ubuntu 24.04: an attacker mounts a private volume inside a fresh mount namespace, so the host&#x27;s ls and mount table report an empty directory while the hidden filesystem serves the implant&#x27;s own processes. The defender enumerates every namespace&#x27;s mount table, reads the hidden bytes through /proc/PID/root, seizes the evidence before killing the holder, and gates the mount capability.">
+<link rel="canonical" href="https://dillingerstaffing.github.io/ghostlight/ops/030-false-floor/">
+<meta property="og:title" content="GH-030 The Hidden Basement (T1564.005): GHOSTLIGHT">
+<meta property="og:description" content="T1564.005 Hidden File System, reproduced on Ubuntu 24.04: an attacker mounts a private volume inside a fresh mount namespace, so the host&#x27;s ls and mount table report an empty directory while the hidden filesystem serves the implant&#x27;s own processes. The defender enumerates every namespace&#x27;s mount table, reads the hidden bytes through /proc/PID/root, seizes the evidence before killing the holder, and gates the mount capability.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dillingerstaffing.github.io/ghostlight/ops/030-false-floor/">
+<meta property="og:site_name" content="GHOSTLIGHT">
+<meta property="og:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="GH-030 The Hidden Basement (T1564.005): GHOSTLIGHT">
+<meta name="twitter:description" content="T1564.005 Hidden File System, reproduced on Ubuntu 24.04: an attacker mounts a private volume inside a fresh mount namespace, so the host&#x27;s ls and mount table report an empty directory while the hidden filesystem serves the implant&#x27;s own processes. The defender enumerates every namespace&#x27;s mount table, reads the hidden bytes through /proc/PID/root, seizes the evidence before killing the holder, and gates the mount capability.">
+<meta name="twitter:image" content="https://dillingerstaffing.github.io/ghostlight/og-card.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23ece6d5'/%3E%3Ccircle cx='256' cy='196' r='104' fill='none' stroke='%23241f17' stroke-width='20'/%3E%3Cline x1='256' y1='152' x2='256' y2='240' stroke='%238c3f22' stroke-width='16'/%3E%3Cline x1='256' y1='300' x2='256' y2='424' stroke='%23241f17' stroke-width='14'/%3E%3Cline x1='200' y1='424' x2='312' y2='424' stroke='%23241f17' stroke-width='18'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+<link rel="manifest" href="../../assets/manifest.webmanifest">
+<meta name="theme-color" content="#0a0c0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GHOSTLIGHT">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<script>
+(function () {
+  // Theme: notebook is the default; a stored visitor choice wins.
+  // Runs before the stylesheet is parsed so the first paint is already
+  // the right theme (no flash of the wrong one).
+  try {
+    var t = localStorage.getItem('emi-site-theme');
+    var theme = t === 'classic' ? 'classic' : 'notebook';
+    document.documentElement.dataset.theme = theme;
+    var m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute('content', theme === 'classic' ? '#0a0c0f' : '#ece6d5');
+  } catch (e) {
+    document.documentElement.dataset.theme = 'notebook';
+  }
+})();
+</script>
+<link rel="stylesheet" href="../../assets/site.css?v=bca2bb86">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"GH-030 The Hidden Basement (T1564.005): GHOSTLIGHT",
+"url":"https://dillingerstaffing.github.io/ghostlight/ops/030-false-floor/","description":"T1564.005 Hidden File System, reproduced on Ubuntu 24.04: an attacker mounts a private volume inside a fresh mount namespace, so the host's ls and mount table report an empty directory while the hidden filesystem serves the implant's own processes. The defender enumerates every namespace's mount table, reads the hidden bytes through /proc/PID/root, seizes the evidence before killing the holder, and gates the mount capability.",
+"author":{"@type":"Person","name":"Chris Dillinger","url":"https://www.linkedin.com/in/christopherdillinger/"},
+"inLanguage":"en"}
+</script>
+</head>
+<body>
+
+<header class="site-header">
+  <a class="brand" href="../../index.html" aria-label="GHOSTLIGHT home">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+    <span class="brand-name">GHOSTLIGHT</span>
+  </a>
+  <nav class="site-nav">
+    <a href="../../method.html">METHOD</a>
+    <a href="../../index.html">FILES</a>
+    <button class="theme-toggle" type="button" aria-label="Switch to dark field dossier theme" title="Switch theme">
+      <span class="theme-toggle-mark" aria-hidden="true"><i></i><i></i></span>
+    </button>
+  </nav>
+</header>
+
+<div class="onboard" data-onboard hidden>
+  <span><strong>How to read a file:</strong> every file follows the six-phase structure below. <span class="k-green">Green</span> is verified, <span class="k-red">red</span> is hostile.</span>
+  <button aria-label="Dismiss">GOT IT</button>
+</div>
+
+<div class="page" data-op="030">
+  <div class="wrap">
+    <section class="op-hero">
+      <div class="op-kicker">
+        <span class="case-no">GH-030</span>
+        <a class="tech-id" href="https://attack.mitre.org/techniques/T1564/005/" rel="noopener">T1564.005</a>
+        <span class="phase-tag red">PHASE RED INSIDE</span>
+      </div>
+      <h1>The Hidden Basement</h1>
+      <p class="lede">The directory is empty. The mount table agrees. Both are telling the truth about the wrong namespace. This file mounts a live filesystem where the host cannot look, then finds it anyway: every namespace has its own table, and the defender reads all of them.</p>
+      <div class="op-meta-grid">
+        <div class="op-meta"><span class="mlabel">Technique</span><span class="mvalue">Hidden File System (T1564.005)</span></div>
+        <div class="op-meta"><span class="mlabel">Target OS</span><span class="mvalue">Ubuntu 24.04.5 LTS</span></div>
+        <div class="op-meta"><span class="mlabel">Toolchain</span><span class="mvalue">util-linux 2.39, coreutils 9.4</span></div>
+        <div class="op-meta"><span class="mlabel">Level</span><span class="mvalue">Intermediate</span></div>
+        <div class="op-meta"><span class="mlabel">Time</span><span class="mvalue">25 min</span></div>
+      </div>
+      <div class="objectives">
+        <h2>OBJECTIVES</h2>
+        <ol>
+          <li data-phase="phase-red"><span class="box"></span>Mount a private volume inside a fresh mount namespace and watch the host inventory report an empty directory</li>
+          <li data-phase="phase-blue"><span class="box"></span>Hunt the hidden volume across every mount namespace and read its bytes through /proc/PID/root</li>
+          <li data-phase="countermeasures"><span class="box"></span>Seize the evidence before killing the holder, inventory namespaces on a timer, gate the mount capability</li>
+          <li data-phase="debrief"><span class="box"></span>Take the IOC checklist and the one-sentence lesson</li>
+        </ol>
+      </div>
+    </section>
+
+    <div class="op-layout">
+      <nav class="rail" aria-label="Phases">
+        <span class="mlabel">Phases</span>
+        <ol>
+          <li><a href="#intel-brief"><span class="pnum">01</span>INTEL BRIEF<span class="tick"></span></a></li>
+          <li><a href="#target-environment"><span class="pnum">02</span>TARGET ENV<span class="tick"></span></a></li>
+          <li><a href="#phase-red"><span class="pnum">03</span>PHASE RED<span class="tick"></span></a></li>
+          <li><a href="#phase-blue"><span class="pnum">04</span>PHASE BLUE<span class="tick"></span></a></li>
+          <li><a href="#countermeasures"><span class="pnum">05</span>COUNTERMEASURES<span class="tick"></span></a></li>
+          <li><a href="#debrief"><span class="pnum">06</span>DEBRIEF<span class="tick"></span></a></li>
+        </ol>
+      </nav>
+
+      <div class="op-content">
+
+        <section class="phase" id="intel-brief">
+          <div class="phase-head"><span class="phase-num">01</span><h2>Intel Brief</h2><span class="phase-tag neutral">CONTEXT</span></div>
+          <p class="lede">MITRE ATT&amp;CK <a href="https://attack.mitre.org/techniques/T1564/005/" rel="noopener">T1564.005</a>: adversaries use their own abstracted file system, separate from the standard file system on the machine, hiding malicious components and file input/output from users and security tools. Documented implementations include a file system kept in reserved disk space and a portable partition image dropped as a file on top of the standard file system. This file works one Linux construction end to end: a real tmpfs volume mounted inside a private mount namespace, invisible to the host's ls, find, and mount table, held alive by a sleeper process. Two actors: the attacker, who owns the hidden mount and the holder process; and the defender, who owns the namespace enumeration, the evidence seizure, and the capability gate in the blue phases.</p>
+          <div class="prose">
+            <p><strong>Why this technique.</strong> The file inventory is the defender's map of the machine: ls, find, du, every SIEM file feed, every "list every file" sweep. Operators trust the map the way they trust the process list, and the map has the same flaw: it is drawn from one vantage point. On Linux there is no single mount table. Every process carries its own, and <strong>unshare -m</strong> forks a private copy in one syscall. A filesystem mounted after the fork exists fully, superblock and inodes and dentries, readable and writable by every process inside that namespace, and the host's inventory never lists it. The map is not wrong. It is drawn from the wrong room.</p>
+            <p><strong>Why not the obvious alternatives.</strong> The obvious move is a dotfile or a deep path (GH-009's case). Break it on a concrete input: <strong>find / -type f</strong> still enumerates it, and any recursive inventory lists it; the hiding is social, not structural. The next obvious move is a bind-mount cover in the shared table (GH-015's case). Break it: the cover leaves an entry in the one mount table the defender reads, and the blue phase of that file convicts it in one grep. This file removes the entry from the defender's view entirely, not by hiding the mount, but by forking the table the defender reads. The third obvious move is deleting the staging data (GH-006's case). Break it: deletion is one-way, and the operator still needs the staging data live, writable, and reachable by their own processes. The hidden volume stays fully usable: files, directories, permissions, all of it, for anyone standing in the right namespace.</p>
+            <p><strong>The mechanism, in one paragraph.</strong> <strong>unshare -m</strong> gives the child a private copy of the calling process's mount table. <strong>mount --make-rprivate /</strong> detaches mount propagation, so new mounts in the child do not leak back to the parent. <strong>mount -t tmpfs vaultfs /tmp/gh030/vault</strong> then puts a real filesystem at that path: a superblock, inodes, dentries, the whole structure, living in memory. <strong>exec -a vault-holder sleep 600</strong> parks a sleeper under a recognizable name; the private namespace survives as long as any process lives in it. The parent's <strong>/proc/self/mountinfo</strong> never lists the volume, because mountinfo is per-namespace, and the parent is in a different namespace. The independent observation paths are <strong>/proc/&lt;pid&gt;/mountinfo</strong>, the table as seen by each process, and <strong>/proc/&lt;pid&gt;/root</strong>, a path into that process's own filesystem view, which follows its mount namespace.</p>
+            <p><strong>The concrete case, before the abstraction.</strong> In /tmp/gh030, the vault directory is empty and the host's mount table shows zero hits for its path: one namespace, one table, nothing to see. One <strong>unshare -m</strong> later, a tmpfs is mounted at that same path and <strong>GHOSTLIGHT-CANARY-030</strong> is written into it. From the host: <strong>ls -A</strong> still prints nothing, the table still shows zero hits. From the holder's view: <strong>cat /proc/11/root/tmp/gh030/vault/ledger.txt</strong> prints the canary, and <strong>grep</strong> on <strong>/proc/11/mountinfo</strong> shows the tmpfs entry. Same path, two namespaces, two answers. Only the second table lists the filesystem.</p>
+            <p><strong>Terms, earned.</strong> A <strong>mount namespace</strong> is a process's private view of what is mounted where; <strong>unshare -m</strong> forks one. The <strong>mount table</strong> is <strong>/proc/&lt;pid&gt;/mountinfo</strong>, the kernel's per-namespace list of mounts; <strong>/proc/self/mountinfo</strong> is only your own namespace's. <strong>tmpfs</strong> is a filesystem that lives in memory: real inodes and directory entries, no disk underneath. The <strong>holder</strong> is the sleeper process parked in the private namespace; the namespace, and the hidden volume with it, dies with its last process. <strong>/proc/&lt;pid&gt;/root</strong> is a path into a process's own filesystem view, following its mount namespace.</p>
+          </div>
+          <div class="callout"><p><strong>Scope.</strong> T1564.005 covers hidden and virtual file systems broadly: reserved disk space, partition images, fragmented storage. This file works one Linux construction end to end: a tmpfs volume mounted in a private mount namespace, invisible to host inventory, held alive by a sleeper. The loop-device variant (a partition image mounted with mount -o loop) is the closer match to the documented implementations, and it is unavailable in this lab (losetup finds no free loop device), recorded honestly; the mechanism demonstrated, a mounted filesystem the host's table does not list, is the same. The canary is a benign token: it marks the hidden bytes and touches nothing else. The lab runs in a disposable PID and mount namespace with a private /tmp; teardown kills the holder and removes the directory, and the namespace's death reaps every stray.</p></div>
+        </section>
+
+        <section class="phase" id="target-environment">
+          <div class="phase-head"><span class="phase-num">02</span><h2>Target Environment</h2><span class="phase-tag neutral">LOADOUT</span></div>
+          <p class="lede">Ubuntu 24.04.5 LTS, x86-64, util-linux 2.39 (unshare, mount, lsns) and coreutils 9.4, in a disposable PID and mount namespace with a private /tmp used only for this lab. The attack needs CAP_SYS_ADMIN for the mount syscall; the lab runs as root inside its namespace. On a real host the attacker needs that capability outright or a user namespace that grants it. The lab never mounts over a real host path: every mount lands under /tmp/gh030, inside the private namespace.</p>
+<div class="step">
+<div class="step-num">1</div>
+<div>
+<h3>Build the lab</h3>
+<div class="prose"><p>The recording starts from an empty private /tmp inside its own mount namespace, so every take begins identical. <strong>rm -rf /tmp/gh030</strong> starts clean; <strong>mkdir -p</strong> builds the vault directory and the evidence directory. The vault is an ordinary empty directory. Nothing is mounted, nothing is hidden, yet.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="rm -rf /tmp/gh030 &amp;&amp; mkdir -p /tmp/gh030/vault /tmp/gh030/evidence &amp;&amp; cd /tmp/gh030
+echo &#x27;an ordinary directory. nothing mounted, nothing hidden. yet.&#x27;
+ls -A vault
+echo &#x27;lab built&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ rm -rf /tmp/gh030 &amp;&amp; mkdir -p /tmp/gh030/vault /tmp/gh030/evidence &amp;&amp; cd /tmp/gh030
+echo 'an ordinary directory. nothing mounted, nothing hidden. yet.'
+ls -A vault
+echo 'lab built'
+an ordinary directory. nothing mounted, nothing hidden. yet.
+lab built</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">2</div>
+<div>
+<h3>The before view: the host inventory, before</h3>
+<div class="prose"><p>The baseline the blue phase will compare against. <strong>ls -A</strong> and <strong>find</strong> print nothing: the vault is empty. <strong>grep -c</strong> on <strong>/proc/self/mountinfo</strong> reports zero hits for the vault path: the host table lists nothing there. <strong>lsns -t mnt</strong> shows one mount namespace. One namespace, one table, nothing to see. This is what normal looks like.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &#x27;--- the host file inventory, before:&#x27;
+ls -A /tmp/gh030/vault
+find /tmp/gh030 -type f
+echo &quot;host mount-table hits: $(grep -c &#x27; /tmp/gh030/vault &#x27; /proc/self/mountinfo)&quot;
+lsns -t mnt -o NS,NPROCS,COMMAND
+echo &#x27;one namespace, one table, nothing to see&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ echo '--- the host file inventory, before:'
+ls -A /tmp/gh030/vault
+find /tmp/gh030 -type f
+echo "host mount-table hits: $(grep -c ' /tmp/gh030/vault ' /proc/self/mountinfo)"
+lsns -t mnt -o NS,NPROCS,COMMAND
+echo 'one namespace, one table, nothing to see'
+--- the host file inventory, before:
+host mount-table hits: 0
+        NS NPROCS COMMAND
+4026532441      2 bash --norc --noprofile
+one namespace, one table, nothing to see</pre>
+</div>
+</div>
+</div>
+
+        </section>
+
+        <section class="phase" id="phase-red">
+          <div class="phase-head"><span class="phase-num">03</span><h2>Phase Red: the basement under the house</h2><span class="phase-tag red">ATTACK</span></div>
+          <p class="lede">The attacker forks a private mount namespace, mounts a live filesystem where the host cannot look, writes the canary into it, and parks a sleeper to keep the namespace alive. The host's tools keep reporting an empty directory, because they are reading the wrong table.</p>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">116.1s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/basement-red.jpg" aria-label="Screen recording: HIDDEN BASEMENT RED, operator@lab">
+              <source src="../../assets/vid/basement-red.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> A private volume is mounted in a forked namespace and the host inventory keeps reporting an empty directory. Every command below is copy-pasteable.</figcaption>
+          </figure>
+<div class="step">
+<div class="step-num">1</div>
+<div>
+<h3>Fork the namespace and mount the hidden volume</h3>
+<div class="prose"><p>The whole attack is one backgrounded line. <strong>unshare -m</strong> forks a private mount namespace. <strong>mount --make-rprivate /</strong> detaches propagation so the new mount cannot leak to the parent. <strong>mount -t tmpfs vaultfs /tmp/gh030/vault</strong> puts a real filesystem at the vault path, inside the child namespace only. The canary goes in, and <strong>exec -a vault-holder sleep 600</strong> parks the holder: the namespace survives as long as this process lives. <strong>$!</strong> names the holder pid; <strong>ps</strong> shows it. Then the host view, after the mount: <strong>ls -A</strong> prints nothing, the host table still shows zero hits. The host inventory says: empty directory, nothing mounted. It is reading the wrong table.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="unshare -m bash -c &#x27;mount --make-rprivate / &gt;/dev/null &amp;&amp; mount -t tmpfs -o size=64m,nr_inodes=1k vaultfs /tmp/gh030/vault &amp;&amp; echo GHOSTLIGHT-CANARY-030 &gt; /tmp/gh030/vault/ledger.txt &amp;&amp; echo &quot;vault mounted: visible only inside this namespace&quot; &amp;&amp; exec -a vault-holder sleep 600&#x27; &amp;
+sleep 1
+HOLDER=$!
+echo &quot;holder pid: $HOLDER&quot;
+ps -o pid,comm,args -p $HOLDER
+echo &#x27;--- the host view, after the mount:&#x27;
+ls -A /tmp/gh030/vault
+echo &quot;host mount-table hits: $(grep -c &#x27; /tmp/gh030/vault &#x27; /proc/self/mountinfo)&quot;
+echo &#x27;the host inventory says: empty directory, nothing mounted&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ unshare -m bash -c 'mount --make-rprivate / &gt;/dev/null &amp;&amp; mount -t tmpfs -o size=64m,nr_inodes=1k vaultfs /tmp/gh030/vault &amp;&amp; echo GHOSTLIGHT-CANARY-030 &gt; /tmp/gh030/vault/ledger.txt &amp;&amp; echo "vault mounted: visible only inside this namespace" &amp;&amp; exec -a vault-holder sleep 600' &amp;
+sleep 1
+HOLDER=$!
+echo "holder pid: $HOLDER"
+ps -o pid,comm,args -p $HOLDER
+echo '--- the host view, after the mount:'
+ls -A /tmp/gh030/vault
+echo "host mount-table hits: $(grep -c ' /tmp/gh030/vault ' /proc/self/mountinfo)"
+echo 'the host inventory says: empty directory, nothing mounted'
+[1] 11
+vault mounted: visible only inside this namespace
+holder pid: 11
+    PID COMMAND         COMMAND
+     11 sleep           vault-holder 600
+--- the host view, after the mount:
+host mount-table hits: 0
+the host inventory says: empty directory, nothing mounted</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">2</div>
+<div>
+<h3>The attacker's confirmation: read the hidden view</h3>
+<div class="prose"><p>The attacker does not trust the host tools either; they check through the holder's own namespace. <strong>cat /proc/$HOLDER/root/tmp/gh030/vault/ledger.txt</strong> prints the canary: the hidden bytes are live and readable. <strong>grep</strong> on <strong>/proc/$HOLDER/mountinfo</strong> shows the tmpfs entry with its size and inode options. Same path, two namespaces, two answers.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &quot;--- the hidden view: the holder process and its own mount table:&quot;
+cat /proc/$HOLDER/root/tmp/gh030/vault/ledger.txt
+grep &#x27; /tmp/gh030/vault &#x27; /proc/$HOLDER/mountinfo
+echo &#x27;stealth confirmed: a live, writable filesystem the host tools cannot see&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ echo "--- the hidden view: the holder process and its own mount table:"
+cat /proc/$HOLDER/root/tmp/gh030/vault/ledger.txt
+grep ' /tmp/gh030/vault ' /proc/$HOLDER/mountinfo
+echo 'stealth confirmed: a live, writable filesystem the host tools cannot see'
+--- the hidden view: the holder process and its own mount table:
+GHOSTLIGHT-CANARY-030
+2320 2006 0:68 / /tmp/gh030/vault rw,relatime - tmpfs vaultfs rw,size=65536k,nr_inodes=1024,uid=131072,gid=131072,inode64
+stealth confirmed: a live, writable filesystem the host tools cannot see</pre>
+</div>
+
+<div class="verdict red">
+<span class="mlabel">Stealth confirmed</span>
+<p>A live, writable filesystem now sits at /tmp/gh030/vault, and the host's ls, find, and mount table all report an empty directory. The hiding is structural: no host-side enumeration can list what the host's namespace never mounted. The attacker is counting on nobody reading any table but the host's.</p>
+</div>
+</div>
+</div>
+
+        </section>
+
+        <section class="phase" id="phase-blue">
+          <div class="phase-head"><span class="phase-num">04</span><h2>Phase Blue: read every table</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">The defender never saw the mount; the blue take opens on the "empty" directory. The triad, at runbook quality. <strong>Detection:</strong> take the naive view first (empty dir, clean table), then the independent path: enumerate every mount namespace with lsns and hunt every process's mountinfo for the vault path. <strong>Mitigation:</strong> record the hidden table, seize the bytes through /proc/PID/root, check persistence, then kill the holder, because the hidden volume dies with its last process and the evidence must be copied first. <strong>Prevention:</strong> gate the mount capability and inventory namespaces on a timer.</p>
+          <figure class="recording reveal">
+            <div class="recording-bar">
+              <span class="rec-dot blue" aria-hidden="true"></span>
+              <span class="mlabel">Real screen recording</span>
+              <span class="dur">192.4s</span>
+            </div>
+            <video controls playsinline preload="metadata" poster="../../assets/vid/basement-blue.jpg" aria-label="Screen recording: HIDDEN BASEMENT BLUE, operator@lab">
+              <source src="../../assets/vid/basement-blue.mp4" type="video/mp4">
+            </video>
+            <figcaption class="recording-cap"><strong>What you are watching:</strong> The defender finds the hidden volume by reading every namespace's table, seizes the bytes before killing the holder, and gates the mount capability. Every command below is copy-pasteable.</figcaption>
+          </figure>
+<div class="step">
+<div class="step-num">1</div>
+<div>
+<h3>DETECTION: the naive view, then the independent path</h3>
+<div class="prose"><p>The naive view first, so the failure is on the record: <strong>ls -A</strong> prints nothing, the host table shows zero hits. Looks clean. It is not. The independent path: <strong>lsns -t mnt</strong> lists two mount namespaces, and the second one has no business existing on this inventory. The hunt reads every process's table: <strong>grep -l</strong> over <strong>/proc/[0-9]*/mountinfo</strong> names <strong>/proc/11/mountinfo</strong>, the holder's. The pid comes out of the path with <strong>cut</strong>; the holder's table shows the tmpfs entry at the vault path. Then the read that proves it: <strong>cat /proc/$HPID/root/tmp/gh030/vault/ledger.txt</strong> prints the canary through the holder's own view. Good versus bad, concrete: good is every namespace's table matching the documented inventory; bad is a filesystem mounted at a path the host's own table does not list.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &#x27;--- the naive view first:&#x27;
+ls -A /tmp/gh030/vault
+echo &quot;host mount-table hits: $(grep -c &#x27; /tmp/gh030/vault &#x27; /proc/self/mountinfo)&quot;
+echo &#x27;(looks clean. it is not.)&#x27;
+echo &#x27;--- the independent path: every mount namespace gets its own table:&#x27;
+lsns -t mnt -o NS,NPROCS,COMMAND
+echo &#x27;--- the hunt: whose table lists the vault?&#x27;
+grep -l &#x27; /tmp/gh030/vault &#x27; /proc/[0-9]*/mountinfo 2&gt;/dev/null
+HPID=$(grep -l &#x27; /tmp/gh030/vault &#x27; /proc/[0-9]*/mountinfo 2&gt;/dev/null | head -1 | cut -d/ -f3)
+echo &quot;holder pid: $HPID&quot;
+grep &#x27; /tmp/gh030/vault &#x27; /proc/$HPID/mountinfo
+echo &quot;--- read the hidden bytes through the holder process view:&quot;
+cat /proc/$HPID/root/tmp/gh030/vault/ledger.txt"><span data-label>COPY</span></button></div>
+<pre>$ echo '--- the naive view first:'
+ls -A /tmp/gh030/vault
+echo "host mount-table hits: $(grep -c ' /tmp/gh030/vault ' /proc/self/mountinfo)"
+echo '(looks clean. it is not.)'
+echo '--- the independent path: every mount namespace gets its own table:'
+lsns -t mnt -o NS,NPROCS,COMMAND
+echo '--- the hunt: whose table lists the vault?'
+grep -l ' /tmp/gh030/vault ' /proc/[0-9]*/mountinfo 2&gt;/dev/null
+HPID=$(grep -l ' /tmp/gh030/vault ' /proc/[0-9]*/mountinfo 2&gt;/dev/null | head -1 | cut -d/ -f3)
+echo "holder pid: $HPID"
+grep ' /tmp/gh030/vault ' /proc/$HPID/mountinfo
+echo "--- read the hidden bytes through the holder process view:"
+cat /proc/$HPID/root/tmp/gh030/vault/ledger.txt
+--- the naive view first:
+host mount-table hits: 0
+(looks clean. it is not.)
+--- the independent path: every mount namespace gets its own table:
+        NS NPROCS COMMAND
+4026532441      2 bash --norc --noprofile
+4026532445      1 └─vault-holder 600
+--- the hunt: whose table lists the vault?
+/proc/11/mountinfo
+holder pid: 11
+2320 2006 0:68 / /tmp/gh030/vault rw,relatime - tmpfs vaultfs rw,size=65536k,nr_inodes=1024,uid=131072,gid=131072,inode64
+--- read the hidden bytes through the holder process view:
+GHOSTLIGHT-CANARY-030</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">2</div>
+<div>
+<h3>MITIGATION: record, seize, then lift</h3>
+<div class="prose"><p>Evidence before action, because the next command destroys the crime scene. The hidden table entry is saved with a UTC timestamp; the canary file is copied out through <strong>/proc/$HPID/root</strong> with <strong>cp -a</strong> and hashed with <strong>sha256sum</strong>. The persistence sweep is read-only: <strong>grep -r gh030</strong> across <strong>/etc/fstab</strong> and the systemd unit directories finds nothing, so the volume is not coming back on reboot. Then the lift: <strong>kill $HPID</strong>. The hidden filesystem dies with its last process; the hunt comes back empty and <strong>lsns</strong> shows one namespace again. The order is the procedure: copy first, kill second. A responder who kills first seizes nothing.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="TS=$(date -u +%Y%m%dT%H%M%SZ)
+grep &#x27; /tmp/gh030/vault &#x27; /proc/$HPID/mountinfo | tee /tmp/gh030/evidence/mountinfo-$TS.txt
+cp -a /proc/$HPID/root/tmp/gh030/vault/ledger.txt /tmp/gh030/evidence/
+sha256sum /tmp/gh030/evidence/ledger.txt | tee /tmp/gh030/evidence/sha256-$TS.txt
+echo &#x27;--- persistence sweep (read-only):&#x27;
+grep -r gh030 /etc/fstab /etc/systemd/system/ 2&gt;/dev/null || echo &#x27;no fstab/systemd persistence&#x27;
+echo &#x27;--- lift: the hidden filesystem dies with its last process:&#x27;
+kill $HPID
+sleep 1
+echo &quot;hunt now: [$(grep -l &#x27; /tmp/gh030/vault &#x27; /proc/[0-9]*/mountinfo 2&gt;/dev/null)]&quot;
+lsns -t mnt -o NS,NPROCS,COMMAND
+echo &#x27;evidence was copied BEFORE the kill: the order is the evidence&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ TS=$(date -u +%Y%m%dT%H%M%SZ)
+grep ' /tmp/gh030/vault ' /proc/$HPID/mountinfo | tee /tmp/gh030/evidence/mountinfo-$TS.txt
+cp -a /proc/$HPID/root/tmp/gh030/vault/ledger.txt /tmp/gh030/evidence/
+sha256sum /tmp/gh030/evidence/ledger.txt | tee /tmp/gh030/evidence/sha256-$TS.txt
+echo '--- persistence sweep (read-only):'
+grep -r gh030 /etc/fstab /etc/systemd/system/ 2&gt;/dev/null || echo 'no fstab/systemd persistence'
+echo '--- lift: the hidden filesystem dies with its last process:'
+kill $HPID
+sleep 1
+echo "hunt now: [$(grep -l ' /tmp/gh030/vault ' /proc/[0-9]*/mountinfo 2&gt;/dev/null)]"
+lsns -t mnt -o NS,NPROCS,COMMAND
+echo 'evidence was copied BEFORE the kill: the order is the evidence'
+2320 2006 0:68 / /tmp/gh030/vault rw,relatime - tmpfs vaultfs rw,size=65536k,nr_inodes=1024,uid=131072,gid=131072,inode64
+0a826ad849510240e8050f37db113ef74ccbe93c629243cb646acebcdbabd4de  /tmp/gh030/evidence/ledger.txt
+--- persistence sweep (read-only):
+no fstab/systemd persistence
+--- lift: the hidden filesystem dies with its last process:
+hunt now: []
+        NS NPROCS COMMAND
+4026532441      2 bash --norc --noprofile
+evidence was copied BEFORE the kill: the order is the evidence</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">3</div>
+<div>
+<h3>PREVENTION: the capability gate and the inventory</h3>
+<div class="prose"><p>Mounting needs <strong>CAP_SYS_ADMIN</strong>. <strong>capsh --drop=cap_sys_admin</strong> replays the mount without it: <strong>permission denied</strong>, rc nonzero. The control mounts with the capability intact and succeeds, proving the capability was the blocker, then unmounts. The durable control is the namespace inventory: <strong>lsns -t mnt</strong> captured to <strong>mntns.baseline</strong>; the scheduled check diffs it, and a new namespace is the alert. D3FEND names the heavier forms <a href="https://d3fend.mitre.org/technique/d3f:DataInventory/" rel="noopener">Data Inventory (D3-DI)</a>, which records the volumes and locations of data on the architecture, and <a href="https://d3fend.mitre.org/technique/d3f:AssetVulnerabilityEnumeration/" rel="noopener">Asset Vulnerability Enumeration (D3-AVE)</a>, which enriches inventory items: the hidden volume is an uninventoried volume, and the inventory is what convicts it.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &#x27;--- the capability gate: mounting needs CAP_SYS_ADMIN:&#x27;
+capsh --drop=cap_sys_admin -- -c &#x27;mount -t tmpfs vaultfs /tmp/gh030/vault&#x27; 2&gt;&amp;1; echo &quot;rc=$?&quot;
+echo &#x27;--- control: with the capability, the mount succeeds:&#x27;
+mount -t tmpfs ctlfs /tmp/gh030/vault &amp;&amp; echo &#x27;control: mount works with CAP_SYS_ADMIN&#x27; &amp;&amp; umount /tmp/gh030/vault
+echo &#x27;--- the namespace inventory baseline:&#x27;
+lsns -t mnt -o NS,NPROCS,COMMAND | tee /tmp/gh030/evidence/mntns.baseline
+echo &#x27;the scheduled check diffs this file; a new namespace is the alert&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ echo '--- the capability gate: mounting needs CAP_SYS_ADMIN:'
+capsh --drop=cap_sys_admin -- -c 'mount -t tmpfs vaultfs /tmp/gh030/vault' 2&gt;&amp;1; echo "rc=$?"
+echo '--- control: with the capability, the mount succeeds:'
+mount -t tmpfs ctlfs /tmp/gh030/vault &amp;&amp; echo 'control: mount works with CAP_SYS_ADMIN' &amp;&amp; umount /tmp/gh030/vault
+echo '--- the namespace inventory baseline:'
+lsns -t mnt -o NS,NPROCS,COMMAND | tee /tmp/gh030/evidence/mntns.baseline
+echo 'the scheduled check diffs this file; a new namespace is the alert'
+--- the capability gate: mounting needs CAP_SYS_ADMIN:
+mount: /tmp/gh030/vault: permission denied.
+       dmesg(1) may have more information after failed mount system call.
+rc=32
+--- control: with the capability, the mount succeeds:
+control: mount works with CAP_SYS_ADMIN
+--- the namespace inventory baseline:
+        NS NPROCS COMMAND
+4026532441      3 bash --norc --noprofile
+the scheduled check diffs this file; a new namespace is the alert</pre>
+</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">4</div>
+<div>
+<h3>Confirm the basement is gone</h3>
+<div class="prose"><p>After remediation: the vault directory is empty, the host table shows zero hits, and the evidence directory holds the seized canary, the hidden table entry, the hash, and the namespace baseline. <strong>rm -rf /tmp/gh030</strong> removes the lab; the namespace's death already reaped the holder.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="echo &#x27;--- after remediation:&#x27;
+ls -A /tmp/gh030/vault
+echo &quot;host mount-table hits: $(grep -c &#x27; /tmp/gh030/vault &#x27; /proc/self/mountinfo)&quot;
+echo &#x27;seized evidence:&#x27;; ls /tmp/gh030/evidence
+cd /tmp &amp;&amp; rm -rf /tmp/gh030
+echo &#x27;lab removed; every stray dies with the namespace&#x27;"><span data-label>COPY</span></button></div>
+<pre>$ echo '--- after remediation:'
+ls -A /tmp/gh030/vault
+echo "host mount-table hits: $(grep -c ' /tmp/gh030/vault ' /proc/self/mountinfo)"
+echo 'seized evidence:'; ls /tmp/gh030/evidence
+cd /tmp &amp;&amp; rm -rf /tmp/gh030
+echo 'lab removed; every stray dies with the namespace'
+--- after remediation:
+host mount-table hits: 0
+seized evidence:
+ledger.txt	mountinfo-20261005T124224Z.txt
+mntns.baseline	sha256-20261005T124224Z.txt
+lab removed; every stray dies with the namespace</pre>
+</div>
+
+<div class="verdict green">
+<span class="mlabel">Detection verified</span>
+<p>The host's inventory never saw the volume; the per-namespace hunt found it in one grep. The bytes were seized through /proc/PID/root before the holder died, the table entry was recorded with its hash, and the capability gate made the replayed mount fail. The basement is gone and the evidence survived it.</p>
+</div>
+</div>
+</div>
+
+        </section>
+
+        <section class="phase" id="countermeasures">
+          <div class="phase-head"><span class="phase-num">05</span><h2>Countermeasures</h2><span class="phase-tag blue">DEFENSE</span></div>
+          <p class="lede">Three moves, in order: seize the bytes before the holder dies, hunt every table on a timer, gate the mount capability. Each is one way, not the way.</p>
+<div class="step">
+<div class="step-num">1</div>
+<div>
+<h3>Mitigate: seize first, kill second</h3>
+<div class="prose"><p>The hidden volume is memory-backed and namespace-bound: killing the holder destroys the bytes. So the mitigation order is fixed: record the holder's mountinfo entry, copy every file out through <strong>/proc/&lt;pid&gt;/root</strong>, hash what you copied, and only then end the holder process. Sweep persistence read-only (fstab, systemd mount units, cron, container runtimes) before the kill, because a volume that remounts itself on reboot turns the seizure into theater. If the holder is a production process you cannot kill, copy the bytes and remount the evidence read-only instead: <strong>mount -o remount,ro</strong> inside the namespace freezes the volume without destroying it. The blue take ran the simple order: record, copy, hash, sweep, kill, verify the hunt is empty.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="grep &#x27; /tmp/gh030/vault &#x27; /proc/$HPID/mountinfo | tee evidence/mountinfo.txt
+cp -a /proc/$HPID/root/tmp/gh030/vault/ledger.txt evidence/
+sha256sum evidence/ledger.txt
+kill $HPID"><span data-label>COPY</span></button></div>
+<pre>$ grep ' /tmp/gh030/vault ' /proc/$HPID/mountinfo | tee evidence/mountinfo.txt
+cp -a /proc/$HPID/root/tmp/gh030/vault/ledger.txt evidence/
+sha256sum evidence/ledger.txt
+kill $HPID
+2320 2006 0:68 / /tmp/gh030/vault rw,relatime - tmpfs vaultfs rw,size=65536k
+0a826ad849510240e8050f37db113ef74ccbe93c629243cb646acebcdbabd4de  evidence/ledger.txt</pre>
+</div>
+<div class="callout"><p><strong>Honest limit.</strong> The seizure copies what the holder's namespace shows now; it does not recover what was deleted inside the hidden volume earlier, and it does not tell you when the volume was mounted. The table says what, not when: the mount-syscall audit log is the production backstop, stated not shown, because audit is not functional inside the lab namespace. And if the holder respawns (a supervisor outside your view), the kill buys minutes; the persistence sweep is the mitigation, the kill is the cleanup.</p></div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">2</div>
+<div>
+<h3>Monitor: hunt every table on a timer</h3>
+<div class="prose"><p>The fleet form of the blue hunt: enumerate mount namespaces, then diff every table against the documented inventory. Two loops, no agent. The tell is a filesystem mounted at a path the host's own table does not list, especially a tmpfs at an application path. Wire a new namespace to the alert, not the mount itself.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="lsns -t mnt -o NS,TYPE &gt; mntns.baseline
+# on the timer:
+diff mntns.baseline &lt;(lsns -t mnt -o NS,TYPE) &amp;&amp; echo &quot;no new namespaces&quot;"><span data-label>COPY</span></button></div>
+<pre>$ lsns -t mnt -o NS,TYPE &gt; mntns.baseline
+# on the timer:
+diff mntns.baseline &lt;(lsns -t mnt -o NS,TYPE) &amp;&amp; echo "no new namespaces"
+no new namespaces</pre>
+</div>
+<div class="prose"><p>Run it across the fleet and you have the whole monitor; production versions add alerting, not new ideas.</p></div>
+<div class="callout"><p><strong>Honest limit.</strong> A mount created and removed between polls is missed entirely; shorten the interval or add the mount-syscall audit watch to close the gap. Namespaces are legitimate at scale: containers fork them constantly, so the signal is "undocumented", never "present", and the inventory must know which namespaces belong to which workloads. The per-process mountinfo hunt is O(processes) per poll; on a large host, sample or scope it to namespaces the inventory does not recognize.</p></div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">3</div>
+<div>
+<h3>Prevent: gate the mount capability</h3>
+<div class="prose"><p>The mount syscall needs <strong>CAP_SYS_ADMIN</strong>. Drop it from every workload that does not mount filesystems, and the hidden-volume construction fails at the syscall. Containers get this almost for free: a default Docker or Kubernetes pod without added capabilities cannot mount. The audit complement is a host-level watch on the mount syscall (<strong>auditctl -a always,exit -S mount</strong>): it logs the attempt whether or not it succeeds, which is the detective record the timer-based monitor can miss.</p></div>
+<div class="codeblock codeblock-scrollhint">
+<div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="capsh --drop=cap_sys_admin -- -c &#x27;mount -t tmpfs vaultfs /tmp/gh030/vault&#x27; 2&gt;&amp;1; echo &quot;rc=$?&quot;"><span data-label>COPY</span></button></div>
+<pre>$ capsh --drop=cap_sys_admin -- -c 'mount -t tmpfs vaultfs /tmp/gh030/vault' 2&gt;&amp;1; echo "rc=$?"
+mount: /tmp/gh030/vault: permission denied.
+       dmesg(1) may have more information after failed mount system call.
+rc=32</pre>
+</div>
+<div class="callout"><p><strong>Honest limit.</strong> Unprivileged user namespaces can re-grant CAP_SYS_ADMIN inside a new namespace where the kernel allows it, so the gate holds only where user-namespace creation is itself restricted. The mount syscall cannot be blocked outright without breaking containers and installers, which is why the control is capability-scoping, not syscall-blocking. And the gate does nothing about volumes mounted before it was applied: pair it with the monitor, which finds the basements that predate the lock.</p></div>
+<div class="verdict green">
+<span class="mlabel">Countermeasures verified</span>
+<p>The bytes were seized before the holder died, with hashes. The namespace inventory turns the next hidden volume into an alert. The capability gate makes the mount fail at the syscall. None of it reads the host's table and stops there.</p>
+</div>
+</div>
+</div>
+        </section>
+
+        <section class="phase" id="debrief">
+          <div class="phase-head"><span class="phase-num">06</span><h2>Debrief</h2><span class="phase-tag neutral">TAKEAWAY</span></div>
+          <p class="takeaway">Every process has its own mount table, and the host's file inventory only reads one of them: a filesystem mounted in a private namespace is invisible to ls, find, and the host's mountinfo alike. When the directory is empty and the table is clean, enumerate the namespaces before believing either.</p>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">IOC checklist: signs this technique was used</span></p></div>
+          <ul class="checklist">
+            <li><span>A mount namespace <strong>lsns</strong> cannot attribute to a documented workload</span></li>
+            <li><span>A filesystem mounted at a path the host's own <strong>mountinfo</strong> does not list</span></li>
+            <li><span>A long-lived sleeper whose <strong>/proc/&lt;pid&gt;/mountinfo</strong> differs from the host's</span></li>
+            <li><span>Files readable via <strong>/proc/&lt;pid&gt;/root</strong> that have no host-visible path</span></li>
+            <li><span>Round-sized image files (the partition-image variant) with no documented purpose</span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Reproducibility checklist</span></p></div>
+          <ul class="checklist">
+            <li><span>Verified on <strong>Ubuntu 24.04.5 LTS</strong>, <strong>util-linux 2.39</strong> (unshare, mount, lsns), <strong>coreutils 9.4</strong>, x86-64, on 2026-10-05</span></li>
+            <li><span>Both recordings are real executions on that platform, not simulations</span></li>
+            <li><span>The attack needs <strong>CAP_SYS_ADMIN</strong> for the mount syscall; the lab runs as root inside its namespace</span></li>
+            <li><span><strong>nsenter</strong> is blocked in this lab (EPERM on setns), so the cross-namespace read path is <strong>/proc/&lt;pid&gt;/root</strong>, recorded honestly</span></li>
+            <li><span>The loop-device variant (partition image, mount -o loop) is unavailable in this lab: <strong>losetup -f</strong> finds no free loop device, recorded honestly</span></li>
+            <li><span>Cleanup: <strong>kill</strong> the holder, <strong>rm -rf /tmp/gh030</strong> (recorded); the namespace's death reaps every stray</span></li>
+          </ul>
+          <div class="prose"><p><span class="mlabel" style="display:block;margin-bottom:10px">Sources</span></p></div>
+          <div class="prose"><p><a href="https://attack.mitre.org/techniques/T1564/005/" rel="noopener">MITRE ATT&amp;CK T1564.005: Hide Artifacts: Hidden File System</a><br>
+          <a href="https://man7.org/linux/man-pages/man7/mount_namespaces.7.html" rel="noopener">mount_namespaces(7)</a> (per-process mount tables)<br>
+          <a href="https://man7.org/linux/man-pages/man5/proc.5.html" rel="noopener">proc(5)</a> (the mountinfo and root entries)<br>
+          <a href="https://man7.org/linux/man-pages/man1/unshare.1.html" rel="noopener">unshare(1)</a> (forking a private namespace)<br>
+          <a href="https://d3fend.mitre.org/" rel="noopener">MITRE D3FEND</a>: <a href="https://d3fend.mitre.org/technique/d3f:DataInventory/" rel="noopener">D3-DI</a>, <a href="https://d3fend.mitre.org/technique/d3f:AssetVulnerabilityEnumeration/" rel="noopener">D3-AVE</a></p></div>
+        </section>
+
+        <a class="next-file" href="../../index.html">
+          <span class="mlabel">The archive</span>
+          <h3>Back to the case-files index</h3>
+          <p>Thirty files, thirty techniques reproduced and checked. The index is where the next reader starts.</p>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <div>
+      <div class="footer-brand">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#e0642a" stroke-width="2.6"/><rect x="14.6" y="5.5" width="2.8" height="21" fill="#e0642a"/></svg>
+        <span class="brand-name" style="font-size:17px">GHOSTLIGHT</span>
+      </div>
+      <p class="footer-note">An independent adversary-stealth research publication. Every command verified on the named OS before publishing. No trackers, no frameworks, no autoplay.</p>
+    </div>
+    <nav class="footer-links">
+      <a href="../../method.html">METHOD</a>
+      <a href="../../index.html">FILES</a>
+      <a href="https://attack.mitre.org/tactics/TA0005/" rel="noopener">MITRE TA0005</a>
+    </nav>
+    <div class="footer-elsewhere">
+      <span class="mlabel">Elsewhere</span><a href="https://dillingerstaffing.github.io/portfolio/" target="_blank" rel="noopener">Portfolio</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/proving-ground/" target="_blank" rel="noopener">Proving Ground</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/old-iron/" target="_blank" rel="noopener">Old Iron</a><span class="sep" aria-hidden="true">/</span><a href="https://dillingerstaffing.github.io/unstuck/" target="_blank" rel="noopener">Unstuck</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../../assets/site.js?v=78fb8790"></script>
+</body>
+</html>
