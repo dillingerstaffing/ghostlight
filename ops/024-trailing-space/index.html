@@ -409,7 +409,7 @@ GATE PASS</pre>
 <div class="step-num">7</div>
 <div>
 <h3>PREVENTION: the integrity baseline, stated with its dependency</h3>
-<div class="prose"><p><strong>command -v aide</strong> answers honestly: no AIDE in this lab. The production control is stated with its dependency, not demonstrated: an <a href="https://d3fend.mitre.org/technique/d3f:FileIntegrityMonitoring/" rel="noopener">D3-FIM: File Integrity Monitoring</a> baseline (AIDE, or OSQuery scheduled) records exact filenames, so "report.txt " appears as an unknown new file, never as the known report.txt. It needs a baseline taken before the incident and a scheduled run; the poll interval sets the detection floor.</p></div>
+<div class="prose"><p><strong>command -v aide</strong> answers honestly: no AIDE in this lab. The production control is stated with its dependency, not demonstrated: a <a href="https://d3fend.mitre.org/technique/d3f:FileIntegrityMonitoring/" rel="noopener">D3-FIM: File Integrity Monitoring</a> baseline (AIDE, or OSQuery scheduled) records exact filenames, so "report.txt " appears as an unknown new file, never as the known report.txt. It needs a baseline taken before the incident and a scheduled run; the poll interval sets the detection floor.</p></div>
 <div class="codeblock codeblock-scrollhint">
 <div class="codeblock-bar"><span class="mlabel">bash</span><button class="copy-btn" data-copy="command -v aide || echo &#x27;no aide in this lab: integrity baseline needs a scheduled AIDE or OSQuery run&#x27;"><span data-label>COPY</span></button></div>
 <pre>$ command -v aide || echo 'no aide in this lab: integrity baseline needs a scheduled AIDE or OSQuery run'
