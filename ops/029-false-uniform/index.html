@@ -176,7 +176,7 @@ inode=5 size=166</pre>
 <div class="step-num">2</div>
 <div>
 <h3>The real utility: remotedebug</h3>
-<div class="prose"><p>Seven lines. The shebang picks bash; the comment names it as a stand-in, because the lab never touches a real system utility. Two echo lines are the whole behavior: a status line and <strong>device: OK</strong>. The blue phase will run these exact bytes again after the restore and get these exact lines back, with no canary.</p></div>
+<div class="prose"><p>Five lines. The shebang picks bash; the comment names it as a stand-in, because the lab never touches a real system utility. Two echo lines are the whole behavior: a status line and <strong>device: OK</strong>. The blue phase will run these exact bytes again after the restore and get these exact lines back, with no canary.</p></div>
 <div class="codeblock codeblock-scrollhint">
 <div class="codeblock-bar"><span class="mlabel">bash: remotedebug (the trusted utility)</span><button class="copy-btn" data-copy="#!/bin/bash
 # remotedebug: vendor device-debug utility.
@@ -195,7 +195,7 @@ echo "device: OK"</pre>
 <div class="step-num">3</div>
 <div>
 <h3>The impostor</h3>
-<div class="prose"><p>Five lines. Same shebang, same first echo line, so a casual run looks identical. The second line prints <strong>GHOSTLIGHT-CANARY-029</strong>, the benign token that proves whose bytes ran. Nothing else differs: the uniform is the whole attack.</p></div>
+<div class="prose"><p>Four lines. Same shebang, same first echo line, so a casual run looks identical. The second line prints <strong>GHOSTLIGHT-CANARY-029</strong>, the benign token that proves whose bytes ran. Nothing else differs: the uniform is the whole attack.</p></div>
 <div class="codeblock codeblock-scrollhint">
 <div class="codeblock-bar"><span class="mlabel">bash: remotedebug (the impostor)</span><button class="copy-btn" data-copy="#!/bin/bash
 # Wears the trusted name. Runs the attacker&#x27;s bytes.
