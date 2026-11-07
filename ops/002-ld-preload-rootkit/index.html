@@ -557,7 +557,7 @@ $ echo /tmp/ghost-ops/libghost.so &gt; /etc/ld.so.preload</pre>
               <div class="codeblock codeblock-scrollhint">
                 <div class="codeblock-bar"><span class="mlabel">bash, commands in this recording</span><button class="copy-btn" data-copy="ln -sf /dev/null /etc/ld.so.preload &amp;&amp; ls -la /etc/ld.so.preload&#10;echo /tmp/ghost-ops/libghost.so &gt; /etc/ld.so.preload&#10;wc -c /etc/ld.so.preload&#10;echo &quot;# the install path is gone: writes fall into /dev/null.&quot;"><span data-label>COPY</span></button></div>
                 <pre>$ ln -sf /dev/null /etc/ld.so.preload &amp;&amp; ls -la /etc/ld.so.preload
-lrwxrwxrwx 1 root root 9 Sep 22 23:51 /etc/ld.so.preload -&gt; /dev/null
+lrwxrwxrwx 1 root root 9 Sep 23 07:32 /etc/ld.so.preload -&gt; /dev/null
 $ echo /tmp/ghost-ops/libghost.so &gt; /etc/ld.so.preload
 $ wc -c /etc/ld.so.preload
 0 /etc/ld.so.preload
